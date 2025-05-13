@@ -429,6 +429,7 @@ struct KerligStylePanelView: View {
                             
                             // Search/prompt field
                             promptField
+
                             
                             // Quick action buttons
                                      if appState.aiResponse.isEmpty {
@@ -528,22 +529,15 @@ struct KerligStylePanelView: View {
     }
     
     private var actionButtonsView: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(quickActions.enumerated()), id: \.element) { index, action in
-                ActionButton(
-                    action: action,
-                    isSelected: self.selectedAction == action,
-                    isProcessing: self.isProcessing && self.selectedAction == action,
-                    isFocused: focusedField == .actionButton(index),
-                    onSelect: { self.selectAction(action) }
-                )
-                .focused($focusedField, equals: .actionButton(index))
-                .padding(.horizontal, 16)
-                .transition(.opacity)
-                .animation(.easeInOut.delay(Double(index) * 0.05), value: self.animatePanel)
+        ActionButtonsView(
+            selectedAction: $selectedAction,
+            isProcessing: $isProcessing,
+            focusedField: _focusedField,
+            animateEntrance: $animatePanel,
+            onActionSelected: { action in
+                selectAction(action)
             }
-        }
-        .padding(.top, 12)
+        )
     }
     
     private var responseView: some View {

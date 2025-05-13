@@ -169,6 +169,27 @@ private let modelOptions: [String: [ModelOption]] = [
                 .buttonStyle(PlainButtonStyle())
                 .help("Start a new blank conversation")
 
+                // Pin Button
+                Button(action: {
+                    appState.togglePinState()
+                    
+                    // Show visual feedback
+                    let feedbackGenerator = NSHapticFeedbackManager.defaultPerformer
+                    feedbackGenerator.perform(.levelChange, performanceTime: .default)
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: appState.isPinned ? "pin.fill" : "pin.slash")
+                            .font(.system(size: 12))
+                            .foregroundColor(appState.isPinned ? .blue : .secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help(appState.isPinned ? "Unpin panel (panel will close when clicking outside)" : "Pin panel (panel will stay open when clicking outside)")
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appState.isPinned)
+                .scaleEffect(appState.isPinned ? 1.03 : 1.0)
+
                 // AI Model Selector - Enhanced Menu
                 Menu {
                     // Model selection header

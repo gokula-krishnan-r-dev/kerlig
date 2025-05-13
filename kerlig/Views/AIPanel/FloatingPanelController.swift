@@ -6,8 +6,13 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
     private var hotkeyManager = HotkeyManager()
     private var cachedSelectedText: String = ""
     private var isAttemptingTextCapture = false
+    private var appStateRef: AppState? = nil
+    
     
     func togglePanel(appState: AppState) {
+        // Store reference to appState for later use
+        self.appStateRef = appState
+        
         if appState.isAIPanelVisible {
             closePanel()
             appState.isAIPanelVisible = false
@@ -96,6 +101,9 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
     
     // Show empty selection panel when no text is selected
     func showEmptySelectionPanel(appState: AppState) {
+        // Store reference to the app state
+        self.appStateRef = appState
+        
         // Enhanced permissions verification before showing panel
         checkAndRefreshPermissions { permissionGranted in
             if permissionGranted {
@@ -174,6 +182,9 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
         appState.selectedText = selectedText
         appState.isAIPanelVisible = true
         appState.emptySelectionMode = false
+        
+        // Save reference to the app state
+        self.appStateRef = appState
         
         // Track the text source
         appState.updateSelectedText(selectedText, source: .directSelection)
@@ -264,8 +275,11 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
             // Check if the click is inside the panel's frame
             let panelFrame = panel.frame
             
-            // If click is outside the panel, close it
-            if !NSPointInRect(screenLocation, panelFrame) && !self.isAttemptingTextCapture {
+            // If click is outside the panel and not pinned, close it
+            // Use the stored AppState reference to check pin state
+            let isPinned = self.appStateRef?.isPinned ?? false
+            
+            if !NSPointInRect(screenLocation, panelFrame) && !self.isAttemptingTextCapture && !isPinned {
                 DispatchQueue.main.async {
                     self.closePanel()
                     // Notify AppState that panel is closed
@@ -298,8 +312,13 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
     
     // Window delegate methods
     func windowDidResignKey(_ notification: Notification) {
-        // Close panel when it loses focus
-        closePanel()
+        // Use the stored AppState reference to check pin state
+        let isPinned = self.appStateRef?.isPinned ?? false
+        
+        // Close panel when it loses focus only if not pinned
+        if !isPinned {
+            closePanel()
+        }
     }
     
     // Add this method to handle pin state changes
@@ -307,6 +326,11 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
         if let isPinned = notification.object as? Bool {
             // Update panel behavior based on pin state
             panel?.hidesOnDeactivate = !isPinned
+            
+            // Also update our reference to the AppState
+            if appStateRef != nil {
+                appStateRef?.isPinned = isPinned
+            }
         }
     }
 } 
