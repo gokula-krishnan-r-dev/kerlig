@@ -44,43 +44,17 @@ struct ContentView: View {
     }
     
     var body: some View {
-        NavigationView {
-            // Sidebar
-            sidebarView
-            
-            // Main content area
-            ZStack {
-                switch selectedSidebarItem {
-                case .dashboard:
-                    dashboardView
-                case .textCapture:
-                    TextCaptureView()
-                        .environmentObject(appState)
-                case .history:
-                    historyView
-                case .settings:
-                    SettingsView()
-                        .environmentObject(appState)
-                case .none:
-                    dashboardView // Default view if nothing selected
-                }
-            }
-            .frame(minWidth: 600, idealWidth: 800)
-        }
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    toggleSidebar()
-                }) {
-                    Image(systemName: "sidebar.left")
-                }
-            }
+        HStack {
+            Text("SonicMemory")
+            .font(.largeTitle)
+            .fontWeight(.bold)
+            .foregroundColor(.accentColor)
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
         }
         .onAppear {
-            // Check if this is first launch
-            isFirstLaunch = appState.savedAPIKey.isEmpty
-
-
             textCaptureService.startMonitoring()
             print("Last captured text: \(textCaptureService.lastCapturedText)")
             
@@ -91,14 +65,6 @@ struct ContentView: View {
             registerHotkey()
             
             setupClipboardPolling()
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-                .environmentObject(appState)
-        }
-        .sheet(isPresented: $isFirstLaunch) {
-            OnboardingView(isFirstLaunch: $isFirstLaunch)
-                .environmentObject(appState)
         }
         .alert(isPresented: $showPermissionsNeeded) {
             Alert(
@@ -278,32 +244,7 @@ struct ContentView: View {
         }
     }
     
-    // Restart the accessibility subsystem completely
-    private func restartAccessibilitySubsystem(completion: @escaping (Bool) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            // Launch and then kill System Events to restart the accessibility subsystem
-            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/CoreServices/System Events.app"))
-            
-            // Give it a moment to launch
-            Thread.sleep(forTimeInterval: 0.5)
-            
-            // Terminate it to cause a restart
-            let killTask = Process()
-            killTask.launchPath = "/usr/bin/killall"
-            killTask.arguments = ["System Events"]
-            try? killTask.run()
-            
-            // Give time for the subsystem to restart
-            Thread.sleep(forTimeInterval: 1.0)
-            
-            // Check permissions again
-            DispatchQueue.main.async {
-                let hasPermission = self.hotkeyManager.hasAccessibilityPermission() || 
-                                    self.hotkeyManager.examineProcessPrivileges()
-                completion(hasPermission)
-            }
-        }
-    }
+    
     
     private func setupClipboardPolling() {
         // Initialize timer to check clipboard periodically
@@ -327,217 +268,5 @@ struct ContentView: View {
         }
     }
     
-    private func toggleSidebar() {
-        NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
-    }
-    
-    private var dashboardView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "message.and.waveform.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.accentColor)
-            
-            Text("Streamline")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("AI Assistant is ready")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            Text("Select text in any application and press Option+Space")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .padding(.horizontal)
-            
-            Text("Featuring the new Kerlig-style interface")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.blue)
-                .padding(.horizontal)
-            
-            Spacer().frame(height: 30)
-            
-            Button(action: {
-                selectedSidebarItem = .textCapture
-            }) {
-                Label("Capture Text", systemImage: "text.cursor")
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            if appState.apiKey.isEmpty {
-                Text("⚠️ API key not configured")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .padding(.top, 8)
-            }
-            
-            // Permission status indicator
-            if !hotkeyManager.hasAccessibilityPermission() && !permissionGranted {
-                VStack(spacing: 8) {
-                    Button(action: {
-                        showPermissionsNeeded = true
-                    }) {
-                        Label("Accessibility Permission Required", systemImage: "exclamationmark.triangle")
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-                            .background(Color.orange.opacity(0.2))
-                            .foregroundColor(.orange)
-                            .cornerRadius(8)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    // Refresh permissions button
-                    Button(action: {
-                        refreshPermissions()
-                    }) {
-                        Label("Refresh Permissions", systemImage: "arrow.clockwise")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(.top, 2)
-                }
-                .padding(.top, 12)
-            }
-            
-            // Manual trigger button for testing
-            Button(action: {
-                // Check clipboard first
-                let pasteboard = NSPasteboard.general
-                if let clipboardText = pasteboard.string(forType: .string), !clipboardText.isEmpty {
-                    // Update app state with clipboard content
-                    appState.updateSelectedText(clipboardText, source: .clipboard)
-                    floatingPanel.showPanel(with: clipboardText, appState: appState)
-                } else {
-                    // Show empty selection panel
-                    floatingPanel.showEmptySelectionPanel(appState: appState)
-                }
-            }) {
-                Label("Test Assistant", systemImage: "text.magnifyingglass")
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor)
-                    .foregroundColor(Color.white)
-                    .cornerRadius(8)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .padding(.top, 12)
-        }
-        .padding()
-    }
-    
-    private var historyView: some View {
-        VStack(spacing: 16) {
-            Text("Interaction History")
-                .font(.title)
-                .fontWeight(.bold)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 8)
-            
-            if appState.history.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "clock.badge.questionmark")
-                        .font(.system(size: 60))
-                        .foregroundColor(.secondary.opacity(0.6))
-                        .padding(.bottom, 8)
-                    
-                    Text("No history yet")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("Your interactions with the AI assistant will appear here.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding()
-            } else {
-                List {
-                    ForEach(appState.history.indices.reversed(), id: \.self) { index in
-                        let interaction = appState.history[index]
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(interaction.timestamp, formatter: itemFormatter)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            Text(interaction.prompt.prefix(100) + (interaction.prompt.count > 100 ? "..." : ""))
-                                .font(.headline)
-                                .lineLimit(2)
-                            
-                            Text(interaction.response.prefix(150) + (interaction.response.count > 150 ? "..." : ""))
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                                .lineLimit(3)
-                        }
-                        .padding(.vertical, 8)
-                        .contextMenu {
-                            Button(action: {
-                                copyToClipboard(interaction.response)
-                            }) {
-                                Label("Copy Response", systemImage: "doc.on.doc")
-                            }
-                            
-                            Button(action: {
-                                appState.deleteHistoryItem(at: index)
-                            }) {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                    }
-                }
-                
-                Button(action: {
-                    appState.clearHistory()
-                }) {
-                    Label("Clear History", systemImage: "trash")
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.bordered)
-                .padding()
-            }
-        }
-        .padding()
-    }
-    
-    private var sidebarView: some View {
-        List {
-            ForEach(SidebarItem.allCases, id: \.self) { item in
-                NavigationLink(
-                    destination: EmptyView(), // This is handled by the main content area
-                    tag: item,
-                    selection: $selectedSidebarItem
-                ) {
-                    Label(item.rawValue, systemImage: item.icon)
-                        .padding(.vertical, 4)
-                }
-            }
-        }
-        .listStyle(SidebarListStyle())
-        .frame(minWidth: 180, idealWidth: 220)
-    }
-    
-    // Helper for clipboard copy
-    private func copyToClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-    }
-    
-    // Date formatter for history items
-    private let itemFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 

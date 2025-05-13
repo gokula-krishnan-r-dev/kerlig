@@ -194,10 +194,10 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
                 contentRect: NSRect(x: 0, y: 0, width: 640, height: 520),
                 styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                 backing: .buffered,
-                defer: false
+                defer: false,
             )
             
-            panel.title = "AI Assistant"
+            panel.title = "SonicMemory"
             panel.isFloatingPanel = true
             panel.level = .floating
             panel.titleVisibility = .visible
