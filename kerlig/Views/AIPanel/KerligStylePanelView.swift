@@ -401,6 +401,12 @@ struct KerligStylePanelView: View {
                 if selectedTab == .blank {
                     ScrollView {
                         VStack(spacing: 0) {
+                             // actionButtonsView
+                            if !appState.aiResponse.isEmpty {
+                                responseView
+                            }
+
+                            
                             // Search/prompt field
                             promptField
 
@@ -408,10 +414,7 @@ struct KerligStylePanelView: View {
                             if appState.aiResponse.isEmpty {
                             actionButtonsView
                             }
-                            // actionButtonsView
-                            if !appState.aiResponse.isEmpty {
-                                responseView
-                            }
+                           
                         }
                         .padding(.bottom, 20)
                     }
@@ -422,6 +425,10 @@ struct KerligStylePanelView: View {
                     // Content when "with content" tab is selected
                     ScrollView {
                         VStack(spacing: 0) {
+
+                             if !appState.aiResponse.isEmpty {
+                                responseView
+                            }
                             // Selected text display
                             if !appState.selectedText.isEmpty {
                                 selectedTextView
@@ -436,9 +443,7 @@ struct KerligStylePanelView: View {
                          actionButtonsView
                                      }
                             
-                            if !appState.aiResponse.isEmpty {
-                                responseView
-                            }
+                           
                         }
                         .padding(.bottom, 20)
                     }
