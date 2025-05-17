@@ -137,8 +137,7 @@ struct SelectedTextView: View {
                             .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
                     )
             )
-            .padding(.horizontal, 12)
-            .padding(.top, 3)
+            .padding(.top, 8)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

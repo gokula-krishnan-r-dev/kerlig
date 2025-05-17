@@ -47,7 +47,7 @@ public struct FormattedTextView: View {
     private let alignment: TextAlignment
     private let lineSpacing: CGFloat
     private let documentStyle: DocumentStyle
-    
+
     /// Document styling options for the formatted text
     public enum DocumentStyle {
         /// Standard document with default styling
@@ -238,6 +238,8 @@ public struct FormattedTextView: View {
                     codeBlockView(text: component.text, language: language)
                 case .taskList(let checked):
                     taskListItemView(text: component.text, isChecked: checked)
+                case .thinkContent(let content):
+                    thinkContentView(content: content, text: component.text)
                 }
             }
         }
@@ -399,6 +401,318 @@ public struct FormattedTextView: View {
         }
         .padding(.leading, documentStyle.sectionPadding)
     }
+    
+    private func thinkContentView(content: String, text: String) -> some View {
+        CollapsibleThinkView(
+            content: content,
+            fontSize: fontSize, textColor: textColor,
+        )
+    }
+}
+
+import SwiftUI
+
+struct CollapsibleThinkView: View {
+    let content: String
+    var fontSize: CGFloat = 16
+    var textColor: Color = .primary
+    
+    @State private var isExpanded: Bool = false
+    @State private var isHovering: Bool = false
+    private let animationDuration: Double = 0.25
+    var body: some View {
+        VStack(spacing: 0) {
+
+HStack{
+    Text("Thinking")
+    // .font(documentStyle.bodyFont(size: fontSize))
+    .foregroundColor(textColor)
+
+    Spacer()
+
+ // Expand/collapse button
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: animationDuration)) {
+                            isExpanded.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Text(isExpanded ? "Collapse" : "Expand")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+
+}
+.padding(.horizontal, 8)
+
+    VStack{
+        Text(content)
+        // .font(documentStyle.bodyFont(size: fontSize))
+        .foregroundColor(textColor)
+        .lineLimit(isExpanded ? nil : 2)
+    }   
+    .padding(.vertical, 8)
+        .padding(.horizontal, 2)
+            
+           
+
+        } 
+        .padding(.vertical, 8)
+        .padding(.horizontal, 2)
+        .border(Color.white.opacity(0.1), width: 1)
+        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.03))
+        )
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
+    }
+}
+
+// Reusable component for each analysis point to improve code organization
+struct AnalysisPointView: View {
+    let number: String
+    let title: String
+    let description: String
+    let fontSize: CGFloat
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Number circle
+            ZStack {
+                Circle()
+                    .fill(Color.yellow.opacity(0.15))
+                    .frame(width: fontSize * 1.5, height: fontSize * 1.5)
+                
+                Text(number)
+                    .font(.system(size: fontSize - 2, weight: .medium))
+                    .foregroundColor(Color.yellow.opacity(0.8))
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: fontSize - 1, weight: .medium))
+                
+                Text(description)
+                    .font(.system(size: fontSize - 2))
+                    .foregroundColor(.primary.opacity(0.7))
+            }
+        }
+    }
+}
+
+
+
+
+// MARK: - Inner Formatted Text View
+// This view is used to render markdown inside collapsible sections
+private struct InnerFormattedTextView: View {
+    private let text: String
+    private let fontSize: CGFloat
+    private let textColor: Color
+    private let documentStyle: FormattedTextView.DocumentStyle
+    
+    init(
+        _ text: String,
+        fontSize: CGFloat,
+        textColor: Color,
+        documentStyle: FormattedTextView.DocumentStyle
+    ) {
+        self.text = text
+        self.fontSize = fontSize
+        self.textColor = textColor
+        self.documentStyle = documentStyle
+    }
+    
+    var body: some View {
+        let components = TextFormatter.parse(text)
+        
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(components.indices, id: \.self) { index in
+                let component = components[index]
+                
+                switch component.type {
+                case .plainText:
+                    Text(component.text)
+                        .font(documentStyle.bodyFont(size: fontSize))
+                        .foregroundColor(textColor)
+                        .multilineTextAlignment(.leading)
+                case .boldText:
+                    Text(component.text)
+                        .font(documentStyle.bodyFont(size: fontSize).bold())
+                        .foregroundColor(textColor)
+                        .multilineTextAlignment(.leading)
+                case .italicText:
+                    Text(component.text)
+                        .font(documentStyle.bodyFont(size: fontSize).italic())
+                        .foregroundColor(textColor)
+                        .multilineTextAlignment(.leading)
+                case .codeText:
+                    Text(component.text)
+                        .font(documentStyle.codeFont(size: fontSize))
+                        .padding(4)
+                        .background(Color.gray.opacity(0.2))
+                        .cornerRadius(4)
+                        .foregroundColor(textColor)
+                        .multilineTextAlignment(.leading)
+                case .bulletPoint:
+                    innerBulletPointView(text: component.text)
+                case .numberedPoint(let number):
+                    innerNumberedPointView(text: component.text, number: number)
+                case .header(let level):
+                    innerHeaderView(text: component.text, level: level)
+                case .quote:
+                    innerQuoteView(text: component.text)
+                case .horizontalRule:
+                    Divider()
+                        .background(textColor.opacity(0.5))
+                        .padding(.vertical, 4)
+                case .codeBlock(let language):
+                    innerCodeBlockView(text: component.text, language: language)
+                case .taskList(let checked):
+                    innerTaskListItemView(text: component.text, isChecked: checked)
+                // Skip inner think blocks to avoid infinite recursion
+                case .thinkContent:
+                    Text(component.text)
+                        .font(documentStyle.bodyFont(size: fontSize))
+                        .foregroundColor(textColor)
+                        .padding(4)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(4)
+                case .link(let url):
+                    Link(destination: url) {
+                        Text(component.text)
+                            .font(documentStyle.bodyFont(size: fontSize))
+                            .foregroundColor(.blue)
+                            .underline()
+                    }
+                case .image:
+                    Text("(Image: \(component.text))")
+                        .font(documentStyle.bodyFont(size: fontSize).italic())
+                        .foregroundColor(textColor.opacity(0.7))
+                }
+            }
+        }
+    }
+    
+    // Inner component views (simplified versions of the main component views)
+    private func innerBulletPointView(text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .font(documentStyle.bodyFont(size: fontSize))
+                .foregroundColor(textColor)
+            
+            Text(text)
+                .font(documentStyle.bodyFont(size: fontSize))
+                .foregroundColor(textColor)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 4)
+    }
+    
+    private func innerNumberedPointView(text: String, number: Int) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(number).")
+                .font(documentStyle.bodyFont(size: fontSize))
+                .foregroundColor(textColor)
+                .frame(width: 20, alignment: .trailing)
+            
+            Text(text)
+                .font(documentStyle.bodyFont(size: fontSize))
+                .foregroundColor(textColor)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 4)
+    }
+    
+    private func innerHeaderView(text: String, level: Int) -> some View {
+        let scale: CGFloat = switch level {
+            case 1: 1.3
+            case 2: 1.2
+            case 3: 1.1
+            default: 1.0
+        }
+        
+        return Text(text)
+            .font(documentStyle.headingFont(size: fontSize * scale, level: level))
+            .foregroundColor(textColor)
+            .multilineTextAlignment(.leading)
+            .padding(.vertical, 2)
+    }
+    
+    private func innerQuoteView(text: String) -> some View {
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(Color.gray.opacity(0.5))
+                .frame(width: 3)
+            
+            Text(text)
+                .font(documentStyle.bodyFont(size: fontSize))
+                .italic()
+                .foregroundColor(textColor.opacity(0.8))
+                .multilineTextAlignment(.leading)
+        }
+        .padding(.vertical, 2)
+    }
+    
+    private func innerCodeBlockView(text: String, language: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if !language.isEmpty {
+                Text(language)
+                    .font(.system(size: fontSize - 4, weight: .bold, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(text)
+                    .font(documentStyle.codeFont(size: fontSize))
+                    .padding(8)
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .foregroundColor(textColor)
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(4)
+        .padding(.vertical, 2)
+    }
+    
+    private func innerTaskListItemView(text: String, isChecked: Bool) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                .foregroundColor(isChecked ? .green : .gray)
+                .font(.system(size: fontSize))
+            
+            Text(text)
+                .font(documentStyle.bodyFont(size: fontSize))
+                .foregroundColor(textColor)
+                .strikethrough(isChecked)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 4)
+    }
 }
 
 // MARK: - Text Formatter
@@ -418,6 +732,7 @@ public struct TextFormatter {
             case horizontalRule
             case codeBlock(language: String)
             case taskList(checked: Bool)
+            case thinkContent(content: String)
         }
         
         public let text: String
@@ -441,8 +756,86 @@ public struct TextFormatter {
         var inCodeBlock = false
         var codeBlockLanguage = ""
         var codeBlockContent = ""
+        var inThinkBlock = false
+        var thinkContent = ""
         
-        for line in lines {
+        // Define a regex pattern for <think> and </think> tags
+        let openTagPattern = "<think>"
+        let closeTagPattern = "</think>"
+        
+        // Process each line
+        for (index, line) in lines.enumerated() {
+            // Check for think block start
+            if line.contains(openTagPattern) && !inThinkBlock {
+                inThinkBlock = true
+                
+                // Handle text before the <think> tag on the same line
+                if let range = line.range(of: openTagPattern) {
+                    let beforeTag = line[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+                    if !beforeTag.isEmpty {
+                        // Process text before the tag as normal content
+                        components.append(TextComponent(text: beforeTag, type: .plainText))
+                    }
+                    
+                    // Extract content after the <think> tag on the same line
+                    let afterTag = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                    if !afterTag.isEmpty {
+                        thinkContent = afterTag
+                    }
+                }
+                continue
+            } 
+            // Check for think block end
+            else if line.contains(closeTagPattern) && inThinkBlock {
+                // Extract content before the </think> tag on the same line
+                if let range = line.range(of: closeTagPattern) {
+                    let beforeTag = line[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+                    if !beforeTag.isEmpty {
+                        if !thinkContent.isEmpty {
+                            thinkContent += "\n" + beforeTag
+                        } else {
+                            thinkContent = beforeTag
+                        }
+                    }
+                    
+                    // Process text after the </think> tag as normal content
+                    let afterTag = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                    if !afterTag.isEmpty {
+                        // Save the current think block
+                        if !thinkContent.isEmpty {
+                            components.append(TextComponent(text: thinkContent, type: .thinkContent(content: thinkContent)))
+                        }
+                        
+                        // Reset think content and state
+                        inThinkBlock = false
+                        thinkContent = ""
+                        
+                        // Process the rest of the line as normal content
+                        components.append(TextComponent(text: afterTag, type: .plainText))
+                        continue
+                    }
+                }
+                
+                // Add the think block content
+                if !thinkContent.isEmpty {
+                    components.append(TextComponent(text: thinkContent, type: .thinkContent(content: thinkContent)))
+                }
+                
+                // Reset think content and state
+                inThinkBlock = false
+                thinkContent = ""
+                continue
+            } 
+            // Accumulate think block content
+            else if inThinkBlock {
+                if !thinkContent.isEmpty {
+                    thinkContent += "\n" + line
+                } else {
+                    thinkContent = line
+                }
+                continue
+            }
+            
             // Check for code block start/end
             if line.hasPrefix("```") {
                 if inCodeBlock {
@@ -463,7 +856,6 @@ public struct TextFormatter {
                 }
             }
             
-            // If in code block, add to content
             if inCodeBlock {
                 if !codeBlockContent.isEmpty {
                     codeBlockContent += "\n"
@@ -471,6 +863,9 @@ public struct TextFormatter {
                 codeBlockContent += line
                 continue
             }
+            
+            // Rest of the parsing logic for other markdown elements
+            // ... existing code for parsing other elements ...
             
             if line.isEmpty {
                 // Add empty line
@@ -738,7 +1133,7 @@ extension String {
 
 // MARK: - Preview View
 struct FormattedTextPreviewView: View {
-    @State private var inputText: String = "# Markdown Text Formatter\n\nThis is a **rich text** formatter that supports various markdown features:\n\n## Formatting Options\n\n- **Bold text** with double asterisks\n- _Italic text_ with underscores\n- `Code blocks` with backticks\n\n### Lists\n\n1. Numbered lists work too\n2. Just start lines with numbers\n\n> This is a blockquote for important notes\n\n---\n\nYou can also include [links](https://www.apple.com) to websites.\n\nUse /n for manual line breaks.\n\n```swift\nfunc example() {\n    print(\"Code blocks with syntax highlighting\")\n}\n```\n\n![SwiftUI Logo](https://devimages-cdn.apple.com/wwdc-services/articles/images/C5082458-76EE-4934-B36B-79597AD18D7C/500_500.jpg)"
+    @State private var inputText: String = "# Markdown Text Formatter\n\nThis is a **rich text** formatter that supports various markdown features:\n\n## Formatting Options\n\n- **Bold text** with double asterisks\n- _Italic text_ with underscores\n- `Code blocks` with backticks\n\n<think>\nThis is collapsible thinking content that will be displayed in a nice expandable UI.\nYou can put any markdown content inside a think block.\n- Like lists\n- Or **bold text**\n</think>\n\n### Lists\n\n1. Numbered lists work too\n2. Just start lines with numbers\n\n> This is a blockquote for important notes\n\n---\n\nYou can also include [links](https://www.apple.com) to websites.\n\nUse /n for manual line breaks.\n\n<think>\nAnother think block with more content\nThis demonstrates that multiple think blocks work correctly\n</think>\n\n```swift\nfunc example() {\n    print(\"Code blocks with syntax highlighting\")\n}\n```\n\n![SwiftUI Logo](https://devimages-cdn.apple.com/wwdc-services/articles/images/C5082458-76EE-4934-B36B-79597AD18D7C/500_500.jpg)"
     @State private var fontSize: Double = 16
     @State private var darkMode: Bool = false
     @State private var lineSpacing: Double = 6
@@ -2065,4 +2460,5 @@ struct FormattedTextPreviewView_Previews: PreviewProvider {
         FormattedTextPreviewView()
             .preferredColorScheme(.dark)
     }
-} 
+}
+

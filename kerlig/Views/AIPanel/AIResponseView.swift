@@ -58,9 +58,16 @@ struct AIResponseView: View {
                 actionButtons
             }
         }
-        .glassCard()
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+         .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+ .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                    )
+            )
     }
     
     // Header with title and processing indicator
@@ -131,9 +138,8 @@ struct AIResponseView: View {
             } else {
                 if !appState.aiResponse.isEmpty {
                     FormattedTextView(appState.aiResponse)
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
+                        .padding(3)
+                        .frame(maxWidth: .infinity, alignment: .leading);
                 } else {
                     emptyResponseView
                 }
@@ -294,4 +300,3 @@ struct AIResponseView: View {
         NSUserNotificationCenter.default.deliver(notification)
     }
 }
-
