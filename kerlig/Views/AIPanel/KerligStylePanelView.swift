@@ -152,80 +152,7 @@ struct KerligStylePanelView: View {
             // Main content
             VStack(spacing: 0) {
                 // Custom header with close button
-                HStack {
-                    // Pin Button - moved from header
-                    Button(action: {
-                        appState.togglePinState()
-                        
-                        // Show visual feedback
-                        let feedbackGenerator = NSHapticFeedbackManager.defaultPerformer
-                        feedbackGenerator.perform(.levelChange, performanceTime: .default)
-                    }) {
-                        Image(systemName: appState.isPinned ? "pin.fill" : "pin")
-                            .font(.system(size: 14))
-                            .foregroundColor(appState.isPinned ? .blue : .secondary)
-                            .padding(8)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help(appState.isPinned ? "Unpin panel" : "Pin panel")
-                    
-                    Spacer()
-                    
-                    // Model selector - compact version
-                    Menu {
-                        // Simplified model menu
-                        ForEach(modelOptions.keys.sorted(), id: \.self) { provider in
-                            Section(header: Text(provider)) {
-                                ForEach(modelOptions[provider] ?? [], id: \.id) { model in
-                                    Button(action: {
-                                        appState.aiModel = model.id
-                                        UserDefaults.standard.set(model.id, forKey: "aiModel")
-                                    }) {
-                                        HStack {
-                                            if model.id == appState.aiModel {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 10))
-                                            }
-                                            Text(model.name)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "rectangle.stack")
-                                .font(.system(size: 12))
-                            Text("Model")
-                                .font(.system(size: 12))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 8))
-                        }
-                        .padding(8)
-                        .contentShape(Rectangle())
-                    }
-                    .menuStyle(BorderlessButtonMenuStyle())
-                    
-                    // Close button
-                    Button(action: {
-                        withAnimation {
-                            appState.isAIPanelVisible = false
-                            NotificationCenter.default.post(name: NSNotification.Name("ClosePanelNotification"), object: nil)
-                        }
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .padding(8)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Close panel")
-                }
-                .padding(.horizontal, 10)
-                .padding(.top, 5)
-                
+               HeaderPanelView()
                 // Main content from existing view
                 mainContentView
             }
@@ -548,9 +475,9 @@ struct KerligStylePanelView: View {
                             promptField
                             
                             // Quick action buttons
-                            if appState.aiResponse.isEmpty {
-                                actionButtonsView
-                            }
+                            // if appState.aiResponse.isEmpty {
+                            //     actionButtonsView
+                            // }
                         }
                         .padding(.bottom, 20)
                     }
@@ -572,10 +499,10 @@ struct KerligStylePanelView: View {
                             // Search/prompt field
                             promptField
                             
-                            // Quick action buttons
-                            if appState.aiResponse.isEmpty {
-                                actionButtonsView
-                            }
+                            // // Quick action buttons
+                            // if appState.aiResponse.isEmpty {
+                            //     actionButtonsView
+                            // }
                         }
                         .padding(.bottom, 20)
                     }

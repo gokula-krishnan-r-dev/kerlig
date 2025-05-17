@@ -133,14 +133,6 @@ struct AIResponseView: View {
                     FormattedTextView(appState.aiResponse)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.white.opacity(0.05))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
-                                )
-                        )
                         .padding(.horizontal, 16)
                 } else {
                     emptyResponseView
