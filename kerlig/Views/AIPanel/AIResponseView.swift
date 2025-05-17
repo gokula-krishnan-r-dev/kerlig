@@ -1,18 +1,16 @@
 import SwiftUI
 import AppKit
 
-// Add this extension if backgroundGradient() is used in the view
+// Update the extension to use our glass effect
 extension View {
     func backgroundGradient() -> some View {
         self.background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(NSColor.controlBackgroundColor).opacity(0.97),
-                    Color(NSColor.controlBackgroundColor).opacity(0.95)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
+                )
         )
     }
 }
@@ -55,18 +53,22 @@ struct AIResponseView: View {
                 Divider()
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
+                    .opacity(0.5)
                 
                 actionButtons
             }
         }
+        .glassCard()
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
     }
     
     // Header with title and processing indicator
     private var responseHeader: some View {
         HStack {
             Text("Response")
-                .font(.headline)
-                .foregroundColor(.secondary)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
             
             Spacer()
             
@@ -93,7 +95,7 @@ struct AIResponseView: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.gray.opacity(0.1))
+                .fill(Color.white.opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(Color.blue.opacity(0.2), lineWidth: 1)
@@ -131,11 +133,13 @@ struct AIResponseView: View {
                     FormattedTextView(appState.aiResponse)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .backgroundGradient()
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(Color.gray.opacity(0.2), lineWidth: 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.white.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
                         )
                         .padding(.horizontal, 16)
                 } else {
@@ -178,11 +182,13 @@ struct AIResponseView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.windowBackgroundColor))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.gray.opacity(0.2), lineWidth: 1)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                )
         )
         .padding(.horizontal, 16)
         .transition(.opacity)
@@ -199,108 +205,101 @@ struct AIResponseView: View {
                 .font(.headline)
                 .foregroundColor(.secondary)
             
-            Text("Submit a prompt or select an action to generate a response")
+            Text("Ask a question or select an action to get started")
                 .font(.subheadline)
                 .foregroundColor(.secondary.opacity(0.8))
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, minHeight: 150)
-        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity, minHeight: 200)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                )
+        )
         .padding(.horizontal, 16)
     }
     
-    // Action buttons for copy, insert, regenerate
+    // Action buttons displayed below the response
     private var actionButtons: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 18) {
             Spacer()
             
             // Copy button
-            actionButton(
-                label: "Copy",
-                systemImage: "doc.on.doc", isFocused: true,
-
-                shortcutLetter: "C",
-                action: { onCopy(appState.aiResponse) }
-            )
-
-            
-            // Insert button with dynamic states
             Button(action: {
-                onInsert(appState.aiResponse)
-            }) {
-                HStack(spacing: 4) {
-                    if isInserting {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 14, height: 14)
-                        Text(insertAttempts > 1 ? "Retrying..." : "Inserting...")
-                            .font(.footnote)
-                    } else if insertionStatus == .success {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Inserted")
-                            .font(.footnote)
-                    } else if insertionStatus == .failed {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundColor(.orange)
-                        Text("Insert Failed")
-                            .font(.footnote)
-                    } else {
-                        Image(systemName: "arrow.right.doc.on.clipboard")
-                        Text("Insert")
-                            .font(.footnote)
-                    }
+                if !appState.aiResponse.isEmpty {
+                    onCopy(appState.aiResponse)
+                    showToast("Copied to clipboard")
                 }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 12))
+                    
+                    Text("Copy")
+                        .font(.system(size: 13))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+                .contentShape(Rectangle())
             }
-
-            .disabled(isInserting)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
+            .buttonStyle(PlainButtonStyle())
             
-
+            // Insert button
+            Button(action: {
+                if !appState.aiResponse.isEmpty {
+                    onInsert(appState.aiResponse)
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.down.doc")
+                        .font(.system(size: 12))
+                    
+                    Text("Insert")
+                        .font(.system(size: 13))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Regenerate button
+            Button(action: {
+                onRegenerate()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12))
+                    
+                    Text("Regenerate")
+                        .font(.system(size: 13))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.purple.opacity(0.1))
+                .cornerRadius(8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     
-    // Reusable action button
-    private func actionButton(
-        label: String,
-        systemImage: String,
-        isFocused: Bool,
-        shortcutLetter: String,
-        isDisabled: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(label, systemImage: systemImage)
-                .font(.footnote)
-        }
-        .buttonStyle(AnimatedButtonStyle(
-            backgroundColor: isFocused ? Color.blue.opacity(0.1) : Color.clear,
-            isFocused: isFocused
-        ))
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .overlay(
-            Group {
-                if isFocused {
-                    shortcutBadge(letter: shortcutLetter)
-                }
-            }
-        )
-    }
-    
-    // Keyboard shortcut badge
-    private func shortcutBadge(letter: String) -> some View {
-        Text(letter)
-            .font(.system(size: 9, weight: .bold))
-            .padding(4)
-            .background(Color.blue)
-            .foregroundColor(.white)
-            .clipShape(Circle())
-            .offset(x: -32, y: -10)
+    // Helper for toast messages
+    private func showToast(_ message: String) {
+        let notification = NSUserNotification()
+        notification.title = message
+        notification.soundName = nil
+        NSUserNotificationCenter.default.deliver(notification)
     }
 }
 

@@ -13,6 +13,9 @@ struct SelectedTextView: View {
     @State private var isExpanded: Bool = false
     @State private var copyButtonScale: CGFloat = 1.0
     
+    private let maxCollapsedLines: Int = 3
+    private let animationDuration: Double = 0.25
+    
     // Calculate word count 
     private var wordCount: Int {
         displayedText.split(separator: " ").count
@@ -81,181 +84,150 @@ struct SelectedTextView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Main content card
-            VStack(alignment: .leading, spacing: 0) {
-                // Text content
-                ZStack(alignment: .topTrailing) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(displayText)
-                                .font(.system(size: 14, weight: .regular))
-                                .lineSpacing(5)
-                                .foregroundColor(.primary)
-                                .padding(16)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            // Show a subtle fade indicator at the bottom when text is truncated
-                            if shouldShowExpandButton() && !isExpanded {
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        textBackgroundColor.opacity(0),
-                                        textBackgroundColor.opacity(0.8),
-                                        textBackgroundColor
-                                    ]),
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                                .frame(height: 24)
-                                .padding(.top, -24)
-                            }
-                        }
-                    }
-                    .frame(height: calculateTextHeight())
-                    .background(textBackgroundColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    
-                    // Copy button overlay
-                    Button(action: {
-                        copyToClipboard(displayedText)
-                        
-                        // Button animation
-                        withAnimation(.spring(response: 0.2)) {
-                            copyButtonScale = 0.8
-                        }
-                        
-                        // Reset scale
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.spring(response: 0.2)) {
-                                copyButtonScale = 1.2
-                            }
-                            
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                withAnimation(.spring(response: 0.2)) {
-                                    copyButtonScale = 1.0
-                                }
-                            }
-                        }
-                        
-                        // Show notification
-                        withAnimation(.spring(response: 0.3)) {
-                            showCopiedNotification = true
-                        }
-                        
-                        // Hide notification after delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation(.easeOut(duration: 0.5)) {
-                                showCopiedNotification = false
-                            }
-                        }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(colorScheme == .dark ? Color(white: 0.2) : Color.white.opacity(0.95))
-                                .frame(width: 32, height: 32)
-                                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-                            
-                            Image(systemName: "doc.on.doc")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(accentColor)
-                        }
-                        .scaleEffect(copyButtonScale)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .opacity(isHovered ? 1.0 : 0.0)
-                    .padding(12)
-                }
-                
-                // Footer with stats and expand button
+        if !displayedText.isEmpty && isVisible {
+            VStack(alignment: .leading, spacing: 8) {
+                // Header with source indicator and expand/collapse controls
                 HStack {
-                    // Stats
-                    HStack(spacing: 8) {
-                        Text("\(characterCount) chars")
-                            .font(.system(size: 8))
-                            .foregroundColor(.secondary)
-                        
-                        Text("•")
-                            .font(.system(size: 8))
-                            .foregroundColor(.secondary)
-                        
-                        Text("\(wordCount) words")
-                            .font(.system(size: 8))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(statsBackgroundColor)
-                    .cornerRadius(8)
+                    // Source indicator
+                    sourceIndicator
                     
                     Spacer()
                     
-                    // Copy notification
-                    if showCopiedNotification {
-                        Text("Copied to clipboard")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(Color.green)
-                                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-                            )
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                    
-                    // Expand button
-                    if shouldShowExpandButton() {
-                        Button(action: {
-                            withAnimation(.spring(response: 0.4)) {
-                                isExpanded.toggle()
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.system(size: 10, weight: .bold))
-                                
-                                Text(isExpanded ? "Collapse" : "Expand")
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                            .foregroundColor(accentColor)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .background(accentColor.opacity(0.1))
-                            .cornerRadius(12)
+                    // Expand/collapse button
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: animationDuration)) {
+                            isExpanded.toggle()
                         }
-                        .buttonStyle(PlainButtonStyle())
-                        .contentShape(Rectangle())
-                        .transition(.scale.combined(with: .opacity))
+                    }) {
+                        HStack(spacing: 4) {
+                            Text(isExpanded ? "Collapse" : "Expand")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
+                        )
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .frame(height: 24)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(cardBackgroundColor.opacity(0.8))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                
+                // Text content
+                textContent
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
             }
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(cardBackgroundColor)
-                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1), radius: 5, x: 0, y: 2)
+                    .fill(Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                    )
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.gray.opacity(colorScheme == .dark ? 0.3 : 0.15), lineWidth: 1)
-            )
+            .padding(.horizontal, 12)
+            .padding(.top, 3)
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .transition(.asymmetric(
-            insertion: .scale(scale: 0.9).combined(with: .opacity),
-            removal: .scale(scale: 0.9).combined(with: .opacity)
-        ))
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isVisible)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
+    }
+    
+    // Source indicator - shows where the text came from
+    private var sourceIndicator: some View {
+        HStack(spacing: 6) {
+            // Icon based on source
+            Image(systemName: sourceIcon.0)
+                .font(.system(size: 12))
+                .foregroundColor(sourceIcon.1)
+            
+            // Text indicating source
+            Text(sourceText)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.primary.opacity(0.8))
+        }
+    }
+    
+    // Dynamic icon and color based on source
+    private var sourceIcon: (String, Color) {
+        switch appState.textSource {
+        case .directSelection:
+            return ("text.cursor", .blue)
+        case .clipboard:
+            return ("doc.on.clipboard", .green)
+        case .userInput:
+            return ("keyboard", .purple)
+        case .unknown:
+            return ("default", .blue)
+        }
+    }
+    
+    // Dynamic text based on source
+    private var sourceText: String {
+        switch appState.textSource {
+        case .directSelection:
+            return "Selected Text"
+        case .clipboard:
+            return "From Clipboard"
+        case .userInput:
+            return "Your Input"
+
+        case .unknown:
+            return "default"
+        }
+    }
+    
+    // Text content area - shows either full text or collapsed version
+    private var textContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // Show either collapsed or expanded text
+            if isExpanded {
+                // Full text
+                Text(AttributedString(displayedText))
+                    .font(.system(size: 13))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            } else {
+                // Collapsed text (first few lines)
+                Text(getPreviewText())
+                    .font(.system(size: 13))
+                    .lineSpacing(4)
+                    .lineLimit(maxCollapsedLines)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
+        }
+    }
+    
+    // Helper to get preview text (first few lines)
+    private func getPreviewText() -> AttributedString {
+        let lines = displayedText.split(separator: "\n")
+        
+        if lines.count <= maxCollapsedLines {
+            return AttributedString(displayedText)
+        } else {
+            let previewLines = lines.prefix(maxCollapsedLines)
+            let preview = previewLines.joined(separator: "\n")
+            var result = AttributedString(preview)
+            
+            // Add ellipsis indicator if text is truncated
+            if lines.count > maxCollapsedLines {
+                let ellipsis = AttributedString("\n...")
+                result.append(ellipsis)
+            }
+            
+            return result
         }
     }
     
@@ -280,7 +252,7 @@ struct SelectedTextView: View {
             let maxCollapsedHeight: CGFloat = 60 // Maximum height when collapsed
             
             // Count lines (explicitly shown newlines plus estimated line wraps)
-            var explicitLineCount = displayedText.components(separatedBy: "\n").count
+            let explicitLineCount = displayedText.components(separatedBy: "\n").count
             
             // Estimate additional wrapped lines based on character count
             // Assuming approximately 60 characters per line for the given width

@@ -4,6 +4,22 @@ import Combine
 import UserNotifications
 
 
+// Internal struct for model option information
+fileprivate struct ModelOption: Identifiable {
+    let id: String
+    let name: String
+    let iconName: String
+    let iconColor: Color
+    let cost: Double
+    let provider: String
+    let capabilities: String
+    let speed: String
+    
+    // Formatted cost string
+    var formattedCost: String {
+        return "$\(String(format: "%.5f", cost))/request"
+    }
+}
 
 struct KerligStylePanelView: View {
     @EnvironmentObject var appState: AppState
@@ -34,7 +50,61 @@ struct KerligStylePanelView: View {
     @State private var animatePanel: Bool = false
     @State private var isAnimating: Bool = false
     @FocusState private var searchQueryIsFocused: Bool
-    
+      // Rich model options for the dropdown
+    private let modelOptions: [String: [ModelOption]] = [
+        "OpenAI": [
+            ModelOption(id: "gpt-4o", name: "GPT-4o", iconName: "sparkle.magnifyingglass", iconColor: .green, cost: 0.01, provider: "OpenAI", capabilities: "Excellent", speed: "Fast"),
+            ModelOption(id: "gpt-4o-mini", name: "GPT-4o Mini", iconName: "sparkle", iconColor: .green, cost: 0.001, provider: "OpenAI", capabilities: "Good", speed: "Very Fast")
+        ],
+        "Anthropic": [
+            ModelOption(id: "claude-3-opus", name: "Claude 3 Opus", iconName: "wand.and.stars", iconColor: .purple, cost: 0.015, provider: "Anthropic", capabilities: "Excellent", speed: "Medium"),
+            ModelOption(id: "claude-3-sonnet", name: "Claude 3 Sonnet", iconName: "wand.and.stars.inverse", iconColor: .blue, cost: 0.003, provider: "Anthropic", capabilities: "Very Good", speed: "Fast"),
+            ModelOption(id: "claude-3-haiku", name: "Claude 3 Haiku", iconName: "wand.and.rays", iconColor: .teal, cost: 0.00025, provider: "Anthropic", capabilities: "Good", speed: "Very Fast")
+        ],
+        "Google": [
+            ModelOption(id: "gemini-pro", name: "Gemini Pro", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast")
+        ],
+        "Cloudflare Workers AI": [
+            // Text Models
+            ModelOption(id: "@cf/meta/llama-3-8b-instruct", name: "Llama 3 8B Instruct", iconName: "cloud", iconColor: .orange, cost: 0.0005, provider: "Cloudflare", capabilities: "Good", speed: "Fast"),
+            ModelOption(id: "@cf/meta/llama-3-70b-instruct", name: "Llama 3 70B Instruct", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+            ModelOption(id: "@cf/mistral/mistral-7b-instruct-v0.1", name: "Mistral 7B Instruct", iconName: "wind", iconColor: .blue, cost: 0.0005, provider: "Cloudflare", capabilities: "Good", speed: "Fast"),
+            ModelOption(id: "@cf/mistral/mistral-large-latest", name: "Mistral Large", iconName: "wind.snow", iconColor: .blue, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
+            //@cf/deepseek-ai/deepseek-r1-distill-qwen-32b
+            ModelOption(id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", name: "DeepSeek R1 Distill Qwen 32B", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
+            //@hf/google/gemma-7b-it
+            ModelOption(id: "@hf/google/gemma-7b-it", name: "Gemma 7B IT", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+            //@hf/google/gemma-2-9b-it
+            ModelOption(id: "@hf/google/gemma-2-9b-it", name: "Gemma 2 9B IT", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+            //@hf/google/gemma-2-9b-it
+            ModelOption(id: "@hf/google/gemma-2-9b-it", name: "Gemma 2 9B IT", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
+            // Embedding Models
+            ModelOption(id: "@cf/baai/bge-base-en-v1.5", name: "BGE Base English", iconName: "square.stack.3d.up", iconColor: .teal, cost: 0.0001, provider: "Cloudflare", capabilities: "Embeddings", speed: "Very Fast"),
+            ModelOption(id: "@cf/baai/bge-large-en-v1.5", name: "BGE Large English", iconName: "square.stack.3d.up.fill", iconColor: .teal, cost: 0.0002, provider: "Cloudflare", capabilities: "Embeddings", speed: "Fast"),
+            
+            // Vision Models
+            ModelOption(id: "@cf/openai/clip-vit-b-32", name: "CLIP ViT-B/32", iconName: "eye", iconColor: .purple, cost: 0.0001, provider: "Cloudflare", capabilities: "Vision", speed: "Fast"),
+            ModelOption(id: "@cf/openai/clip-vit-l-14", name: "CLIP ViT-L/14", iconName: "eye.fill", iconColor: .purple, cost: 0.0002, provider: "Cloudflare", capabilities: "Vision", speed: "Medium"),
+            
+            // Text-to-Image Models
+            ModelOption(id: "@cf/stabilityai/stable-diffusion-xl-base-1.0", name: "Stable Diffusion XL", iconName: "paintbrush", iconColor: .pink, cost: 0.002, provider: "Cloudflare", capabilities: "Image Generation", speed: "Slow"),
+            ModelOption(id: "@cf/lykon/dreamshaper-8-lcm", name: "Dreamshaper 8 LCM", iconName: "sparkles", iconColor: .pink, cost: 0.001, provider: "Cloudflare", capabilities: "Image Generation", speed: "Medium"),
+            
+            // Translation Models
+            ModelOption(id: "@cf/meta/m2m100-1.2b", name: "M2M100 1.2B", iconName: "globe", iconColor: .green, cost: 0.0002, provider: "Cloudflare", capabilities: "Translation", speed: "Fast"),
+            
+            // Speech Recognition Models
+            ModelOption(id: "@cf/openai/whisper", name: "Whisper", iconName: "waveform", iconColor: .blue, cost: 0.0005, provider: "Cloudflare", capabilities: "Speech-to-Text", speed: "Medium")
+        ]
+    ]
     // New states for insert functionality
     @State var isInserting: Bool = false
     @State var insertAttempts: Int = 0
@@ -74,25 +144,98 @@ struct KerligStylePanelView: View {
 
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header with app info
-            HeaderPanelView()
+        ZStack {
+            // Background with blur effect
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.clear)
             
-            // Main content area with prompt and actions
-            mainContentView
+            // Main content
+            VStack(spacing: 0) {
+                // Custom header with close button
+                HStack {
+                    // Pin Button - moved from header
+                    Button(action: {
+                        appState.togglePinState()
+                        
+                        // Show visual feedback
+                        let feedbackGenerator = NSHapticFeedbackManager.defaultPerformer
+                        feedbackGenerator.perform(.levelChange, performanceTime: .default)
+                    }) {
+                        Image(systemName: appState.isPinned ? "pin.fill" : "pin")
+                            .font(.system(size: 14))
+                            .foregroundColor(appState.isPinned ? .blue : .secondary)
+                            .padding(8)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help(appState.isPinned ? "Unpin panel" : "Pin panel")
+                    
+                    Spacer()
+                    
+                    // Model selector - compact version
+                    Menu {
+                        // Simplified model menu
+                        ForEach(modelOptions.keys.sorted(), id: \.self) { provider in
+                            Section(header: Text(provider)) {
+                                ForEach(modelOptions[provider] ?? [], id: \.id) { model in
+                                    Button(action: {
+                                        appState.aiModel = model.id
+                                        UserDefaults.standard.set(model.id, forKey: "aiModel")
+                                    }) {
+                                        HStack {
+                                            if model.id == appState.aiModel {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 10))
+                                            }
+                                            Text(model.name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "rectangle.stack")
+                                .font(.system(size: 12))
+                            Text("Model")
+                                .font(.system(size: 12))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8))
+                        }
+                        .padding(8)
+                        .contentShape(Rectangle())
+                    }
+                    .menuStyle(BorderlessButtonMenuStyle())
+                    
+                    // Close button
+                    Button(action: {
+                        withAnimation {
+                            appState.isAIPanelVisible = false
+                            NotificationCenter.default.post(name: NSNotification.Name("ClosePanelNotification"), object: nil)
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(8)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("Close panel")
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, 5)
+                
+                // Main content from existing view
+                mainContentView
+            }
         }
         .frame(width: 640, height: 520)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 5)
         .onAppear {
-            // Initialize the coordinator if needed
-            // if coordinator == nil {
-            //     coordinator = TextInsertionCoordinator(parentView: self)
-            // }
-            
             // Initialize displayed text from appState
             displayedText = appState.selectedText
-            
             
             // Set correct tab based on whether text is selected
             selectedTab = displayedText.isEmpty ? .blank : .withContent
@@ -115,11 +258,6 @@ struct KerligStylePanelView: View {
             
             // Request notification permission
             requestNotificationPermission()
-            
-            // Create a new TextInsertionService with the coordinator as delegate
-            // if let coordinator = coordinator {
-            //     textInsertionService = TextInsertionService(delegate: coordinator)
-            // }
         }
         .onChange(of: appState.isAIPanelVisible) { oldValue, newValue in
             if newValue {
@@ -401,32 +539,29 @@ struct KerligStylePanelView: View {
                 if selectedTab == .blank {
                     ScrollView {
                         VStack(spacing: 0) {
-                             // actionButtonsView
+                            // actionButtonsView
                             if !appState.aiResponse.isEmpty {
                                 responseView
                             }
-
                             
                             // Search/prompt field
                             promptField
-
+                            
                             // Quick action buttons
                             if appState.aiResponse.isEmpty {
-                            actionButtonsView
+                                actionButtonsView
                             }
-                           
                         }
                         .padding(.bottom, 20)
                     }
-                    .backgroundGradient()
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(8)
+                    .cornerRadius(16)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
                 } else {
                     // Content when "with content" tab is selected
                     ScrollView {
                         VStack(spacing: 0) {
-
-                             if !appState.aiResponse.isEmpty {
+                            if !appState.aiResponse.isEmpty {
                                 responseView
                             }
                             // Selected text display
@@ -436,24 +571,20 @@ struct KerligStylePanelView: View {
                             
                             // Search/prompt field
                             promptField
-
                             
                             // Quick action buttons
-                                     if appState.aiResponse.isEmpty {
-                         actionButtonsView
-                                     }
-                            
-                           
+                            if appState.aiResponse.isEmpty {
+                                actionButtonsView
+                            }
                         }
                         .padding(.bottom, 20)
                     }
-                    .backgroundGradient()
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(8)
+                    .cornerRadius(16)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
                 }
             }
         }
-        .backgroundGradient()
     }
     
     private var selectedTextView: some View {

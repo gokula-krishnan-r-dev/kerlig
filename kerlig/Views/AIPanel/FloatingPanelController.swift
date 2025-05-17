@@ -7,8 +7,9 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
     private var cachedSelectedText: String = ""
     private var isAttemptingTextCapture = false
     private var appStateRef: AppState? = nil
+    private var visualEffectView: NSVisualEffectView? = nil
     
-    
+    // MARK: - Panel Toggling
     func togglePanel(appState: AppState) {
         // Store reference to appState for later use
         self.appStateRef = appState
@@ -203,30 +204,75 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
             // Create panel if it doesn't exist
             let panel = NSPanel(
                 contentRect: NSRect(x: 0, y: 0, width: 640, height: 520),
-                styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+                styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .borderless],
                 backing: .buffered,
                 defer: false,
             )
             
-            panel.title = "SonicMemory"
+            // Remove title and make panel fully transparent
             panel.isFloatingPanel = true
             panel.level = .floating
-            panel.titleVisibility = .visible
+            panel.titleVisibility = .hidden
             panel.titlebarAppearsTransparent = true
             panel.isMovableByWindowBackground = true
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            
+            // Hide all standard window buttons
+            panel.standardWindowButton(.closeButton)?.isHidden = true
             panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
             panel.standardWindowButton(.zoomButton)?.isHidden = true
-            panel.backgroundColor = NSColor.white // Force light theme
-            panel.appearance = NSAppearance(named: .aqua) // Light appearance
+            
+            // Create a visual effect view for the backdrop
+            let visualEffectView = NSVisualEffectView()
+            visualEffectView.translatesAutoresizingMaskIntoConstraints = false
+            visualEffectView.material = .hudWindow
+            visualEffectView.blendingMode = .behindWindow
+            visualEffectView.state = .active
+            visualEffectView.wantsLayer = true
+            
+            // Add rounded corners to the visual effect view
+            visualEffectView.layer?.cornerRadius = 20
+            visualEffectView.layer?.masksToBounds = true
+            
+            if let contentView = panel.contentView {
+                contentView.addSubview(visualEffectView)
+                
+                // Make visual effect view fill the content view
+                NSLayoutConstraint.activate([
+                    visualEffectView.topAnchor.constraint(equalTo: contentView.topAnchor),
+                    visualEffectView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                    visualEffectView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                    visualEffectView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+                ])
+                
+                // Store reference to the visual effect view
+                self.visualEffectView = visualEffectView
+            }
             
             // Set up the content view with SwiftUI
             let hostingController = NSHostingController(
                 rootView: KerligStylePanelView()
                     .environmentObject(appState)
-                    .preferredColorScheme(.light) // Force light theme in SwiftUI
+                    .padding(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             )
             
-            panel.contentView = hostingController.view
+            // Add the hosting view to the visual effect view
+            let hostView = hostingController.view
+            hostView.translatesAutoresizingMaskIntoConstraints = false
+            visualEffectView.addSubview(hostView)
+            
+            // Constrain the hosting view to fill the visual effect view
+            NSLayoutConstraint.activate([
+                hostView.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
+                hostView.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+                hostView.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+                hostView.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor)
+            ])
+            
+            // Set background to clear for transparency
+            hostView.wantsLayer = true
+            hostView.layer?.backgroundColor = NSColor.clear.cgColor
             
             // Position panel in a good default location - center of screen
             if let mainScreen = NSScreen.main {
@@ -234,9 +280,7 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
                 panel.center()
             }
             
-            // Set up panel closing behavior
-            panel.standardWindowButton(.closeButton)?.target = self
-            panel.standardWindowButton(.closeButton)?.action = #selector(closeButtonClicked)
+            // Add a custom close button through SwiftUI
             
             // Make panel close when clicking outside by default
             panel.hidesOnDeactivate = true
@@ -261,6 +305,16 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
         
         // Add global monitor for outside clicks
         setupGlobalMonitor()
+        
+        // Add entrance animation
+        if let panel = self.panel {
+            panel.alphaValue = 0.0
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().alphaValue = 1.0
+            }
+        }
     }
     
     // Set up global monitor to detect clicks outside the panel
@@ -300,10 +354,23 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
     }
     
     func closePanel() {
-        panel?.orderOut(nil)
-        
-        // Update app state
-        NotificationCenter.default.post(name: NSNotification.Name("ClosePanelNotification"), object: nil)
+        // Fade out animation
+        if let panel = self.panel {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.15
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().alphaValue = 0.0
+            }, completionHandler: {
+                panel.orderOut(nil)
+                
+                // Update app state
+                NotificationCenter.default.post(name: NSNotification.Name("ClosePanelNotification"), object: nil)
+            })
+        } else {
+            panel?.orderOut(nil)
+            // Update app state
+            NotificationCenter.default.post(name: NSNotification.Name("ClosePanelNotification"), object: nil)
+        }
     }
     
     @objc private func closeButtonClicked() {
