@@ -522,7 +522,7 @@ struct KerligStylePanelView: View {
                     }
                 }
             ),
-            onSubmit: {
+            onSubmit: {_ in 
                 self.processCustomPrompt()
             },
             onCancel: {

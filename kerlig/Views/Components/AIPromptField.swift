@@ -19,6 +19,33 @@ fileprivate struct ModelOption: Identifiable {
     }
 }
 
+// Action struct for dynamic buttons
+fileprivate struct AIPromptAction: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let iconName: String
+    let shortcutKey: String
+    let shortcutModifiers: EventModifiers
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        return lhs.id == rhs.id
+    }
+    // Preset actions
+    static let ask = AIPromptAction(id: "ask", name: "Ask", iconName: "arrow.right", shortcutKey: "p", shortcutModifiers: .command)
+    static let fix = AIPromptAction(id: "fix", name: "Fix spelling and grammar", iconName: "sparkles.rectangle.stack", shortcutKey: "f", shortcutModifiers: .command)
+    static let translate = AIPromptAction(id: "translate", name: "Translate", iconName: "globe", shortcutKey: "t", shortcutModifiers: .command)
+    static let improve = AIPromptAction(id: "improve", name: "Improve writing", iconName: "pencil.line", shortcutKey: "i", shortcutModifiers: .command)
+    static let summarize = AIPromptAction(id: "summarize", name: "Summarize", iconName: "text.redaction", shortcutKey: "s", shortcutModifiers: .command)
+    static let makeShort = AIPromptAction(id: "makeShort", name: "Make shorter", iconName: "minus.forwardslash.plus", shortcutKey: "m", shortcutModifiers: .command)
+    
+    // All available actions
+    static let allActions: [AIPromptAction] = [ask, fix, translate, improve, summarize, makeShort]
+}
+
 struct AIPromptField: View {
     @Binding var searchQuery: String
     @Binding var isProcessing: Bool
@@ -30,6 +57,9 @@ struct AIPromptField: View {
     @State private var errorMessage: String = ""
     @State private var isHovering: Bool = false
     @State private var isModelMenuOpen: Bool = false
+    @State private var selectedAction: AIPromptAction = AIPromptAction.ask
+    @State private var showActionsList: Bool = false
+    @State private var hoveredActionIndex: Int? = nil
     
     // Rich model options for the dropdown
     private let modelOptions: [String: [ModelOption]] = [
@@ -87,7 +117,7 @@ struct AIPromptField: View {
         ]
     ]
     
-    var onSubmit: () -> Void
+    var onSubmit: (String) -> Void
     var onCancel: () -> Void
     
     @FocusState private var searchQueryIsFocused: Bool
@@ -116,7 +146,7 @@ struct AIPromptField: View {
         selectedTab: Binding<AIPromptTab>,
         aiModel: Binding<String>,
         focusedField: Binding<FocusableField?>,
-        onSubmit: @escaping () -> Void,
+        onSubmit: @escaping (String) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self._searchQuery = searchQuery
@@ -205,119 +235,16 @@ struct AIPromptField: View {
             
             // Action bar - conditionally displayed
             if appState.aiResponse.isEmpty && !searchQuery.isEmpty {
-                HStack(spacing: 10) {
-                    // Left arrow icon
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 20)
-                    
-                    // Dynamic prompt text with keyboard shortcut
-                    HStack(spacing: 4) {
-                        Text("Ask \"\(formattedQuery)\"")
-                            .font(.system(size: 13))
-                            .foregroundColor(.white)
-                        
-                        HStack(spacing: 2) {
-                            Text("⌘+P")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.7))
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(3)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Model selector dropdown
-                    Menu {
-                        ForEach(Array(modelOptions.keys.sorted()), id: \.self) { provider in
-                            Section(header: Text(provider)) {
-                                ForEach(modelOptions[provider] ?? []) { model in
-                                    Button(action: {
-                                        appState.aiModel = model.id
-                                        isModelMenuOpen = false
-                                    }) {
-                                        HStack {
-                                            Image(systemName: model.iconName)
-                                                .foregroundColor(model.iconColor)
-                                            
-                                            VStack(alignment: .leading) {
-                                                Text(model.name)
-                                                    .font(.system(size: 12))
-                                                
-                                                Text(model.formattedCost)
-                                                    .font(.system(size: 10))
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            
-                                            Spacer()
-                                            
-                                            if appState.aiModel == model.id {
-                                                Image(systemName: "checkmark")
-                                                    .foregroundColor(.blue)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(currentModel.name)
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
-                                  // TAB indicator
-                    Text("TAB")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        )
-                        .cornerRadius(4)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.15))
-                        .cornerRadius(4)
-                    }
-                    .menuStyle(BorderlessButtonMenuStyle())
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    
-                  
-                    
-                    // Run button
-                    Button(action: {
-                        submitPrompt()
-                    }) {
-                        HStack(spacing: 6) {
-                            Text("Run")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white)
-                            
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.15))
-                        .cornerRadius(4)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.blue)
-                .cornerRadius(8)
-                .transition(.opacity)
-                .animation(.easeInOut(duration: 0.2), value: !searchQuery.isEmpty || !appState.aiResponse.isEmpty || !isProcessing)
+                actionsBar
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.2), value: !searchQuery.isEmpty || !appState.aiResponse.isEmpty || !isProcessing)
+            }
+            
+            // Actions dropdown list - conditionally displayed
+            if showActionsList && !searchQuery.isEmpty {
+                actionsListView
+                    .transition(.scale.combined(with: .opacity))
+                    .animation(.spring(response: 0.2), value: showActionsList)
             }
             
             // Error message display
@@ -354,6 +281,255 @@ struct AIPromptField: View {
             .keyboardShortcut(.escape, modifiers: [])
             .opacity(0)
         )
+        // Add keyboard shortcuts for navigation
+        .onKeyPress(.upArrow) {
+            if showActionsList {
+                navigateActions(direction: -1)
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.downArrow) {
+            if showActionsList {
+                navigateActions(direction: 1)
+                return .handled
+            } else if !searchQuery.isEmpty {
+                showActionsList = true
+                hoveredActionIndex = 0
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.return) {
+            if showActionsList, let index = hoveredActionIndex, index >= 0 && index < AIPromptAction.allActions.count {
+                selectAndSubmitAction(AIPromptAction.allActions[index])
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.tab) {
+            if !searchQuery.isEmpty {
+                isModelMenuOpen = !isModelMenuOpen
+                return .handled
+            }
+            return .ignored
+        }
+    }
+    
+    // Action bar UI
+    private var actionsBar: some View {
+        HStack(spacing: 10) {
+            // Action icon
+            Image(systemName: selectedAction.iconName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 20)
+            
+            // Dynamic action text with keyboard shortcut
+            HStack(spacing: 4) {
+                Text("\(selectedAction.name) \"\(formattedQuery)\"")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white)
+                
+                HStack(spacing: 2) {
+                    Text("⌘+\(selectedAction.shortcutKey.uppercased())")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.white.opacity(0.2))
+                        .cornerRadius(3)
+                }
+            }
+            
+            Spacer()
+            
+            // Model selector dropdown
+            Menu {
+                ForEach(Array(modelOptions.keys.sorted()), id: \.self) { provider in
+                    Section(header: Text(provider)) {
+                        ForEach(modelOptions[provider] ?? []) { model in
+                            Button(action: {
+                                appState.aiModel = model.id
+                                isModelMenuOpen = false
+                            }) {
+                                HStack {
+                                    Image(systemName: model.iconName)
+                                        .foregroundColor(model.iconColor)
+                                    
+                                    VStack(alignment: .leading) {
+                                        Text(model.name)
+                                            .font(.system(size: 12))
+                                        
+                                        Text(model.formattedCost)
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if appState.aiModel == model.id {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(currentModel.name)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
+                    
+                    // TAB indicator
+                    Text("TAB")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                        .cornerRadius(4)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.15))
+                .cornerRadius(4)
+            }
+            .menuStyle(BorderlessButtonMenuStyle())
+            .menuIndicator(.hidden)
+            .fixedSize()
+            
+            // Actions selector button (dropdown indicator)
+            Button(action: {
+                showActionsList.toggle()
+                if showActionsList {
+                    hoveredActionIndex = AIPromptAction.allActions.firstIndex(of: selectedAction)
+                }
+            }) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white)
+                    .padding(6)
+                    .background(Color.white.opacity(0.15))
+                    .cornerRadius(4)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Run button
+            Button(action: {
+                submitPrompt()
+            }) {
+                HStack(spacing: 6) {
+                    Text("Run")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white)
+                    
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.15))
+                .cornerRadius(4)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.blue)
+        .cornerRadius(8)
+    }
+    
+    // Actions list dropdown
+    private var actionsListView: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(AIPromptAction.allActions.enumerated()), id: \.element.id) { index, action in
+                Button(action: {
+                    selectAndSubmitAction(action)
+                }) {
+                    HStack(spacing: 12) {
+                        // Action icon
+                        Image(systemName: action.iconName)
+                            .font(.system(size: 14))
+                            .foregroundColor(action.id == selectedAction.id ? .blue : .primary)
+                            .frame(width: 20)
+                        
+                        // Action name
+                        Text(action.name)
+                            .font(.system(size: 13))
+                            .foregroundColor(action.id == selectedAction.id ? .blue : .primary)
+                        
+                        Spacer()
+                        
+                        // Keyboard shortcut
+                        Text("⌘+\(action.shortcutKey.uppercased())")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(3)
+                        
+                        // Execute arrow
+                        Image(systemName: "return")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .background(hoveredActionIndex == index ? Color.blue.opacity(0.1) : Color.clear)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .onHover { isHovered in
+                    if isHovered {
+                        hoveredActionIndex = index
+                    } else if hoveredActionIndex == index {
+                        hoveredActionIndex = nil
+                    }
+                }
+                
+                if index < AIPromptAction.allActions.count - 1 {
+                    Divider()
+                        .padding(.leading, 48)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.windowBackgroundColor))
+                .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        )
+    }
+    
+    // Navigate through actions with arrow keys
+    private func navigateActions(direction: Int) {
+        guard !AIPromptAction.allActions.isEmpty else { return }
+        
+        if let currentIndex = hoveredActionIndex {
+            let newIndex = (currentIndex + direction) % AIPromptAction.allActions.count
+            hoveredActionIndex = newIndex < 0 ? AIPromptAction.allActions.count - 1 : newIndex
+        } else {
+            hoveredActionIndex = direction > 0 ? 0 : AIPromptAction.allActions.count - 1
+        }
+    }
+    
+    // Select and use an action
+    private func selectAndSubmitAction(_ action: AIPromptAction) {
+        selectedAction = action
+        showActionsList = false
+        submitPrompt()
     }
     
     // Function to validate and submit prompt
@@ -371,8 +547,27 @@ struct AIPromptField: View {
         hasError = false
         errorMessage = ""
         
-        // Submit the prompt
-        onSubmit()
+        // Create the appropriate prompt based on the selected action
+        var actionPrompt = searchQuery
+        
+        switch selectedAction.id {
+        case "fix":
+            actionPrompt = "Fix spelling and grammar: \(searchQuery)"
+        case "translate":
+            actionPrompt = "Translate to English: \(searchQuery)"
+        case "improve":
+            actionPrompt = "Improve this writing: \(searchQuery)"
+        case "summarize":
+            actionPrompt = "Summarize this: \(searchQuery)"
+        case "makeShort":
+            actionPrompt = "Make this text shorter while preserving meaning: \(searchQuery)"
+        default:
+            // Default "ask" action uses the query as is
+            break
+        }
+        
+        // Submit the prompt with the action context
+        onSubmit(actionPrompt)
     }
 }
 
