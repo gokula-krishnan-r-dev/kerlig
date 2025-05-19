@@ -110,10 +110,12 @@ class AIService {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        // Construct a dynamic payload with model preference from UserDefaults
+        // and structured instruction template for AI responses
         let payload: [String: Any] = [
             "model": UserDefaults.standard.string(forKey: "aiModel") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
             "text": prompt,
-            "instruction": "You are a helpful assistant that can help with a variety of tasks. You are given a text and a task. You need to help the user with the task using the text. You can use the text to help you complete the task.",
+            "instruction": generateInstructionTemplate(systemPrompt: systemPrompt)
         ]
         
         logger.log("Payload prepared: \(payload)", level: .debug)
@@ -255,10 +257,25 @@ class AIService {
         
         return simulateResponseForAction(text: text, action: actionType)
     }
+
+
+    func generateInstructionTemplate(systemPrompt: String) -> String {
+        return """
+        You are a helpful assistant that can help with the following tasks:
+        - Improve writing quality
+        - Fix spelling and grammar errors
+        - Improve writing quality
+        - Translate text to English or French
+        - Make text shorter
+        - Summarize text
+        - Generate a list of keywords from the text
+        - Generate a list of questions from the text
+        - write a doc for the text
+        """
+    }
 }
 
 // MARK: - Response Models
-
 struct AIResponse: Decodable {
     let response: String
     let toolCalls: [ToolCall]?
