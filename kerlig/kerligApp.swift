@@ -10,53 +10,59 @@ import SwiftUI
 @main
 struct kerligApp: App {
     @State private var popover = NSPopover()
-     @StateObject private var appState = AppState()
+    @StateObject private var appState = AppState()
     @State private var floatingPanel: FloatingPanelController?
     @State private var statusBarController: StatusBarController?
 
     @StateObject private var textCaptureService = TextCaptureService()
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(appState)
-                .frame(minWidth: 800, minHeight: 600)
-                .onAppear {
-                     if statusBarController == nil {
-                        statusBarController = StatusBarController(captureService: textCaptureService)
-                    }
+            ZStack {
+                // Show main content if not first launch
+                if !appState.isFirstLaunch {
+                    ContentView()
+                        .environmentObject(appState)
+                        .frame(minWidth: 800, minHeight: 600)
+                        .onAppear {
+                            if statusBarController == nil {
+                                statusBarController = StatusBarController(captureService: textCaptureService)
+                            }
 
-                    textCaptureService.startMonitoring()
-    
-                    // Request permissions on first launch
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        let hotkeyManager = HotkeyManager()
-                        hotkeyManager.showAccessibilityPermissionsDialog()
-                    }
-                    
-                    // Set up popover
-                    setupPopover()
-                    
-                    // Set up floating panel
-                    setupFloatingPanel()
-                    
-                    // Register for panel close notifications
-                    registerForPanelCloseNotifications()
+                            textCaptureService.startMonitoring()
             
+                            // Request permissions on first launch
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                let hotkeyManager = HotkeyManager()
+                                hotkeyManager.showAccessibilityPermissionsDialog()
+                            }
+                            
+                            // Set up popover
+                            setupPopover()
+                            
+                            // Set up floating panel
+                            setupFloatingPanel()
+                            
+                            // Register for panel close notifications
+                            registerForPanelCloseNotifications()
+                        }
+                } else {
+                    // Show welcome screen on first launch
+                    WelcomeView()
+                        .environmentObject(appState)
+                        .frame(minWidth: 800, minHeight: 600)
                 }
+            }
         }
         .windowStyle(HiddenTitleBarWindowStyle())
         .commands {
-             // Add keyboard commands for common actions
+            // Add keyboard commands for common actions
             CommandGroup(after: .appInfo) {
                 Button("Capture Text") {
                     textCaptureService.captureSelectedText()
                 }
                 .keyboardShortcut("c", modifiers: [.option, .command])
             }
-
-            
         }
-        
     }
     
     private func setupPopover() {

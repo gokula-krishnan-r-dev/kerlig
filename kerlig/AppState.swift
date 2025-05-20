@@ -2,6 +2,13 @@ import Foundation
 import SwiftUI
 import Combine
 
+// Define OnboardingStep enum locally to avoid import issues
+enum OnboardingStep: String, CaseIterable {
+    case permissions = "Permissions"
+    case modelSelection = "Model Selection"
+    case appOverview = "App Overview"
+}
+
 class AppState: ObservableObject {
     // User settings
     @Published var hotkeyEnabled: Bool = true
@@ -13,6 +20,10 @@ class AppState: ObservableObject {
     @Published var responseStyle: ResponseStyle = .balanced
     @Published var isPinned: Bool = false // Track if panel is pinned
     @Published var startWithBlank: Bool = false // Track if starting with blank content
+    @Published var isFirstLaunch: Bool = false // Track if this is the first app launch
+    
+    // Onboarding related
+    @Published var currentOnboardingStep: OnboardingStep = .permissions
     
     // History
     @Published var history: [ChatInteraction] = []
@@ -101,11 +112,26 @@ class AppState: ObservableObject {
         }
     }
     
+    var savedIsFirstLaunch: Bool {
+        get {
+            // Return true if the key doesn't exist yet (first launch)
+            !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+        }
+        set {
+            // When setting to false, it means app has been launched
+            UserDefaults.standard.set(!newValue, forKey: "hasLaunchedBefore")
+            isFirstLaunch = newValue
+        }
+    }
+    
     init() {
         // Load saved settings
         apiKey = savedAPIKey
         aiModel = savedModel
         currentTheme = "light" // Force light theme
+        
+        // Check if this is first launch
+        isFirstLaunch = savedIsFirstLaunch
         
         // Default to true if never set before
         if UserDefaults.standard.object(forKey: "hotkeyEnabled") == nil {
@@ -270,6 +296,28 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(responseStyle.rawValue, forKey: "responseStyle")
         UserDefaults.standard.set(isPinned, forKey: "isPinned")
         UserDefaults.standard.set(startWithBlank, forKey: "startWithBlank")
+    }
+    
+    // Mark first launch as completed
+    func completeFirstLaunch() {
+        savedIsFirstLaunch = false
+    }
+    
+    // Move to the next onboarding step
+    func nextOnboardingStep() {
+        guard let currentIndex = OnboardingStep.allCases.firstIndex(of: currentOnboardingStep) else { return }
+        
+        if currentIndex < OnboardingStep.allCases.count - 1 {
+            currentOnboardingStep = OnboardingStep.allCases[currentIndex + 1]
+        } else {
+            // Last step - complete onboarding
+            completeFirstLaunch()
+        }
+    }
+    
+    // Skip onboarding and go straight to the app
+    func skipOnboarding() {
+        completeFirstLaunch()
     }
 }
 
