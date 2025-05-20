@@ -197,7 +197,6 @@ struct AIPromptField: View {
     var body: some View {
         VStack(spacing: 8) {
             // Input field section
-            Divider()
             HStack(spacing: 10) {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 16))
@@ -212,26 +211,28 @@ struct AIPromptField: View {
                         submitPrompt()
                     }
                     .placeholder(when: searchQuery.isEmpty) {
-                        Text("Explain circadian rhythm")
+                        Text("Type your query...")
                             .foregroundColor(.secondary.opacity(0.7))
                             .font(.system(size: 15))
                     }
                 
                 Spacer()
-                
-                Button(action: {}) {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                }
+                if (!searchQuery.isEmpty) {
+                    Button(action: {
+                        searchQuery = ""
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                    }
                 .buttonStyle(PlainButtonStyle())
+                }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.vertical, 14)
             .background(Color(.controlBackgroundColor))
             .cornerRadius(8)
             
-            Divider()
             
             // Action bar - conditionally displayed
             if appState.aiResponse.isEmpty && !searchQuery.isEmpty {

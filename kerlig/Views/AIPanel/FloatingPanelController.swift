@@ -203,7 +203,7 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
         if panel == nil {
             // Create panel if it doesn't exist
             let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 640, height: 420),
+                contentRect: NSRect(x: 0, y: 0, width: 640, height: 0),
                 styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .borderless],
                 backing: .buffered,
                 defer: false,

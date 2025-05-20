@@ -156,7 +156,7 @@ private let modelOptions: [String: [ModelOption]] = [
                     HStack(spacing: 6) {
                         Text("Start blank")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.white)
                         
                         Image(systemName: "arrow.up.forward.square")
                             .font(.system(size: 12))
