@@ -513,7 +513,8 @@ public struct FormattedTextView: View {
     private func thinkContentView(content: String, text: String) -> some View {
         CollapsibleThinkView(
             content: content,
-            fontSize: fontSize, textColor: textColor,
+            fontSize: fontSize,
+            textColor: textColor
         )
     }
 }
@@ -521,72 +522,206 @@ public struct FormattedTextView: View {
 
 struct CollapsibleThinkView: View {
     let content: String
-    var fontSize: CGFloat = 16
-    var textColor: Color = .primary
+    let fontSize: CGFloat
+    let textColor: Color
     
     @State private var isExpanded: Bool = false
     @State private var isHovering: Bool = false
     private let animationDuration: Double = 0.25
+    
+    // Parse content into paragraphs for better display
+    private var paragraphs: [String] {
+        return content.components(separatedBy: "\n\n")
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
-
-HStack{
-    Text("Thinking")
-    // .font(documentStyle.bodyFont(size: fontSize))
-    .foregroundColor(textColor)
-
-    Spacer()
-
- // Expand/collapse button
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: animationDuration)) {
-                            isExpanded.toggle()
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Text(isExpanded ? "Collapse" : "Expand")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                            
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.white.opacity(0.05))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
-                                )
-                        )
+            // Header section
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain")
+                        .font(.system(size: fontSize - 2))
+                        .foregroundColor(.secondary)
+                    
+                    Text("AI Thinking Process")
+                        .font(.system(size: fontSize - 1, weight: .medium))
+                        .foregroundColor(textColor.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                // Expand/collapse button
+                Button(action: {
+                    withAnimation(.easeInOut(duration: animationDuration)) {
+                        isExpanded.toggle()
                     }
-                    .buttonStyle(PlainButtonStyle())
-
-
-}
-.padding(.horizontal, 8)
-
-    VStack{
-        Text(content)
-        // .font(documentStyle.bodyFont(size: fontSize))
-        .foregroundColor(textColor)
-        .lineLimit(isExpanded ? nil : 2)
-    }   
-    .padding(.vertical, 8)
-        .padding(.horizontal, 2)
-        } 
-        .padding(.vertical, 8)
-        .padding(.horizontal, 2)
-        .border(Color.white.opacity(0.1), width: 1)
-        .cornerRadius(12)
+                }) {
+                    HStack(spacing: 4) {
+                        Text(isExpanded ? "Collapse" : "Expand")
+                            .font(.system(size: fontSize - 4, weight: .medium))
+                            .foregroundColor(.secondary)
+                        
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: fontSize - 6))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.secondary.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
+                            )
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .opacity(isHovering ? 1.0 : 0.7)
+                .scaleEffect(isHovering ? 1.0 : 0.95)
+                .animation(.easeInOut(duration: 0.2), value: isHovering)
+                .onHover { hovering in
+                    isHovering = hovering
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.secondary.opacity(0.05))
+            .cornerRadius(8, corners: [RectCorner.topLeft, RectCorner.topRight])
+            
+            // Content section
+            if isExpanded {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(paragraphs.indices, id: \.self) { index in
+                            Text(paragraphs[index])
+                                .font(.system(size: fontSize - 1))
+                                .foregroundColor(textColor.opacity(0.9))
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.bottom, 4)
+                        }
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .frame(maxHeight: 400)
+            } else {
+                VStack(alignment: .leading) {
+                    Text(content)
+                        .font(.system(size: fontSize - 1))
+                        .foregroundColor(textColor.opacity(0.7))
+                        .lineLimit(2)
+                        .lineSpacing(4)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.03))
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.secondary.opacity(0.05))
         )
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.secondary.opacity(0.1), lineWidth: 1)
+        )
+        .padding(.vertical, 8)
+    }
+}
+
+// Extension to apply rounded corners to specific corners
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: RectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RectCorner: OptionSet {
+    let rawValue: Int
+    
+    static let topLeft = RectCorner(rawValue: 1 << 0)
+    static let topRight = RectCorner(rawValue: 1 << 1)
+    static let bottomRight = RectCorner(rawValue: 1 << 2)
+    static let bottomLeft = RectCorner(rawValue: 1 << 3)
+    
+    static let allCorners: RectCorner = [.topLeft, .topRight, .bottomRight, .bottomLeft]
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat
+    var corners: RectCorner
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        let tl = corners.contains(.topLeft)
+        let tr = corners.contains(.topRight)
+        let bl = corners.contains(.bottomLeft)
+        let br = corners.contains(.bottomRight)
+        
+        // Start from top-left
+        let topLeft = CGPoint(x: rect.minX, y: rect.minY)
+        if tl {
+            path.move(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+        } else {
+            path.move(to: topLeft)
+        }
+        
+        // Top-right corner
+        if tr {
+            path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+            path.addArc(center: CGPoint(x: rect.maxX - radius, y: rect.minY + radius),
+                        radius: radius,
+                        startAngle: Angle(degrees: -90),
+                        endAngle: Angle(degrees: 0),
+                        clockwise: false)
+        } else {
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        }
+        
+        // Bottom-right corner
+        if br {
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+            path.addArc(center: CGPoint(x: rect.maxX - radius, y: rect.maxY - radius),
+                        radius: radius,
+                        startAngle: Angle(degrees: 0),
+                        endAngle: Angle(degrees: 90),
+                        clockwise: false)
+        } else {
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        }
+        
+        // Bottom-left corner
+        if bl {
+            path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+            path.addArc(center: CGPoint(x: rect.minX + radius, y: rect.maxY - radius),
+                        radius: radius,
+                        startAngle: Angle(degrees: 90),
+                        endAngle: Angle(degrees: 180),
+                        clockwise: false)
+        } else {
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        }
+        
+        // Close path back to top-left
+        if tl {
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+            path.addArc(center: CGPoint(x: rect.minX + radius, y: rect.minY + radius),
+                        radius: radius,
+                        startAngle: Angle(degrees: 180),
+                        endAngle: Angle(degrees: 270),
+                        clockwise: false)
+        } else {
+            path.addLine(to: topLeft)
+        }
+        
+        return path
     }
 }
 
