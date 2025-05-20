@@ -60,6 +60,9 @@ struct AIPromptField: View {
     @State private var selectedAction: AIPromptAction = AIPromptAction.ask
     @State private var showActionsList: Bool = false
     @State private var hoveredActionIndex: Int? = nil
+    @State private var isDictating: Bool = false
+    @State private var microphoneOpacity: Double = 1.0
+    @State private var showDictationPulse: Bool = false
     
     // Rich model options for the dropdown
     private let modelOptions: [String: [ModelOption]] = [
@@ -217,6 +220,44 @@ struct AIPromptField: View {
                     }
                 
                 Spacer()
+                
+                // Dictation button with animation
+                Button(action: {
+                    toggleDictation()
+                }) {
+                    ZStack {
+                        // Pulse animation for active dictation
+                        if showDictationPulse {
+                            Circle()
+                                .fill(Color.red.opacity(0.3))
+                                .frame(width: 30, height: 30)
+                                .scaleEffect(showDictationPulse ? 1.5 : 1.0)
+                                .opacity(showDictationPulse ? 0 : 0.3)
+                                .animation(
+                                    Animation.easeInOut(duration: 1.0)
+                                        .repeatForever(autoreverses: false),
+                                    value: showDictationPulse
+                                )
+                        }
+                        
+                        // Microphone icon
+                        Image(systemName: isDictating ? "mic.fill" : "mic")
+                            .font(.system(size: 14))
+                            .foregroundColor(isDictating ? .red : .secondary)
+                            .opacity(microphoneOpacity)
+                            .frame(width: 24, height: 24)
+                            .background(
+                                Circle()
+                                    .fill(Color(.controlBackgroundColor))
+                                    .shadow(color: isDictating ? .red.opacity(0.3) : .clear, radius: 4, x: 0, y: 0)
+                            )
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .keyboardShortcut("d", modifiers: [.function])
+                .help("Start dictation (fn + D) or use your system dictation shortcut")
+                .padding(.trailing, 4)
+                
                 if (!searchQuery.isEmpty) {
                     Button(action: {
                         searchQuery = ""
@@ -233,6 +274,50 @@ struct AIPromptField: View {
             .background(Color(.controlBackgroundColor))
             .cornerRadius(8)
             
+            // Dictation helper text - shown when dictation is active
+            if isDictating {
+                HStack(spacing: 8) {
+                    // Audio visualization
+                    HStack(spacing: 2) {
+                        ForEach(0..<5, id: \.self) { index in
+                            Rectangle()
+                                .fill(Color.red)
+                                .frame(width: 3, height: CGFloat.random(in: 5...15))
+                                .animation(
+                                    Animation.easeInOut(duration: 0.2)
+                                        .repeatForever()
+                                        .delay(Double(index) * 0.05),
+                                    value: isDictating
+                                )
+                        }
+                    }
+                    .frame(width: 20)
+                    
+                    Text("Speak your prompt... Press fn+D or Esc to stop dictation")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        stopDictation()
+                    }) {
+                        Text("Stop")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.red)
+                            .cornerRadius(4)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.controlBackgroundColor).opacity(0.8))
+                .cornerRadius(6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
             
             // Action bar - conditionally displayed
             if appState.aiResponse.isEmpty && !searchQuery.isEmpty {
@@ -315,6 +400,21 @@ struct AIPromptField: View {
             }
             return .ignored
         }
+        .onKeyPress(.escape) {
+            if isDictating {
+                stopDictation()
+                return .handled
+            }
+            return .ignored
+        }
+//        // Function key + D shortcut for dictation
+//        .onKeyPress(.init("d")) { event in
+//            if event.modifiers.contains(.function) {
+//                toggleDictation()
+//                return .handled
+//            }
+//            return .ignored
+//        }
     }
     
     // Action bar UI
@@ -569,6 +669,59 @@ struct AIPromptField: View {
         
         // Submit the prompt with the action context
         onSubmit(actionPrompt)
+    }
+    
+    // Toggle dictation on/off
+    private func toggleDictation() {
+        if isDictating {
+            stopDictation()
+        } else {
+            startDictation()
+        }
+    }
+    
+    // Start dictation with animation
+    private func startDictation() {
+        isDictating = true
+        showDictationPulse = true
+        
+        // Trigger native macOS dictation (using system shortcut)
+        let source = CGEventSource(stateID: .combinedSessionState)
+        
+        // Note: This simulates pressing the dictation shortcut.
+        // Users should have dictation enabled and configured in System Settings
+        let fnKeyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x3F, keyDown: true)
+        let fnKeyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x3F, keyDown: false)
+        
+        fnKeyDown?.flags = .maskSecondaryFn
+        fnKeyUp?.flags = .maskSecondaryFn
+        
+        fnKeyDown?.post(tap: .cghidEventTap)
+        fnKeyUp?.post(tap: .cghidEventTap)
+        
+        // Microphone "breathing" animation
+        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
+            microphoneOpacity = 0.6
+        }
+    }
+    
+    // Stop dictation
+    private func stopDictation() {
+        isDictating = false
+        showDictationPulse = false
+        
+        // Reset microphone opacity
+        withAnimation {
+            microphoneOpacity = 1.0
+        }
+        
+        // Simulate Esc key to stop native dictation
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let escKeyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x35, keyDown: true)
+        let escKeyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x35, keyDown: false)
+        
+        escKeyDown?.post(tap: .cghidEventTap)
+        escKeyUp?.post(tap: .cghidEventTap)
     }
 }
 
