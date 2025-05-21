@@ -24,6 +24,7 @@ class AppState: ObservableObject {
     
     // Onboarding related
     @Published var currentOnboardingStep: OnboardingStep = .permissions
+    @Published var onboardingComplete: Bool = false // Track if onboarding is complete
     
     // History
     @Published var history: [ChatInteraction] = []
@@ -124,6 +125,16 @@ class AppState: ObservableObject {
         }
     }
     
+    var savedOnboardingComplete: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "onboardingComplete")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "onboardingComplete")
+            onboardingComplete = newValue
+        }
+    }
+    
     init() {
         // Load saved settings
         apiKey = savedAPIKey
@@ -133,11 +144,14 @@ class AppState: ObservableObject {
         // Check if this is first launch
         isFirstLaunch = savedIsFirstLaunch
         
+        // Load onboarding status
+        onboardingComplete = false
+        
         // Default to true if never set before
         if UserDefaults.standard.object(forKey: "hotkeyEnabled") == nil {
             UserDefaults.standard.set(true, forKey: "hotkeyEnabled")
         }
-        hotkeyEnabled = savedHotkeyEnabled
+        hotkeyEnabled = true
         
         // Load pin state
         if UserDefaults.standard.object(forKey: "isPinned") != nil {
@@ -312,12 +326,19 @@ class AppState: ObservableObject {
         } else {
             // Last step - complete onboarding
             completeFirstLaunch()
+            completeOnboarding()
         }
     }
     
     // Skip onboarding and go straight to the app
     func skipOnboarding() {
         completeFirstLaunch()
+        savedOnboardingComplete = true
+    }
+    
+    // Mark onboarding as complete
+    func completeOnboarding() {
+        savedOnboardingComplete = true
     }
 }
 

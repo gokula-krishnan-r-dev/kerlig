@@ -18,8 +18,8 @@ struct kerligApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // Show main content if not first launch
-                if !appState.isFirstLaunch {
+                // Show main content if not first launch and onboarding complete
+                if !appState.isFirstLaunch && appState.onboardingComplete {
                     ContentView()
                         .environmentObject(appState)
                         .frame(minWidth: 800, minHeight: 600)
@@ -45,9 +45,14 @@ struct kerligApp: App {
                             // Register for panel close notifications
                             registerForPanelCloseNotifications()
                         }
-                } else {
+                } else if appState.isFirstLaunch {
                     // Show welcome screen on first launch
                     WelcomeView()
+                        .environmentObject(appState)
+                        .frame(minWidth: 800, minHeight: 600)
+                } else {
+                    // Show onboarding screens after welcome but before main app
+                    OnboardingView()
                         .environmentObject(appState)
                         .frame(minWidth: 800, minHeight: 600)
                 }
