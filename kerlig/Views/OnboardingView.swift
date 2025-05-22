@@ -30,6 +30,14 @@ struct OnboardingView: View {
                     .padding(.top, 30)
                     .padding(.bottom, 10)
                     .matchedGeometryEffect(id: "title", in: animation)
+
+
+
+                    Text(subTitleForStep(appState.currentOnboardingStep))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
+                        .padding(.bottom, 20)
+                        .matchedGeometryEffect(id: "subtitle", in: animation)
                 
                 // Current step view
                 ZStack {
@@ -125,13 +133,26 @@ struct OnboardingView: View {
     private func titleForStep(_ step: OnboardingStep) -> String {
         switch step {
         case .permissions:
-            return "App Permissions"
+            return "Accessibility Permission"
         case .modelSelection:
             return "Choose Your AI Model"
         case .appOverview:
             return "How Kerlig Works"
         }
     }
+
+    //subTitleForStep
+    private func subTitleForStep(_ step: OnboardingStep) -> String {
+        switch step {
+        case .permissions:
+            return "These permissions are required to use Kerlig to be able to capture text from any app."
+        case .modelSelection:
+            return "Choose Your AI Model"
+        case .appOverview:
+            return "How Kerlig Works"
+        }
+    }
+    
     
     // Check if we're on the last step
     private var isLastStep: Bool {
@@ -149,54 +170,15 @@ struct PermissionsStepView: View {
     
     var body: some View {
         VStack(spacing: 30) {
-            // Permissions illustration
-            ZStack {
-                Circle()
-                    .fill(colorScheme == .dark ? 
-                          Color(hex: "845CEF").opacity(0.2) : 
-                          Color(hex: "f0f2f5"))
-                    .frame(width: 200, height: 200)
-                
-                // Animated pulsing circle
-                Circle()
-                    .stroke(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "845CEF").opacity(0.7), Color(hex: "7E45E3").opacity(0.4)]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 3
-                    )
-                    .frame(width: pulsateCircle ? 220 : 190, height: pulsateCircle ? 220 : 190)
-                    .opacity(pulsateCircle ? 0.6 : 0)
-                
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 80))
-                    .foregroundColor(Color(hex: "845CEF"))
-                    .symbolEffect(.bounce, options: .repeating, value: pulsateCircle)
-            }
-            .padding(.top, 40)
-            .scaleEffect(animateItems ? 1 : 0.8)
-            .opacity(animateItems ? 1 : 0)
-            
+           
             VStack(spacing: 16) {
-                Text("Kerlig needs a few permissions")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
-                    .multilineTextAlignment(.center)
-                
-                Text("To work properly, Kerlig needs accessibility access to capture text from any app. This allows you to use AI assistance across your entire system.")
-                    .font(.system(size: 16))
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color(hex: "666666"))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 20)
+              //add image permission
+              Image("permission")
+                .resizable()
+                .frame(width: 600, height: 160)
+                .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
             }
-            .padding(.horizontal, 20)
-            .offset(y: animateItems ? 0 : 20)
-            .opacity(animateItems ? 1 : 0)
-            
-            // Permission status
+                        // Permission status
             HStack(spacing: 15) {
                 Circle()
                     .fill(hasAccessibilityPermission ? Color.green : Color(hex: "845CEF"))
@@ -217,7 +199,6 @@ struct PermissionsStepView: View {
                         .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
                 }
                 
-                Spacer()
             }
             .padding(.vertical, 15)
             .padding(.horizontal, 20)
@@ -772,58 +753,6 @@ struct DemoStep1View: View {
     
     var body: some View {
         ZStack {
-            // App window mockup
-            RoundedRectangle(cornerRadius: 8)
-                .fill(colorScheme == .dark ? Color(hex: "1E1E1E") : Color.white)
-                .frame(width: 280, height: 180)
-                .overlay(
-                    VStack(alignment: .leading, spacing: 10) {
-                        // Window toolbar
-                        HStack {
-                            Circle()
-                                .fill(Color.red.opacity(0.7))
-                                .frame(width: 10, height: 10)
-                            Circle()
-                                .fill(Color.yellow.opacity(0.7))
-                                .frame(width: 10, height: 10)
-                            Circle()
-                                .fill(Color.green.opacity(0.7))
-                                .frame(width: 10, height: 10)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.top, 10)
-                        
-                        // Content mockup
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("This text needs improvement")
-                                .font(.system(size: 12))
-                                .foregroundColor(colorScheme == .dark ? .white : .black)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(isTextSelected ? Color(hex: "845CEF").opacity(0.3) : Color.clear)
-                                .cornerRadius(3)
-                            
-                            ForEach(0..<3) { _ in
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(colorScheme == .dark ? Color.gray.opacity(0.3) : Color.gray.opacity(0.2))
-                                    .frame(height: 10)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        
-                        Spacer()
-                    }
-                )
-                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-            
-            // Mouse cursor
-            Image(systemName: "cursorarrow")
-                .font(.system(size: 20))
-                .foregroundColor(colorScheme == .dark ? .white : .black)
-                .offset(x: -40, y: -20)
-                .opacity(isTextSelected ? 0 : 1)
-            
             // Keyboard shortcut indicator
             if isTextSelected {
                 HStack(spacing: 8) {
