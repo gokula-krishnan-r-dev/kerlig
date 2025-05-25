@@ -25,7 +25,7 @@ struct OnboardingView: View {
                 
                 // Step title
                 Text(titleForStep(appState.currentOnboardingStep))
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
                     .padding(.top, 30)
                     .padding(.bottom, 10)
@@ -34,7 +34,7 @@ struct OnboardingView: View {
 
 
                     Text(subTitleForStep(appState.currentOnboardingStep))
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
                         .padding(.bottom, 20)
                         .matchedGeometryEffect(id: "subtitle", in: animation)
@@ -175,7 +175,7 @@ struct PermissionsStepView: View {
               //add image permission
               Image("permission")
                 .resizable()
-                .frame(width: 600, height: 160)
+                .frame(width: 600, height: 200)
                 .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
             }
                         // Permission status

@@ -37,13 +37,13 @@ struct WelcomeView: View {
                 // Title and subtitle
                 VStack(spacing: 12) {
                     Text("Welcome to Kerlig!")
-                        .font(.system(size: 38, weight: .bold))
+                        .font(.system(size: 28, weight: .bold))
                         .foregroundColor(Color.white)
                         .opacity(titleOpacity)
                         .padding(.top, 10)
                     
                     Text("Your AI writing assistant for any app on macOS")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Color.gray)
                         .multilineTextAlignment(.center)
                         .opacity(subtitleOpacity)
@@ -63,7 +63,7 @@ struct WelcomeView: View {
                 Image("demo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 600, height: 400)
+                    .frame(width: 800, height: 220)
                     .padding(.horizontal, 20)
                 
                 

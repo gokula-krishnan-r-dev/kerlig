@@ -271,6 +271,42 @@ class AIService {
         - Generate a list of keywords from the text
         - Generate a list of questions from the text
         - write a doc for the text
+
+        // MARK: - Documentation
+        /**
+         # Rich Text Formatter
+         
+         A powerful text formatter for SwiftUI that implements markdown-style formatting.
+         
+         ## Features
+         - **Bold text** with double asterisks
+         - _Italic text_ with underscores
+         - `Code blocks` with backticks
+         - Headers with # symbols (# ## ###)
+         - Bullet lists (- * +) and numbered lists (1. 2.)
+         - Block quotes (> text)
+         - Horizontal rules (---)
+         - Links ([text](url))
+         - Line breaks (/n)
+         
+         ## Usage
+         ```swift
+         FormattedTextView("**Hello World**")
+         ```
+         
+         ## Configuration
+         You can customize font size, text color, alignment, and line spacing:
+         ```swift
+         FormattedTextView(
+             text,
+             fontSize: 16,
+             textColor: .primary,
+             alignment: .leading,
+             lineSpacing: 6
+         )
+         ```
+         */
+
         """
     }
 }
