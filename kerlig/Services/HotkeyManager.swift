@@ -21,6 +21,7 @@ class HotkeyManager {
     
     deinit {
         unregisterHotkey()
+        removeKeyPressCallbacks()
     }
     
     // Register the hotkey with a callback that accepts the selected text
@@ -31,7 +32,7 @@ class HotkeyManager {
         unregisterHotkey()
         
         // Create a unique four-character code for the hotkey
-        let signature: OSType = 0x45764368  // 'EvCh' as hex
+        let signature: OSType = 0x4B726C67  // 'Krlg' as hex for Kerlig
         let hotKeyID = EventHotKeyID(signature: signature, id: 1)
         
         // Register the hotkey
@@ -79,20 +80,23 @@ class HotkeyManager {
             )
             
             if status == noErr {
-                NSLog("🔥 HotKey event received - signature: \(hotKeyID.signature), id: \(hotKeyID.id)")
-                if let userDataPtr = userData {
-                    let hotkeyManager = Unmanaged<HotkeyManager>.fromOpaque(userDataPtr).takeUnretainedValue()
-                    
-                    // Check if permissions are granted
-                    if hotkeyManager.hasAccessibilityPermission() {
-                        NSLog("✅ Accessibility permissions confirmed")
-                        hotkeyManager.handleHotkeyPressed()
+                // Only handle our specific hotkey
+                if hotKeyID.signature == 0x4B726C67 && hotKeyID.id == 1 {
+                    NSLog("🔥 HotKey event received - signature: \(hotKeyID.signature), id: \(hotKeyID.id)")
+                    if let userDataPtr = userData {
+                        let hotkeyManager = Unmanaged<HotkeyManager>.fromOpaque(userDataPtr).takeUnretainedValue()
+                        
+                        // Check if permissions are granted
+                        if hotkeyManager.hasAccessibilityPermission() {
+                            NSLog("✅ Accessibility permissions confirmed")
+                            hotkeyManager.handleHotkeyPressed()
+                        } else {
+                            NSLog("❌ No accessibility permissions when hotkey triggered")
+                            hotkeyManager.verifyAccessibilityPermissions()
+                        }
                     } else {
-                        NSLog("❌ No accessibility permissions when hotkey triggered")
-                        hotkeyManager.verifyAccessibilityPermissions()
+                        NSLog("❌ No userData available in event handler")
                     }
-                } else {
-                    NSLog("❌ No userData available in event handler")
                 }
             } else {
                 NSLog("❌ Failed to get hotkey ID from event: \(status)")
@@ -1017,6 +1021,107 @@ class HotkeyManager {
     // Public method to simulate key presses
     func simulateKeyPress(virtualKey: CGKeyCode, withCommand: Bool = false, withOption: Bool = false, withShift: Bool = false, withControl: Bool = false) {
         simulateKeyCombination(virtualKey: virtualKey, withCommand: withCommand, withOption: withOption, withShift: withShift, withControl: withControl)
+    }
+    
+    // Helper method to set up key press detection with a callback
+    // This approach uses NSEvent monitoring instead of Carbon hotkeys
+    private var keyPressEventMonitors: [Any] = []
+    
+    func simulateKeyPressWithCallback(keyCode: CGKeyCode, withCommand: Bool = false, withOption: Bool = false, callback: @escaping () -> Void) {
+        // Create a global event monitor for key down events
+        let monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+            // Check if the key code matches
+            if event.keyCode == keyCode {
+                // Check modifiers
+                let hasCommand = event.modifierFlags.contains(.command)
+                let hasOption = event.modifierFlags.contains(.option)
+                
+                // Trigger callback if modifiers match
+                if (withCommand == hasCommand) && (withOption == hasOption) {
+                    NSLog("🔑 Detected Command+P hotkey from event monitor")
+                    callback()
+                }
+            }
+        }
+        
+        // Store the monitor to prevent it from being deallocated
+        if let monitor = monitor {
+            keyPressEventMonitors.append(monitor)
+        }
+        
+        // Also create a local monitor for when our app is active
+        let localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Check if the key code matches
+            if event.keyCode == keyCode {
+                // Check modifiers
+                let hasCommand = event.modifierFlags.contains(.command)
+                let hasOption = event.modifierFlags.contains(.option)
+                
+                // Trigger callback if modifiers match
+                if (withCommand == hasCommand) && (withOption == hasOption) {
+                    NSLog("🔑 Detected Command+P hotkey from local monitor")
+                    callback()
+                    return nil // Consume the event
+                }
+            }
+            return event
+        }
+        
+        // Store the local monitor as well
+        if let localMonitor = localMonitor {
+            keyPressEventMonitors.append(localMonitor)
+        }
+        
+        NSLog("✅ Set up key press detection for keyCode: \(keyCode) with Command: \(withCommand), Option: \(withOption)")
+    }
+    
+    // Clean up event monitors when no longer needed
+    func removeKeyPressCallbacks() {
+        for monitor in keyPressEventMonitors {
+            NSEvent.removeMonitor(monitor)
+        }
+        keyPressEventMonitors.removeAll()
+    }
+    
+    // Comprehensive permission check with helper method to avoid code duplication
+    func checkAndRefreshPermissions(completion: @escaping (Bool) -> Void) {
+        // First check if we already have permissions
+        if hasAccessibilityPermission() {
+            completion(true)
+            return
+        }
+        
+        // Try refreshing permissions
+        if refreshAndCheckPermissions() {
+            completion(true)
+            return
+        }
+        
+        // Advanced verification with dynamic subsystem restart
+        verifyAccessibilityPermissions { granted in
+            if granted {
+                completion(true)
+            } else {
+                // Show a dialog to the user
+                let dialog = NSAlert()
+                dialog.messageText = "Permission Error"
+                dialog.informativeText = "Please grant accessibility permissions to Kerlig."
+                dialog.addButton(withTitle: "Open Settings")
+                dialog.addButton(withTitle: "Close")
+                
+                let response = dialog.runModal()
+                if response == .alertFirstButtonReturn {
+                    // Open System Settings
+                    if #available(macOS 13.0, *) {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                    } else {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!)
+                    }
+                }
+                
+                completion(false)
+            }
+        }
     }
 }
 

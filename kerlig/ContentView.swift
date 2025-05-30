@@ -40,6 +40,7 @@ struct ContentView: View {
     
     private let hotkeyManager = HotkeyManager()
     private let floatingPanel = FloatingPanelController()
+    private let projectsPanel = ProjectsPanelController()
 //    private var clipboardShortcutMonitor: ClipboardShortcutMonitor?
     
     // Add ClipboardHistory to the sidebar items
@@ -233,7 +234,7 @@ struct ContentView: View {
             checkPermissionsWithRetry()
             
             // Register hotkey to handle Option+Space
-            registerHotkey()
+            setupHotkeyManager()
             
             setupClipboardPolling()
             
@@ -352,6 +353,21 @@ struct ContentView: View {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         } else {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!)
+        }
+    }
+    
+    private func setupHotkeyManager() {
+        // Check for permission to register hotkeys
+        if !hotkeyManager.hasAccessibilityPermission() {
+            self.showPermissionsNeeded = true
+        } else {
+            // Register the standard Option+Space hotkey if enabled
+            if appState.hotkeyEnabled {
+                registerHotkey()
+            }
+            
+            // Register Command+P for projects panel separately
+            projectsPanel.registerHotkey(appState: appState)
         }
     }
     
