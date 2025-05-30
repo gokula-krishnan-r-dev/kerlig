@@ -145,7 +145,7 @@ class AppState: ObservableObject {
         isFirstLaunch = savedIsFirstLaunch
         
         // Load onboarding status
-        onboardingComplete = false
+        onboardingComplete = true
         
         // Default to true if never set before
         if UserDefaults.standard.object(forKey: "hotkeyEnabled") == nil {

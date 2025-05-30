@@ -28,6 +28,13 @@ struct ContentView: View {
     @State private var sidebarWidth: CGFloat = 240
     @State private var showSidebar: Bool = true
     @State private var showClipboardPopup: Bool = false
+    @State private var animateLogo = false
+    @State private var animateTitle = false
+    @State private var animateCard = false
+    @State private var animateContent = false
+    @State private var animateFeatures = false
+    @State private var animatePulse = false
+    @State private var isButtonPressed = false
 
     @StateObject private var textCaptureService = TextCaptureService()
     
@@ -55,117 +62,170 @@ struct ContentView: View {
     }
     
     var body: some View {
-        ZStack {
-            NavigationView {
-                // Sidebar
-                VStack(spacing: 0) {
-                    // App Logo
-                    HStack {
-                        AppIconImage()
-                            .frame(width: 32, height: 32)
-                            .padding(.trailing, 8)
+        VStack {
+            // Add a gradient background with animation
+            ZStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.blue.opacity(0.05), Color.purple.opacity(0.05)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 30) {
+
+                    //app logo
+                    Image("logo")
+                        .resizable()
+                        .frame(width: 100, height: 100)
+                        .scaleEffect(animateLogo ? 1.0 : 0.8)
+                        .opacity(animateLogo ? 1.0 : 0.0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.6).delay(0.1), value: animateLogo)
+                    
+                    // Title with animation
+                    Text("Welcome to Kerlig")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
+                        .opacity(animateTitle ? 1.0 : 0.0)
+                        .offset(y: animateTitle ? 0 : 20)
+                        .animation(.spring(response: 0.6).delay(0.3), value: animateTitle)
+                        .padding(.bottom, 10)
+
+                    // Main content area
+                    VStack(spacing: 25) {
+                        // App description
+                        VStack(spacing: 10) {
+                            Text("Your AI Assistant Everywhere")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.primary)
+                                .opacity(animateContent ? 1.0 : 0.0)
+                                .offset(y: animateContent ? 0 : 20)
+                                .animation(.spring(response: 0.6).delay(0.4), value: animateContent)
+                            
+                            Text("Press ⌥ + Space anywhere to access AI assistance")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .opacity(animateContent ? 1.0 : 0.0)
+                                .offset(y: animateContent ? 0 : 20)
+                                .animation(.spring(response: 0.6).delay(0.5), value: animateContent)
+                        }
                         
-                        Text("Kerlig")
-                            .font(.headline)
-                            .foregroundColor(Color(hex: "333333"))
+                        // Key features with staggered animation
+                        VStack(spacing: 20) {
+                            FeatureRow(
+                                icon: "command",
+                                title: "Universal Access",
+                                description: "Works seamlessly across all macOS applications"
+                            )
+                            .opacity(animateFeatures ? 1.0 : 0.0)
+                            .offset(y: animateFeatures ? 0 : 20)
+                            .animation(.spring(response: 0.6).delay(0.6), value: animateFeatures)
+                            
+                            FeatureRow(
+                                icon: "text.cursor",
+                                title: "Smart Text Selection",
+                                description: "Select text and get AI assistance instantly"
+                            )
+                            .opacity(animateFeatures ? 1.0 : 0.0)
+                            .offset(y: animateFeatures ? 0 : 20)
+                            .animation(.spring(response: 0.6).delay(0.7), value: animateFeatures)
+                            
+                            FeatureRow(
+                                icon: "keyboard",
+                                title: "Quick Shortcut",
+                                description: "Option (⌥) + Space to activate anywhere"
+                            )
+                            .opacity(animateFeatures ? 1.0 : 0.0)
+                            .offset(y: animateFeatures ? 0 : 20)
+                            .animation(.spring(response: 0.6).delay(0.8), value: animateFeatures)
+                        }
+                        .padding(.vertical, 20)
                         
-                        Spacer()
+                        // Shortcut demo with pulse animation
+                        HStack(spacing: 8) {
+                            KeyCapsuleView(text: "⌥")
+                            Text("+")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 18, weight: .medium))
+                            KeyCapsuleView(text: "Space")
+                        }
+                        .padding(.vertical, 10)
+                        .scaleEffect(animatePulse ? 1.05 : 1.0)
+                        .opacity(animateContent ? 1.0 : 0.0)
+                        .animation(.spring(response: 0.6).delay(0.9), value: animateContent)
                         
+                        // Get started button
                         Button(action: {
                             withAnimation {
-                                showSidebar.toggle()
+                                isButtonPressed = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    isButtonPressed = false
+                                }
                             }
                         }) {
-                            Image(systemName: "sidebar.left")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "666666"))
+                            Text("Get Started")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 30)
+                                .padding(.vertical, 12)
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [Color.blue, Color.purple.opacity(0.8)]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(30)
+                                .shadow(color: Color.blue.opacity(isButtonPressed ? 0.2 : 0.4), 
+                                        radius: isButtonPressed ? 3 : 8, 
+                                        x: 0, 
+                                        y: isButtonPressed ? 2 : 4)
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .scaleEffect(isButtonPressed ? 0.95 : 1.0)
+                        .opacity(animateContent ? 1.0 : 0.0)
+                        .animation(.spring(response: 0.6).delay(1.0), value: animateContent)
                     }
-                    .padding(.vertical, 16)
-                    .padding(.horizontal, 16)
-                    
-                    Divider()
-                    
-                    // Sidebar items
-                    List {
-                        ForEach(SidebarItem.allCases, id: \.self) { item in
-                            SidebarItemView(
-                                item: item,
-                                isSelected: selectedSidebarItem == item,
-                                onSelect: {
-                                    withAnimation {
-                                        selectedSidebarItem = item
-                                    }
-                                }
-                            )
-                        }
-                        
-                        Spacer()
-                    }
-                    .listStyle(SidebarListStyle())
-                    .frame(width: sidebarWidth)
+                    .frame(maxWidth: 650)
+                    .padding(40)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color.black.opacity(0.8))
+                            .shadow(color: Color.black.opacity(0.05), radius: 15, x: 0, y: 10)
+                            .blur(radius: 0.2)
+                    )
+                    .opacity(animateCard ? 1.0 : 0.0)
+                    .offset(y: animateCard ? 0 : 30)
+                    .animation(.spring(response: 0.6).delay(0.2), value: animateCard)
                 }
-                
-                // Main Content
-                ZStack {
-                    switch selectedSidebarItem {
-                    case .dashboard:
-                        DashboardView()
-                            .environmentObject(appState)
-                    case .textCapture:
-                        TextCaptureCOPYView()
-                            .environmentObject(appState)
-//                    case .clipboardHistory:
-//                        ClipboardHistoryView()
-//                            .environmentObject(appState)
-                    case .history:
-                        HistoryView()
-                            .environmentObject(appState)
-                    case .settings:
-                        SettingsView()
-                            .environmentObject(appState)
-                    case .clipboardHistory:
-                        Text("demo")
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Button(action: {
-                        withAnimation {
-                            showSidebar.toggle()
-                        }
-                    }) {
-                        Image(systemName: "sidebar.left")
-                    }
-                }
-            }
-            
-            // Clipboard History Popup
-            if showClipboardPopup {
-                ZStack {
-                    // Background overlay
-                    Color.black.opacity(0.3)
-                        .edgesIgnoringSafeArea(.all)
-                        .onTapGesture {
-                            withAnimation(.spring()) {
-                                showClipboardPopup = false
-                            }
-                        }
-                    
-//                    // Popup content
-//                    ClipboardHistoryPopup(isVisible: $showClipboardPopup, onDismiss: {
-//                        showClipboardPopup = false
-//                    })
-//                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-//                    .transition(.opacity.combined(with: .scale))
-                }
-                .transition(.opacity)
+                .padding(20)
             }
         }
         .onAppear {
+            // Start animations when view appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                animateLogo = true
+                animateTitle = true
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                animateCard = true
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                animateContent = true
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                animateFeatures = true
+            }
+            
+            // Start pulse animation after a delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                startPulseAnimation()
+            }
+            
+            // Continue with existing onAppear code
             textCaptureService.startMonitoring()
             print("Last captured text: \(textCaptureService.lastCapturedText)")
             
@@ -177,15 +237,6 @@ struct ContentView: View {
             
             setupClipboardPolling()
             
-//            // Setup clipboard shortcut monitor
-//            clipboardShortcutMonitor = ClipboardShortcutMonitor(showPopupAction: {
-//                DispatchQueue.main.async {
-//                    withAnimation(.spring()) {
-//                        self.showClipboardPopup = true
-//                    }
-//                }
-//            })
-//            
             // Create menu bar item for clipboard history
             setupClipboardMenuItem()
         }
@@ -420,259 +471,97 @@ struct ContentView: View {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!)
         }
     }
-}
-
-// Sidebar Item View
-struct SidebarItemView: View {
-    let item: ContentView.SidebarItem
-    let isSelected: Bool
-    let onSelect: () -> Void
     
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: item.icon)
-                .font(.system(size: 18))
-                .foregroundColor(isSelected ? Color(hex: "845CEF") : Color(hex: "666666"))
-            
-            Text(item.rawValue)
-                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? Color(hex: "333333") : Color(hex: "666666"))
-            
-            Spacer()
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(isSelected ? Color(hex: "845CEF").opacity(0.1) : Color.clear)
-        .cornerRadius(8)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
+    // Helper function for pulse animation
+    private func startPulseAnimation() {
+        withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+            animatePulse.toggle()
         }
     }
 }
 
-// Dashboard View (placeholder)
-struct DashboardView: View {
-    @EnvironmentObject var appState: kerlig.AppState
-    
-    var body: some View {
-        VStack {
-            Text("Dashboard")
-                .font(.largeTitle)
-                .padding()
-            
-            Text("Welcome to Kerlig")
-                .font(.title2)
-            
-            Spacer()
-        }
-    }
-}
-
-// Text Capture View (placeholder)
-struct TextCaptureCOPYView: View {
-    @EnvironmentObject var appState: kerlig.AppState
-    @State private var selectedText: String = ""
-    @State private var isProcessing: Bool = false
-    @State private var animateCapture: Bool = false
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            // Header
-            VStack(spacing: 10) {
-                Text("Text Capture")
-                    .font(.system(size: 28, weight: .bold))
-                    .padding(.top, 20)
-                
-                Text("Capture and process text from anywhere on your screen")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "666666"))
-            }
-            .padding(.horizontal, 30)
-            .padding(.bottom, 20)
-            
-            Divider()
-            
-            // Capture Area
-            VStack(spacing: 25) {
-                // Status Icon
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .frame(width: 80, height: 80)
-                        .shadow(color: Color(hex: "845CEF").opacity(0.3), radius: 10, x: 0, y: 5)
-                        .scaleEffect(animateCapture ? 1.1 : 1.0)
-                    
-                    Image(systemName: "text.cursor")
-                        .font(.system(size: 30))
-                        .foregroundColor(.white)
-                }
-                .padding(.top, 30)
-                .onAppear {
-                    withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                        animateCapture = true
-                    }
-                }
-                
-                // Instructions
-                VStack(spacing: 15) {
-                    Text("How to capture text:")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(Color(hex: "333333"))
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        InstructionRow(
-                            number: "1",
-                            text: "Select text in any application",
-                            icon: "hand.tap"
-                        )
-                        
-                        InstructionRow(
-                            number: "2",
-                            text: "Press Command+Space to activate Kerlig",
-                            icon: "command"
-                        )
-                        
-                        InstructionRow(
-                            number: "3",
-                            text: "The selected text will appear in a floating panel",
-                            icon: "rectangle.on.rectangle"
-                        )
-                    }
-                    .padding(.horizontal, 20)
-                }
-                .frame(maxWidth: 500)
-                .padding(.vertical, 30)
-                .background(Color(hex: "f5f7fa"))
-                .cornerRadius(16)
-                
-                // Recent captures
-                VStack(alignment: .leading, spacing: 15) {
-                    Text("Recent Captures")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(Color(hex: "333333"))
-                        .padding(.horizontal, 20)
-                    
-                    
-                }
-            }
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// Instruction Row
-struct InstructionRow: View {
-    let number: String
-    let text: String
+struct FeatureRow: View {
     let icon: String
+    let title: String
+    let description: String
+    @State private var isHovered = false
     
     var body: some View {
-        HStack(spacing: 15) {
+        HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color(hex: "845CEF").opacity(0.1))
-                    .frame(width: 36, height: 36)
+                    .fill(Color.blue.opacity(0.1))
+                    .frame(width: 50, height: 50)
                 
-                Text(number)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(Color(hex: "845CEF"))
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(.blue)
             }
             
-            Text(text)
-                .font(.system(size: 15))
-                .foregroundColor(Color(hex: "333333"))
-            
-            Spacer()
-            
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(Color(hex: "845CEF"))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
         }
-        .padding(.vertical, 8)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.blue.opacity(isHovered ? 0.08 : 0.02))
+                .shadow(color: Color.black.opacity(isHovered ? 0.1 : 0.0), radius: 5, x: 0, y: 2)
+        )
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 
-// // Capture Item Row
-// struct CaptureItemRow: View {
-//     let capture: TextCapture
-//     @State private var isHovering: Bool = false
-    
-//     var body: some View {
-//         VStack(alignment: .leading, spacing: 8) {
-//             // Header with timestamp
-//             HStack {
-//                 Text(capture.timestamp, style: .time)
-//                     .font(.system(size: 12))
-//                     .foregroundColor(Color(hex: "999999"))
-                
-//                 Spacer()
-                
-//                 Text(capture.source.rawValue)
-//                     .font(.system(size: 12))
-//                     .foregroundColor(Color(hex: "999999"))
-//                     .padding(.horizontal, 8)
-//                     .padding(.vertical, 3)
-//                     .background(Color(hex: "f0f0f0"))
-//                     .cornerRadius(4)
-//             }
-            
-//             Divider()
-            
-//             // Content
-//             Text(capture.text)
-//                 .font(.system(size: 14))
-//                 .foregroundColor(Color(hex: "333333"))
-//                 .lineLimit(3)
-//                 .padding(.vertical, 5)
-//         }
-//         .padding(12)
-//         .background(Color.white)
-//         .cornerRadius(8)
-//         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-//         .overlay(
-//             RoundedRectangle(cornerRadius: 8)
-//                 .stroke(isHovering ? Color(hex: "845CEF").opacity(0.3) : Color.clear, lineWidth: 1)
-//         )
-//         .onHover { hovering in
-//             withAnimation(.easeInOut(duration: 0.2)) {
-//                 isHovering = hovering
-//             }
-//         }
-//     }
-// }
-
-// History View (placeholder)
-struct HistoryView: View {
-    @EnvironmentObject var appState: kerlig.AppState
+struct KeyCapsuleView: View {
+    let text: String
+    @State private var isPressed = false
     
     var body: some View {
-        VStack {
-            Text("History")
-                .font(.largeTitle)
-                .padding()
-            
-            Text("View your past interactions")
-                .font(.title2)
-            
-            Spacer()
-        }
+        Text(text)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.blue.opacity(0.7), Color.blue]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: Color.blue.opacity(isPressed ? 0.6 : 0.3), radius: isPressed ? 2 : 4, x: 0, y: isPressed ? 1 : 2)
+            )
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.2), value: isPressed)
+            .onTapGesture {
+                withAnimation {
+                    isPressed = true
+                    
+                    // Reset after short delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        isPressed = false
+                    }
+                }
+            }
     }
 }
 
-
-
-
-// MARK: - Preview
-struct HistoryView_Previews: PreviewProvider {
+//preview
+struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        HistoryView()
-            .environmentObject(AppState())
+        ContentView()
     }
 }
