@@ -142,16 +142,17 @@ class AppState: ObservableObject {
         currentTheme = "light" // Force light theme
         
         // Check if this is first launch
-        isFirstLaunch = savedIsFirstLaunch
+        isFirstLaunch = false
         
         // Load onboarding status
-        onboardingComplete = true
+        onboardingComplete = savedOnboardingComplete
         
         // Default to true if never set before
         if UserDefaults.standard.object(forKey: "hotkeyEnabled") == nil {
             UserDefaults.standard.set(true, forKey: "hotkeyEnabled")
         }
-        hotkeyEnabled = true
+
+        hotkeyEnabled = savedHotkeyEnabled
         
         // Load pin state
         if UserDefaults.standard.object(forKey: "isPinned") != nil {

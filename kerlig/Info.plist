@@ -3,18 +3,48 @@
 <plist version="1.0">
 <dict>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>This app needs to control other applications to capture text.</string>
+	<string>This app needs to control other applications to capture text and open workspaces in Terminal and Cursor.</string>
 	<key>Privacy - Apple Events Usage Description</key>
-	<string>This app needs to send Apple Events to capture text from other applications.</string>
+	<string>This app needs to send Apple Events to capture text and control Terminal and Cursor.</string>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>This app requires accessibility access to capture text from other applications.</string>
 	<key>NSInputMonitoringUsageDescription</key>
 	<string>This app needs to monitor keyboard input to detect when you use the Option+Space shortcut.</string>
+	<key>NSAppleScriptEnabled</key>
+	<true/>
+	<key>OSAScriptingDefinition</key>
+	<string>Kerlig.sdef</string>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Open in Kerlig</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>openInKerlig</string>
+			<key>NSRequiredContext</key>
+			<dict>
+				<key>NSTextContent</key>
+				<string>FilePath</string>
+			</dict>
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2025 Your Company. All rights reserved.</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
-</plist> 
+</plist>
