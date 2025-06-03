@@ -49,7 +49,24 @@ private let modelOptions: [String: [ModelOption]] = [
         ModelOption(id: "claude-3-haiku", name: "Claude 3 Haiku", iconName: "wand.and.rays", iconColor: .teal, cost: 0.00025, provider: "Anthropic", capabilities: "Good", speed: "Very Fast")
     ],
     "Google": [
-        ModelOption(id: "gemini-pro", name: "Gemini Pro", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast")
+        //gemini-2.0-flash
+        ModelOption(id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        //gemini-1.5-pro
+        ModelOption(id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        //gemini-1.5-pro-002
+        ModelOption(id: "gemini-1.5-pro-002", name: "Gemini 1.5 Pro 002", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        //gemini-1.5-pro-001
+        ModelOption(id: "gemini-1.5-pro-001", name: "Gemini 1.5 Pro 001", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        //gemini-1.5-flash
+        ModelOption(id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        //add 2.5-flash
+        ModelOption(id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        //add 2.5-pro
+        ModelOption(id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        //add 2.5-pro-001
+        ModelOption(id: "gemini-2.5-pro-001", name: "Gemini 2.5 Pro 001", iconName: "g.circle", iconColor: .orange, cost: 0.0005, provider: "Google", capabilities: "Good", speed: "Fast"),
+        
+
     ],
     "Cloudflare Workers AI": [
         // Text Models

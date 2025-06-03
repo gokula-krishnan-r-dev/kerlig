@@ -64,7 +64,7 @@ private enum AIActionTemp {
 #endif
 
 class AIService {
-    private let baseURL = "http://localhost:8080/api/v1/ai/generate" // Update with your actual API URL
+    private let baseURL = "http://localhost:8080/ai/generate" // Update with your actual API URL
     private let logger = Logger.shared
       @EnvironmentObject var appState: AppState
     

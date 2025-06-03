@@ -139,7 +139,6 @@ struct WorkspacePanelView: View {
                 .listStyle(.plain)
                 .background(Color.clear)
             }
-            
             // Footer with hint
             HStack {
                 Text("↑↓ to navigate • Enter to open • Esc to close • ⌘F to search")
@@ -300,7 +299,14 @@ struct WorkspacePanelView: View {
             return app.bundleIdentifier == "com.apple.Terminal"
         }
         
-        // Create Apple Script to open Terminal, cd to path, and execute code .
+        // Get the workspace info to determine project type
+        let workspace = filteredWorkspaces.first { $0.path == path } ?? 
+                        workspaceService.workspaces.first { $0.path == path }
+        
+        // Determine appropriate project command based on project type
+        let projectCommand = getProjectCommand(for: workspace?.projectType ?? .unknown)
+        
+        // Create Apple Script to open Terminal, cd to path, and execute commands
         let script: String
         
         if isTerminalRunning {
@@ -308,7 +314,7 @@ struct WorkspacePanelView: View {
             script = """
             tell application "Terminal"
                 activate
-                do script "cd '\(path.replacingOccurrences(of: "'", with: "\\'"))' && code . && clear"
+                do script "cd '\(path.replacingOccurrences(of: "'", with: "\\'"))' && code . && \(projectCommand) && clear"
             end tell
             """
         } else {
@@ -316,7 +322,7 @@ struct WorkspacePanelView: View {
             script = """
             tell application "Terminal"
                 activate
-                do script "cd '\(path.replacingOccurrences(of: "'", with: "\\'"))' && code . && clear"
+                do script "cd '\(path.replacingOccurrences(of: "'", with: "\\'"))' && code . && \(projectCommand) && clear"
             end tell
             """
         }
@@ -324,5 +330,82 @@ struct WorkspacePanelView: View {
         let appleScript = NSAppleScript(source: script)
         var errorDict: NSDictionary?
         appleScript?.executeAndReturnError(&errorDict)
+    }
+    
+    // Get appropriate command based on project type
+    private func getProjectCommand(for projectType: ProjectType) -> String {
+        switch projectType {
+        case .nextjs, .react:
+            // Check for yarn.lock or package-lock.json to determine package manager
+            let workspace = filteredWorkspaces.first { $0.projectType == projectType }
+            if let path = workspace?.path {
+                if FileManager.default.fileExists(atPath: "\(path)/yarn.lock") {
+                    return "echo 'Running Next.js/React project with Yarn' && yarn dev"
+                } else if FileManager.default.fileExists(atPath: "\(path)/package-lock.json") {
+                    return "echo 'Running Next.js/React project with NPM' && npm run dev"
+                } else if FileManager.default.fileExists(atPath: "\(path)/pnpm-lock.yaml") {
+                    return "echo 'Running Next.js/React project with PNPM' && pnpm dev"
+                }
+            }
+            return "echo 'Next.js/React project detected - use npm run dev or yarn dev to start'"
+            
+        case .vue:
+            return "echo 'Vue project detected - use npm run serve to start'"
+            
+        case .angular:
+            return "echo 'Angular project detected - use ng serve to start'"
+            
+        case .swift:
+            return "echo 'Swift project detected - use swift build to compile'"
+            
+        case .flutter:
+            return "echo 'Flutter project detected - use flutter run to start'"
+            
+        case .node:
+            return "echo 'Node.js project detected - use node index.js or npm start to run'"
+            
+        case .python:
+            // Check for specific Python frameworks
+            let workspace = filteredWorkspaces.first { $0.projectType == projectType }
+            if let path = workspace?.path {
+                if FileManager.default.fileExists(atPath: "\(path)/manage.py") {
+                    return "echo 'Django project detected - use python manage.py runserver to start'"
+                } else if FileManager.default.fileExists(atPath: "\(path)/app.py") || 
+                          FileManager.default.fileExists(atPath: "\(path)/main.py") {
+                    return "echo 'Flask/Python project detected - use python app.py or python main.py to start'"
+                }
+            }
+            return "echo 'Python project detected'"
+            
+        case .ruby, .rails:
+            return "echo 'Ruby/Rails project detected - use rails server to start'"
+            
+        case .go:
+            return "echo 'Go project detected - use go run . to start'"
+            
+        case .rust:
+            return "echo 'Rust project detected - use cargo run to start'"
+            
+        case .dotnet:
+            return "echo '.NET project detected - use dotnet run to start'"
+            
+        case .java:
+            return "echo 'Java project detected - use mvn spring-boot:run or gradle bootRun for Spring projects'"
+            
+        case .kotlin:
+            return "echo 'Kotlin project detected'"
+            
+        case .php, .laravel:
+            if projectType == .laravel {
+                return "echo 'Laravel project detected - use php artisan serve to start'"
+            }
+            return "echo 'PHP project detected'"
+            
+        case .django:
+            return "echo 'Django project detected - use python manage.py runserver to start'"
+            
+        case .unknown:
+            return "echo 'Project type not detected'"
+        }
     }
 }

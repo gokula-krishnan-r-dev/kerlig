@@ -66,6 +66,13 @@ struct kerligApp: App {
                     textCaptureService.captureSelectedText()
                 }
                 .keyboardShortcut("c", modifiers: [.option, .command])
+                
+                Divider()
+                
+                Button("Show Port Monitor") {
+                    showPortMonitorWindow()
+                }
+                .keyboardShortcut("p", modifiers: [.option, .command])
             }
         }
     }
@@ -118,6 +125,11 @@ struct kerligApp: App {
             appState.isAIPanelVisible = false
             appState.emptySelectionMode = false
         }
+    }
+    
+    // Function to show the port monitor window
+    private func showPortMonitorWindow() {
+        PortMonitorWindow.open()
     }
 }
 
