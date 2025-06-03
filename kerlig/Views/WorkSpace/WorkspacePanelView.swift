@@ -4,16 +4,32 @@ struct WorkspacePanelView: View {
     @StateObject private var workspaceService = WorkspaceService()
     @State private var searchText = ""
     @State private var selectedWorkspaceIndex: Int? = nil
+    @State private var activeFilter: ProjectType? = nil
+    @FocusState private var isSearchFieldFocused: Bool
     @Environment(\.dismiss) private var dismiss
     
-    private var filteredWorkspaces: [WorkspaceInfo] {
-        if searchText.isEmpty {
+    // First filtering step - by project type
+    private var typeFilteredWorkspaces: [WorkspaceInfo] {
+        guard let filter = activeFilter else {
             return workspaceService.workspaces
-        } else {
-            return workspaceService.workspaces.filter { workspace in
-                workspace.name.localizedCaseInsensitiveContains(searchText) ||
-                workspace.path.localizedCaseInsensitiveContains(searchText)
-            }
+        }
+        return workspaceService.workspaces.filter { $0.projectType == filter }
+    }
+    
+    // Second filtering step - by search text
+    private var filteredWorkspaces: [WorkspaceInfo] {
+        // If search is empty, just return the type-filtered results
+        if searchText.isEmpty {
+            return typeFilteredWorkspaces
+        }
+        
+        // Otherwise, filter by search text
+        let searchLowercased = searchText.lowercased()
+        return typeFilteredWorkspaces.filter { workspace in
+            let nameMatches = workspace.name.lowercased().contains(searchLowercased)
+            let pathMatches = workspace.path.lowercased().contains(searchLowercased)
+            let typeMatches = workspace.projectType.displayName.lowercased().contains(searchLowercased)
+            return nameMatches || pathMatches || typeMatches
         }
     }
     
@@ -24,13 +40,15 @@ struct WorkspacePanelView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
                 
-                TextField("Search workspaces", text: $searchText)
+                TextField("Search by name, path, or project type", text: $searchText)
                     .textFieldStyle(PlainTextFieldStyle())
                     .font(.body)
+                    .focused($isSearchFieldFocused)
                 
                 if !searchText.isEmpty {
                     Button(action: {
                         searchText = ""
+                        isSearchFieldFocused = true
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
@@ -43,6 +61,11 @@ struct WorkspacePanelView: View {
             .cornerRadius(8)
             .padding(.horizontal)
             .padding(.top)
+            
+            // Project type filters
+            ProjectTypeFilterBar(activeFilter: $activeFilter)
+                .padding(.horizontal)
+                .padding(.vertical, 4)
             
             // Workspaces list
             if workspaceService.isLoading {
@@ -106,7 +129,7 @@ struct WorkspacePanelView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectedWorkspaceIndex = index
-                              openSelectedWorkspace()
+                            openSelectedWorkspace()
                         }
                         .onDoubleClick {
                             openSelectedWorkspace()
@@ -119,7 +142,7 @@ struct WorkspacePanelView: View {
             
             // Footer with hint
             HStack {
-                Text("↑↓ to navigate • Enter to open • Esc to close")
+                Text("↑↓ to navigate • Enter to open • Esc to close • ⌘F to search")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -131,6 +154,11 @@ struct WorkspacePanelView: View {
         .onAppear {
             Task {
                 await workspaceService.loadWorkspaces()
+            }
+            
+            // Focus the search field when view appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isSearchFieldFocused = true
             }
         }
         .onKeyPress(.upArrow) {
@@ -149,6 +177,14 @@ struct WorkspacePanelView: View {
             dismiss()
             return .handled
         }
+        // Add shortcut for focusing the search field
+//        .onKeyPress("f") { event in
+//            if event.modifiers.contains(.command) {
+//                isSearchFieldFocused = true
+//                return .handled
+//            }
+//            return .ignored
+//        }
     }
     
     private func moveSelection(direction: Int) {
@@ -177,6 +213,9 @@ struct WorkspacePanelView: View {
             
             // Update last opened timestamp
             workspaceService.openWorkspace(workspace)
+
+
+            //after open in cursor, terminal run that code like is it is nextjs then use yarn run like this way 
             
             // Close the panel
             DispatchQueue.main.async {
@@ -285,76 +324,5 @@ struct WorkspacePanelView: View {
         let appleScript = NSAppleScript(source: script)
         var errorDict: NSDictionary?
         appleScript?.executeAndReturnError(&errorDict)
-        
-        if let error = errorDict {
-            print("AppleScript error: \(error)")
-            
-            // Try an alternate approach if permission isn't granted
-            if (error["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue == -1743 ||
-               (error["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue == -1728 {
-                // This is likely a permissions issue
-                // requestAppleScriptPermission()
-            }
-            
-            // Fallback method using Process
-            fallbackTerminalOpen(path: path)
-        }
-    }
-    
-    // Request AppleScript permissions if needed
-    private func requestAppleScriptPermission() {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Permission Required"
-            alert.informativeText = """
-            Kerlig needs permission to control Terminal with AppleScript.
-            
-            Please grant automation permissions in System Settings:
-            1. Go to Privacy & Security > Automation
-            2. Enable Kerlig to control Terminal
-            
-            Would you like to open the settings now?
-            """
-            alert.addButton(withTitle: "Open Settings")
-            alert.addButton(withTitle: "Cancel")
-            
-            if alert.runModal() == .alertFirstButtonReturn {
-                // Try to open automation settings directly
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
-                    NSWorkspace.shared.open(url)
-                } else {
-                    // Fallback to general privacy settings
-                    NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/PreferencePanes/Security.prefPane"))
-                }
-            }
-        }
-    }
-    
-    // Fallback method if AppleScript fails
-    private func fallbackTerminalOpen(path: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", "Terminal", path]
-        
-        do {
-            try process.run()
-            print("Opened Terminal at path: \(path)")
-
-        } catch {
-            print("Error opening Terminal: \(error)")
-        }
     }
 }
-
-// Extension to enable double-click functionality
-extension View {
-    func onDoubleClick(perform action: @escaping () -> Void) -> some View {
-        self.gesture(
-            TapGesture(count: 2)
-                .onEnded { _ in
-                    action()
-                }
-        )
-    }
-} 
-
