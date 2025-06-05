@@ -3,9 +3,36 @@ import SwiftUI
 struct WorkspaceItemView: View {
     let workspace: WorkspaceInfo
     let isSelected: Bool
+    var isOrganizationMode: Bool = false
+    var isWorkspaceSelected: Bool = false
+    var onWorkspaceToggle: (() -> Void)? = nil
     
     var body: some View {
         HStack(spacing: 12) {
+            // Selection indicator for organization mode
+            if isOrganizationMode {
+                Button(action: {
+                    onWorkspaceToggle?()
+                }) {
+                    ZStack {
+                        Circle()
+                            .stroke(isWorkspaceSelected ? Color.purple : Color.secondary.opacity(0.5), lineWidth: 2)
+                            .frame(width: 20, height: 20)
+                        
+                        if isWorkspaceSelected {
+                            Circle()
+                                .fill(Color.purple)
+                                .frame(width: 20, height: 20)
+                            
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            
             // Project type icon
             ZStack {
                 Circle()
@@ -45,65 +72,117 @@ struct WorkspaceItemView: View {
             
             // Right side info
             VStack(alignment: .trailing, spacing: 2) {
+                // Last opened date
                 if let lastOpened = workspace.lastOpened {
-                    Text(timeAgo(from: lastOpened))
-                        .font(.caption)
+                    Text(lastOpened, style: .relative)
+                        .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
                 
-                // Tags view if available
-                if !workspace.tags.isEmpty {
+                // Organization mode indicator
+                if isOrganizationMode && isWorkspaceSelected {
                     HStack(spacing: 4) {
-                        ForEach(workspace.tags.prefix(2), id: \.self) { tag in
-                            Text(tag)
-                                .font(.system(size: 9))
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Color.gray.opacity(0.2))
-                                .cornerRadius(3)
-                        }
-                        
-                        if workspace.tags.count > 2 {
-                            Text("+\(workspace.tags.count - 2)")
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary)
-                        }
+                        Image(systemName: "building.2")
+                            .font(.system(size: 10))
+                        Text("Selected")
+                            .font(.system(size: 10, weight: .medium))
                     }
+                    .foregroundColor(.purple)
                 }
-            }
-            
-            // Favorite star if marked as favorite
-            if workspace.isFavorite {
-                Image(systemName: "star.fill")
-                    .foregroundColor(.yellow)
-                    .font(.system(size: 14))
+                
+                // Favorite indicator
+                if workspace.isFavorite && !isOrganizationMode {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.yellow)
+                }
             }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        .cornerRadius(8)
-        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(backgroundColorForState)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(borderColorForState, lineWidth: borderWidthForState)
+        )
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .animation(.easeInOut(duration: 0.2), value: isWorkspaceSelected)
     }
     
-    // Format the time ago string
-    private func timeAgo(from date: Date) -> String {
-        let calendar = Calendar.current
-        let now = Date()
-        let components = calendar.dateComponents([.minute, .hour, .day, .weekOfYear, .month], from: date, to: now)
-        
-        if let month = components.month, month > 0 {
-            return month == 1 ? "1 month ago" : "\(month) months ago"
-        } else if let week = components.weekOfYear, week > 0 {
-            return week == 1 ? "1 week ago" : "\(week) weeks ago"
-        } else if let day = components.day, day > 0 {
-            return day == 1 ? "Yesterday" : "\(day) days ago"
-        } else if let hour = components.hour, hour > 0 {
-            return hour == 1 ? "1 hour ago" : "\(hour) hours ago"
-        } else if let minute = components.minute, minute > 0 {
-            return minute == 1 ? "1 minute ago" : "\(minute) minutes ago"
+    // Computed properties for styling based on state
+    private var backgroundColorForState: Color {
+        if isOrganizationMode && isWorkspaceSelected {
+            return Color.purple.opacity(0.1)
+        } else if isSelected {
+            return Color.accentColor.opacity(0.1)
         } else {
-            return "Just now"
+            return Color.clear
         }
     }
+    
+    private var borderColorForState: Color {
+        if isOrganizationMode && isWorkspaceSelected {
+            return Color.purple.opacity(0.3)
+        } else if isSelected {
+            return Color.accentColor
+        } else {
+            return Color.clear
+        }
+    }
+    
+    private var borderWidthForState: CGFloat {
+        if (isOrganizationMode && isWorkspaceSelected) || isSelected {
+            return 1
+        } else {
+            return 0
+        }
+    }
+}
+
+#Preview {
+    VStack(spacing: 8) {
+        // Normal mode
+        WorkspaceItemView(
+            workspace: WorkspaceInfo(
+                name: "Sample Project",
+                path: "/Users/example/Projects/SampleProject",
+                lastOpened: Date(),
+                projectType: .react,
+                isFavorite: true
+            ),
+            isSelected: false
+        )
+        
+        // Organization mode - not selected
+        WorkspaceItemView(
+            workspace: WorkspaceInfo(
+                name: "Another Project",
+                path: "/Users/example/Projects/AnotherProject",
+                lastOpened: Date().addingTimeInterval(-86400),
+                projectType: .swift
+            ),
+            isSelected: false,
+            isOrganizationMode: true,
+            isWorkspaceSelected: false,
+            onWorkspaceToggle: {}
+        )
+        
+        // Organization mode - selected
+        WorkspaceItemView(
+            workspace: WorkspaceInfo(
+                name: "Selected Project",
+                path: "/Users/example/Projects/SelectedProject",
+                lastOpened: Date().addingTimeInterval(-172800),
+                projectType: .python
+            ),
+            isSelected: false,
+            isOrganizationMode: true,
+            isWorkspaceSelected: true,
+            onWorkspaceToggle: {}
+        )
+    }
+    .padding()
 } 

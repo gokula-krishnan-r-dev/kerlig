@@ -13,6 +13,7 @@ struct kerligApp: App {
     @StateObject private var appState = AppState()
     @State private var floatingPanel: FloatingPanelController?
     @State private var statusBarController: StatusBarController?
+    @State private var urlManagerPanel: URLManagerPanelController?
 
     @StateObject private var textCaptureService = TextCaptureService()
     var body: some Scene {
@@ -42,6 +43,9 @@ struct kerligApp: App {
                             // Set up floating panel
                             setupFloatingPanel()
                             
+                            // Set up URL manager panel
+                            setupURLManagerPanel()
+                            
                             // Register for panel close notifications
                             registerForPanelCloseNotifications()
                         }
@@ -66,6 +70,11 @@ struct kerligApp: App {
                     textCaptureService.captureSelectedText()
                 }
                 .keyboardShortcut("c", modifiers: [.option, .command])
+                
+                Button("URL Manager") {
+                    urlManagerPanel?.togglePanel()
+                }
+                .keyboardShortcut("d", modifiers: [.command])
                 
                 Divider()
                 
@@ -99,7 +108,7 @@ struct kerligApp: App {
             DispatchQueue.main.async {
                 // Hide main window if it's open
                 for window in NSApp.windows {
-                    if window.title != "Settings" && window.title != "AI Assistant" {
+                    if window.title != "Settings" && window.title != "AI Assistant" && window.title != "URL Manager" {
                         window.orderOut(nil)
                     }
                 }
@@ -112,6 +121,12 @@ struct kerligApp: App {
                 }
             }
         }
+    }
+    
+    private func setupURLManagerPanel() {
+        // Initialize URL manager panel controller
+        urlManagerPanel = URLManagerPanelController()
+        NSLog("✅ URL Manager Panel controller initialized")
     }
     
     private func registerForPanelCloseNotifications() {
@@ -132,8 +147,6 @@ struct kerligApp: App {
         PortMonitorWindow.open()
     }
 }
-
-
 
 // Add the showSettingsWindow selector to NSApplication
 extension NSApplication {

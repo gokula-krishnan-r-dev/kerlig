@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProjectTypeFilterBar: View {
     @Binding var activeFilter: ProjectType?
+    let onOrganizationTapped: () -> Void
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -56,6 +57,15 @@ struct ProjectTypeFilterBar: View {
                 ) {
                     activeFilter = .node
                 }
+                
+                // Separator
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.3))
+                    .frame(width: 1, height: 20)
+                    .padding(.horizontal, 4)
+                
+                // Organization button
+                OrganizationFilterButton(action: onOrganizationTapped)
             }
             .padding(.horizontal, 4)
         }
@@ -83,8 +93,38 @@ struct FilterButton: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .foregroundColor(isSelected ? color : .primary)
+            .background(isSelected ? color.opacity(0.1) : Color.clear)
             .cornerRadius(16)
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct OrganizationFilterButton: View {
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "building.2")
+                    .font(.system(size: 12))
+                
+                Text("Organization")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .foregroundColor(.white)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.purple, Color.blue]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(16)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .help("Create an organization from selected workspaces")
     }
 } 

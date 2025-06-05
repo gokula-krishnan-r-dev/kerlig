@@ -2,11 +2,20 @@ import SwiftUI
 
 struct WorkspacePanelView: View {
     @StateObject private var workspaceService = WorkspaceService()
+    @StateObject private var organizationService = OrganizationService()
     @State private var searchText = ""
     @State private var selectedWorkspaceIndex: Int? = nil
     @State private var activeFilter: ProjectType? = nil
     @FocusState private var isSearchFieldFocused: Bool
     @Environment(\.dismiss) private var dismiss
+    
+    // Organization-related state
+    @State private var isOrganizationMode = false
+    @State private var selectedWorkspaces: Set<UUID> = []
+    @State private var showOrganizationCreator = false
+    @State private var showOrganizationManagement = false
+    @State private var showOrganizationCreatedAlert = false
+    @State private var lastCreatedOrganization: Organization?
     
     // First filtering step - by project type
     private var typeFilteredWorkspaces: [WorkspaceInfo] {
@@ -33,123 +42,268 @@ struct WorkspacePanelView: View {
         }
     }
     
+    // Get selected workspace objects for organization creation
+    private var selectedWorkspaceObjects: [WorkspaceInfo] {
+        return filteredWorkspaces.filter { selectedWorkspaces.contains($0.id) }
+    }
+
     var body: some View {
-        VStack {
-            // Search field
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                
-                TextField("Search by name, path, or project type", text: $searchText)
-                    .textFieldStyle(PlainTextFieldStyle())
-                    .font(.body)
-                    .focused($isSearchFieldFocused)
-                
-                if !searchText.isEmpty {
-                    Button(action: {
-                        searchText = ""
-                        isSearchFieldFocused = true
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+        ZStack {
+            // Main workspace panel
+            VStack(spacing: 0) {
+                // Search field
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                    
+                    TextField("Search by name, path, or project type", text: $searchText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .font(.body)
+                        .focused($isSearchFieldFocused)
+                    
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            isSearchFieldFocused = true
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
-            }
-            .padding(8)
-            .background(Color(.textBackgroundColor).opacity(0.5))
-            .cornerRadius(8)
-            .padding(.horizontal)
-            .padding(.top)
-            
-            // Project type filters
-            ProjectTypeFilterBar(activeFilter: $activeFilter)
+                .padding(8)
+                .background(Color(.textBackgroundColor).opacity(0.5))
+                .cornerRadius(8)
+                .padding(.horizontal)
+                .padding(.top)
+                
+                // Project type filters with organization button
+                HStack {
+                    ProjectTypeFilterBar(
+                        activeFilter: $activeFilter,
+                        onOrganizationTapped: {
+                            if !isOrganizationMode {
+                                toggleOrganizationMode()
+                            } else {
+                                showOrganizationManagement = true
+                            }
+                        }
+                    )
+                    
+                    Spacer()
+                    
+                    // Organization management button (when not in org mode)
+                    if !isOrganizationMode && !organizationService.organizations.isEmpty {
+                        Button(action: {
+                            showOrganizationManagement = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "building.2.crop.circle")
+                                    .font(.system(size: 12))
+                                Text("Manage")
+                                    .font(.system(size: 12))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Manage existing organizations")
+                    }
+                }
                 .padding(.horizontal)
                 .padding(.vertical, 4)
-            
-            // Workspaces list
-            if workspaceService.isLoading {
-                Spacer()
-                ProgressView()
-                    .scaleEffect(1.2)
-                    .padding()
-                Spacer()
-            } else if let error = workspaceService.error {
-                Spacer()
-                VStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
-                        .foregroundColor(.orange)
-                        .padding()
-                    
-                    Text("Error loading workspaces")
-                        .font(.headline)
-                    
-                    Text(error.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                    
-                    Button("Try Again") {
-                        Task {
-                            await workspaceService.loadWorkspaces()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .padding()
-                }
-                .padding()
-                Spacer()
-            } else if filteredWorkspaces.isEmpty {
-                Spacer()
-                VStack {
-                    Image(systemName: "folder.badge.questionmark")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary)
-                        .padding()
-                    
-                    if searchText.isEmpty {
-                        Text("No workspaces found")
-                            .font(.headline)
-                    } else {
-                        Text("No matching workspaces")
-                            .font(.headline)
-                    }
-                }
-                .padding()
-                Spacer()
-            } else {
-                List(selection: $selectedWorkspaceIndex) {
-                    ForEach(Array(filteredWorkspaces.enumerated()), id: \.element.id) { index, workspace in
-                        WorkspaceItemView(
-                            workspace: workspace,
-                            isSelected: selectedWorkspaceIndex == index
+                
+                // Organization mode interface
+                if isOrganizationMode {
+                    VStack(spacing: 0) {
+                        // Organization mode header
+                        OrganizationModeHeader(
+                            selectedCount: selectedWorkspaces.count,
+                            onCancel: { exitOrganizationMode() },
+                            onCreateOrganization: {
+                                if selectedWorkspaces.count >= 2 {
+                                    withAnimation(.spring(response: 0.5)) {
+                                        showOrganizationCreator = true
+                                    }
+                                }
+                            },
+                            onManageOrganizations: {
+                                showOrganizationManagement = true
+                            }
                         )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedWorkspaceIndex = index
-                            openSelectedWorkspace()
-                        }
-                        .onDoubleClick {
-                            openSelectedWorkspace()
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        
+                        // Inline organization creator
+                        if showOrganizationCreator {
+                            InlineOrganizationCreator(
+                                selectedWorkspaces: selectedWorkspaceObjects,
+                                onCreateOrganization: { organization in
+                                    organizationService.addOrganization(organization)
+                                    lastCreatedOrganization = organization
+                                    exitOrganizationMode()
+                                    showOrganizationCreatedAlert = true
+                                },
+                                onCancel: {
+                                    withAnimation(.spring(response: 0.5)) {
+                                        showOrganizationCreator = false
+                                    }
+                                }
+                            )
+                            .padding(.horizontal)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            ))
                         }
                     }
                 }
-                .listStyle(.plain)
-                .background(Color.clear)
+                
+                // Workspaces list with flexible frame
+                if workspaceService.isLoading {
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .padding()
+                    Spacer()
+                } else if let error = workspaceService.error {
+                    Spacer()
+                    VStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundColor(.orange)
+                            .padding()
+                        
+                        Text("Error loading workspaces")
+                            .font(.headline)
+                        
+                        Text(error.localizedDescription)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                        
+                        Button("Try Again") {
+                            Task {
+                                await workspaceService.loadWorkspaces()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding()
+                    }
+                    .padding()
+                    Spacer() 
+                } else if filteredWorkspaces.isEmpty {
+                    Spacer()
+                    VStack {
+                        Image(systemName: "folder.badge.questionmark")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                            .padding()
+                        
+                        if searchText.isEmpty {
+                            Text("No workspaces found")
+                                .font(.headline)
+                        } else {
+                            Text("No matching workspaces")
+                                .font(.headline)
+                        }
+                    }
+                    .padding()
+                    Spacer()
+                } else {
+                    List(selection: $selectedWorkspaceIndex) {
+                        ForEach(Array(filteredWorkspaces.enumerated()), id: \.element.id) { index, workspace in
+                            WorkspaceItemView(
+                                workspace: workspace,
+                                isSelected: selectedWorkspaceIndex == index,
+                                isOrganizationMode: isOrganizationMode,
+                                isWorkspaceSelected: selectedWorkspaces.contains(workspace.id),
+                                onWorkspaceToggle: {
+                                    toggleWorkspaceSelection(workspace.id)
+                                }
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if isOrganizationMode {
+                                    toggleWorkspaceSelection(workspace.id)
+                                } else {
+                                    selectedWorkspaceIndex = index
+                                    openSelectedWorkspace()
+                                }
+                            }
+                            .onDoubleClick {
+                                if !isOrganizationMode {
+                                    openSelectedWorkspace()
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .background(Color.clear)
+                    .frame(minHeight: 0, maxHeight: .infinity)
+                }
+                
+                // Footer with hint
+                HStack {
+                    if isOrganizationMode {
+                        if showOrganizationCreator {
+                            Text("Creating organization • Esc to cancel")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Select workspaces • Create organization • Esc to cancel")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Text("↑↓ to navigate • Enter to open • Esc to close • ⌘F to search")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
             }
-            // Footer with hint
-            HStack {
-                Text("↑↓ to navigate • Enter to open • Esc to close • ⌘F to search")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
+            .frame(minHeight: 400, maxHeight: showOrganizationCreator ? .infinity : 400)
+            .clipped()
+            .blur(radius: showOrganizationManagement ? 3 : 0)
+            
+            // Organization management overlay
+            if showOrganizationManagement {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showOrganizationManagement = false
+                        }
+                    }
+                
+                OrganizationManagementView(
+                    organizationService: organizationService,
+                    allWorkspaces: workspaceService.workspaces,
+                    onDismiss: {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showOrganizationManagement = false
+                        }
+                    },
+                    onOpenWorkspace: { workspace in
+                        openWorkspace(workspace)
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showOrganizationManagement = false
+                        }
+                    }
+                )
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .trailing).combined(with: .opacity)
+                ))
             }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
         }
-        .frame(width: 600, height: 400)
         .onAppear {
             Task {
                 await workspaceService.loadWorkspaces()
@@ -161,30 +315,90 @@ struct WorkspacePanelView: View {
             }
         }
         .onKeyPress(.upArrow) {
-            moveSelection(direction: -1)
-            return .handled
+            if !isOrganizationMode {
+                moveSelection(direction: -1)
+                return .handled
+            }
+            return .ignored
         }
         .onKeyPress(.downArrow) {
-            moveSelection(direction: 1)
-            return .handled
+            if !isOrganizationMode {
+                moveSelection(direction: 1)
+                return .handled
+            }
+            return .ignored
         }
         .onKeyPress(.return) {
-            openSelectedWorkspace()
-            return .handled
+            if !isOrganizationMode {
+                openSelectedWorkspace()
+                return .handled
+            }
+            return .ignored
         }
         .onKeyPress(.escape) {
-            dismiss()
-            return .handled
+            if showOrganizationManagement {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showOrganizationManagement = false
+                }
+                return .handled
+            } else if showOrganizationCreator {
+                withAnimation(.spring(response: 0.5)) {
+                    showOrganizationCreator = false
+                }
+                return .handled
+            } else if isOrganizationMode {
+                exitOrganizationMode()
+                return .handled
+            } else {
+                dismiss()
+                return .handled
+            }
         }
-        // Add shortcut for focusing the search field
-//        .onKeyPress("f") { event in
-//            if event.modifiers.contains(.command) {
-//                isSearchFieldFocused = true
-//                return .handled
-//            }
-//            return .ignored
-//        }
+        .alert("Organization Created", isPresented: $showOrganizationCreatedAlert) {
+            Button("OK") {}
+        } message: {
+            if let org = lastCreatedOrganization {
+                Text("'\(org.name)' has been created with \(org.workspaceIds.count) workspaces.")
+            }
+        }
     }
+    
+    // MARK: - Organization Mode Functions
+    
+    private func toggleOrganizationMode() {
+        if isOrganizationMode {
+            exitOrganizationMode()
+        } else {
+            enterOrganizationMode()
+        }
+    }
+    
+    private func enterOrganizationMode() {
+        withAnimation(.spring(response: 0.4)) {
+            isOrganizationMode = true
+            selectedWorkspaces.removeAll()
+            selectedWorkspaceIndex = nil
+            showOrganizationCreator = false
+        }
+    }
+    
+    private func exitOrganizationMode() {
+        withAnimation(.spring(response: 0.4)) {
+            isOrganizationMode = false
+            selectedWorkspaces.removeAll()
+            showOrganizationCreator = false
+        }
+    }
+    
+    private func toggleWorkspaceSelection(_ workspaceId: UUID) {
+        if selectedWorkspaces.contains(workspaceId) {
+            selectedWorkspaces.remove(workspaceId)
+        } else {
+            selectedWorkspaces.insert(workspaceId)
+        }
+    }
+    
+    // MARK: - Navigation Functions
     
     private func moveSelection(direction: Int) {
         guard !filteredWorkspaces.isEmpty else { return }
@@ -199,9 +413,11 @@ struct WorkspacePanelView: View {
     
     private func openSelectedWorkspace() {
         guard let index = selectedWorkspaceIndex, index < filteredWorkspaces.count else { return }
-        
         let workspace = filteredWorkspaces[index]
-        
+        openWorkspace(workspace)
+    }
+    
+    private func openWorkspace(_ workspace: WorkspaceInfo) {
         // Create a more robust and dynamic approach for opening workspaces
         Task {
             // First try to open in Cursor
@@ -212,7 +428,6 @@ struct WorkspacePanelView: View {
             
             // Update last opened timestamp
             workspaceService.openWorkspace(workspace)
-
 
             //after open in cursor, terminal run that code like is it is nextjs then use yarn run like this way 
             
@@ -407,5 +622,55 @@ struct WorkspacePanelView: View {
         case .unknown:
             return "echo 'Project type not detected'"
         }
+    }
+}
+
+// Enhanced organization mode header component
+struct OrganizationModeHeader: View {
+    let selectedCount: Int
+    let onCancel: () -> Void
+    let onCreateOrganization: () -> Void
+    let onManageOrganizations: () -> Void
+    
+    var body: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "building.2")
+                    .foregroundColor(.purple)
+                
+                Text("Organization Mode")
+                    .font(.headline)
+                    .foregroundColor(.purple)
+                
+                Text("(\(selectedCount) selected)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Button("Manage") {
+                    onManageOrganizations()
+                }
+                .buttonStyle(.bordered)
+                .help("View and manage existing organizations")
+                
+                Button("Cancel") {
+                    onCancel()
+                }
+                .buttonStyle(.bordered)
+                
+                Button("Create Organization") {
+                    onCreateOrganization()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(selectedCount < 2)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.purple.opacity(0.1))
+        .cornerRadius(8)
     }
 }

@@ -460,7 +460,7 @@ class HotkeyManager {
             }
             return false
         }
-        
+       
         // Use clipboard method (most reliable without AppleScript)
         let pasteboard = NSPasteboard.general
         
