@@ -344,3 +344,4 @@ struct PortMonitorView: View {
 //            .store(in: &scannerService.cancellables)
     }
 } 
+                        

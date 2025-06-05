@@ -12,6 +12,12 @@ struct SelectedTextView: View {
     @State private var showCopiedNotification: Bool = false
     @State private var isExpanded: Bool = false
     @State private var copyButtonScale: CGFloat = 1.0
+    @State private var clipboardImage: NSImage? = nil
+    @State private var hasImageContent: Bool = false
+    @State private var imageQuery: String = ""
+    @State private var isProcessingQuery: Bool = false
+    @State private var geminiResponse: String = ""
+    @State private var showResponse: Bool = false
     
     private let maxCollapsedLines: Int = 3
     private let animationDuration: Double = 0.25
@@ -84,7 +90,7 @@ struct SelectedTextView: View {
     }
     
     var body: some View {
-        if !displayedText.isEmpty && isVisible {
+        if isVisible {
             VStack(alignment: .leading, spacing: 8) {
                 // Header with source indicator and expand/collapse controls
                 HStack {
@@ -94,40 +100,71 @@ struct SelectedTextView: View {
                     Spacer()
                     
                     // Expand/collapse button
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: animationDuration)) {
-                            isExpanded.toggle()
+                    if !hasImageContent {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: animationDuration)) {
+                                isExpanded.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Text(isExpanded ? "Collapse" : "Expand")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                                
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.white.opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                                    )
+                            )
                         }
-                    }) {
-                        HStack(spacing: 4) {
-                            Text(isExpanded ? "Collapse" : "Expand")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                            
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.white.opacity(0.05))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
-                                )
-                        )
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 
-                // Text content
-                textContent
+                // Content - either text or image
+                if hasImageContent && clipboardImage != nil {
+                    VStack(spacing: 12) {
+                        imageContent
+                        
+                        // Query input for Gemini
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Ask Gemini about this image:")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.secondary)
+                            
+                            HStack {
+                                TextField("Ask a question about this image...", text: $imageQuery)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .font(.system(size: 14))
+                                
+                                // Break up the complex expression by using separate views
+                                submitButton
+                            }
+                        }
+                        
+                        // Gemini response
+                        if showResponse && !geminiResponse.isEmpty {
+                            geminiResponseView
+                        }
+                    }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
+                } else if !displayedText.isEmpty {
+                    textContent
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
+                }
             }
             .background(
                 RoundedRectangle(cornerRadius: 12)
@@ -139,6 +176,175 @@ struct SelectedTextView: View {
             )
             .padding(.top, 8)
             .transition(.move(edge: .top).combined(with: .opacity))
+            .onAppear {
+                checkForClipboardImage()
+            }
+        }
+    }
+    
+    // Extract submit button to separate view
+    private var submitButton: some View {
+        Button(action: {
+            submitImageToGemini()
+        }) {
+            Text("Submit")
+                .font(.system(size: 13, weight: .medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(accentColor)
+                )
+                .foregroundColor(.white)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(imageQuery.isEmpty || isProcessingQuery)
+        .opacity(imageQuery.isEmpty || isProcessingQuery ? 0.6 : 1.0)
+        .overlay(loadingIndicator)
+    }
+    
+    // Extract loading indicator to separate view
+    private var loadingIndicator: some View {
+        Group {
+            if isProcessingQuery {
+                ProgressView()
+                    .scaleEffect(0.8)
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+            }
+        }
+    }
+    
+    // Extract Gemini response view to separate view
+    private var geminiResponseView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Gemini's Response")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                copyResponseButton
+            }
+            
+            Text(geminiResponse)
+                .font(.system(size: 13))
+                .lineSpacing(4)
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(textBackgroundColor)
+                )
+                .textSelection(.enabled)
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.1))
+        )
+        .transition(.opacity)
+    }
+    
+    // Extract copy button to separate view
+    private var copyResponseButton: some View {
+        Button(action: {
+            copyToClipboard(geminiResponse)
+            showCopiedNotification = true
+            
+            // Hide notification after delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                showCopiedNotification = false
+            }
+        }) {
+            Image(systemName: "doc.on.doc")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(copyButtonScale)
+        .overlay(copyNotification)
+    }
+    
+    // Extract copy notification to separate view
+    private var copyNotification: some View {
+        Group {
+            if showCopiedNotification {
+                Text("Copied!")
+                    .font(.system(size: 10))
+                    .padding(4)
+                    .background(Color.secondary.opacity(0.2))
+                    .cornerRadius(4)
+                    .offset(y: -20)
+                    .transition(.opacity)
+            }
+        }
+    }
+    
+    // Image content view
+    private var imageContent: some View {
+        VStack(alignment: .center) {
+            if let image = clipboardImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: 200)
+                    .cornerRadius(8)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    // Submit image to Gemini AI
+    private func submitImageToGemini() {
+        guard let image = clipboardImage, !imageQuery.isEmpty else { return }
+        
+        isProcessingQuery = true
+        showResponse = false
+        
+        // In a real implementation, you would convert the NSImage to the format needed by Gemini API
+        // and send the request to the Gemini API
+        
+        // Simulate API call to Gemini
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            // This is where you would process the actual Gemini response
+            geminiResponse = generateSampleResponse(for: imageQuery)
+            isProcessingQuery = false
+            
+            withAnimation(.easeIn(duration: 0.3)) {
+                showResponse = true
+            }
+        }
+    }
+    
+    // Sample response generator (replace with actual Gemini API integration)
+    private func generateSampleResponse(for query: String) -> String {
+        let responses = [
+            "This appears to be a PNG file icon. PNG (Portable Network Graphics) is a raster-graphics file format that supports lossless data compression.",
+            "The image shows a document icon that represents a PNG image file. PNG files are commonly used for web graphics, logos, and images that require transparency.",
+            "This is a visual representation of a PNG file. PNG files support alpha channel transparency and are widely used in digital graphics and web design.",
+            "I can see a PNG file icon in this image. PNG is a popular image format developed as an improved alternative to GIF, supporting more colors and better compression."
+        ]
+        
+        return responses.randomElement() ?? "I can analyze this image for you. It appears to be a PNG file icon which represents an image file in the PNG format."
+    }
+    
+    // Check if clipboard contains an image
+    private func checkForClipboardImage() {
+        // Only check for image if source is clipboard
+        if appState.textSource == .clipboard {
+            let pasteboard = NSPasteboard.general
+            
+            // Check for image types
+            if let image = NSImage(pasteboard: pasteboard) {
+                clipboardImage = image
+                hasImageContent = true
+            } else {
+                clipboardImage = nil
+                hasImageContent = false
+            }
+        } else {
+            clipboardImage = nil
+            hasImageContent = false
         }
     }
     
@@ -163,7 +369,7 @@ struct SelectedTextView: View {
         case .directSelection:
             return ("text.cursor", .blue)
         case .clipboard:
-            return ("doc.on.clipboard", .green)
+            return hasImageContent ? ("photo", .green) : ("doc.on.clipboard", .green)
         case .userInput:
             return ("keyboard", .purple)
         case .unknown:
@@ -177,10 +383,9 @@ struct SelectedTextView: View {
         case .directSelection:
             return "Selected Text"
         case .clipboard:
-            return "From Clipboard"
+            return hasImageContent ? "Clipboard Image" : "From Clipboard"
         case .userInput:
             return "Your Input"
-
         case .unknown:
             return "default"
         }
@@ -292,42 +497,3 @@ struct SelectedTextView: View {
     }
 }
 
-struct SelectedTextView_Previews: PreviewProvider {
-    static var previews: some View {
-        let appState = AppState()
-        
-        Group {
-            VStack {
-                SelectedTextView(
-                    displayedText: "This is a sample text that would be selected by the user.\nIt demonstrates how the component displays and handles the selected text from another application.\nThis is the third line of text.\nThis is the fourth line of text.\nThis line should be hidden initially.",
-                    isVisible: true
-                )
-                
-                SelectedTextView(
-                    displayedText: "This is a shorter sample text with no line breaks that fits within the initial view.",
-                    isVisible: true
-                )
-            }
-            .frame(width: 500)
-            .padding()
-            .preferredColorScheme(.dark)
-            .environmentObject(appState)
-            
-            VStack {
-                SelectedTextView(
-                    displayedText: "This is a sample text that would be selected by the user.\nIt demonstrates how the component displays and handles the selected text from another application.\nThis is the third line of text.\nThis is the fourth line of text.\nThis line should be hidden initially.",
-                    isVisible: true
-                )
-                
-                SelectedTextView(
-                    displayedText: "This is a shorter sample text with no line breaks that fits within the initial view.",
-                    isVisible: true
-                )
-            }
-            .frame(width: 500)
-            .padding()
-            .preferredColorScheme(.light)
-            .environmentObject(appState)
-        }
-    }
-} 

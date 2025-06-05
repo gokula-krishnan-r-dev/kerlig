@@ -4,9 +4,13 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
-	<key>com.apple.security.files.user-selected.read-only</key>
+	<key>com.apple.security.application-groups</key>
+	<array/>
+	<key>com.apple.security.automation.apple-events</key>
 	<true/>
-	<key>com.apple.security.files.user-selected.read-write</key>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.device.camera</key>
 	<true/>
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
@@ -17,20 +21,13 @@
 		<string>/Library/Application Support/Cursor/</string>
 		<string>/Library/Application Support/Code/</string>
 	</array>
-	<key>com.apple.security.temporary-exception.apple-events</key>
+	<key>com.apple.security.files.user-selected.read-only</key>
 	<true/>
-	<key>com.apple.security.automation.apple-events</key>
-	<true/>
-	<key>com.apple.security.device.camera</key>
-	<true/>
-	<key>com.apple.security.device.audio-input</key>
+	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
-	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>group.com.yourcompany.textcapture</string>
-	</array>
-	
+	<key>com.apple.security.temporary-exception.apple-events</key>
+	<true/>
 </dict>
 </plist>
