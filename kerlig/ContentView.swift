@@ -10,11 +10,7 @@ import AppKit
 import Combine
 import OSLog
 
-// Import the models explicitly to resolve ambiguity
-import SwiftUI
-import AppKit
-import Combine
-import OSLog
+
 
 struct ContentView: View {
     @EnvironmentObject var appState: kerlig.AppState
