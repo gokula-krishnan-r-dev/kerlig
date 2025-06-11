@@ -267,6 +267,8 @@ enum ActionOption {
     case fixSpelling
     case improveWriting
     case translate
+    
+    
 }
 
 // Custom view to display the app icon

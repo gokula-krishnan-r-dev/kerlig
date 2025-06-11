@@ -1628,9 +1628,3 @@ struct DemoStep3View: View {
     }
 }
 
-#Preview {
-    OnboardingView()
-        .environmentObject(AppState())
-        .preferredColorScheme(.dark) // Preview in dark mode
-}
-
