@@ -53,39 +53,34 @@ class FileDetailsCapture {
 
     // Convert to formatted string for display
     func toFormattedString() -> String {
-      var result = """
-        File: \(name)
-        Path: \(path)
-        Size: \(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
-        Type: \(type)
-        """
+      var result = ""
 
-      if let creationDate = creationDate {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        result += "\nCreated: \(formatter.string(from: creationDate))"
-      }
+      // if let creationDate = creationDate {
+      //   let formatter = DateFormatter()
+      //   formatter.dateStyle = .medium
+      //   formatter.timeStyle = .medium
+      //   result += "\nCreated: \(formatter.string(from: creationDate))"
+      // }
 
-      if let modificationDate = modificationDate {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        result += "\nModified: \(formatter.string(from: modificationDate))"
-      }
+      // if let modificationDate = modificationDate {
+      //   let formatter = DateFormatter()
+      //   formatter.dateStyle = .medium
+      //   formatter.timeStyle = .medium
+      //   result += "\nModified: \(formatter.string(from: modificationDate))"
+      // }
 
-      if let dimensions = dimensions {
-        result += "\nDimensions: \(dimensions.width) × \(dimensions.height)"
-      }
+      // if let dimensions = dimensions {
+      //   result += "\nDimensions: \(dimensions.width) × \(dimensions.height)"
+      // }
 
       // Add path for easy copying
-      result += "\n\nFull Path: \(path)"
+      result += "\(path)"
 
-      // Add only base64 preview for images (first 100 chars)
-      if type.contains("image") && base64 != nil {
-        let previewLength = min(100, base64?.count ?? 0)
-        result += "\n\nBase64 (preview): \(base64?.prefix(previewLength) ?? "")..."
-      }
+      // // Add only base64 preview for images (first 100 chars)
+      // if type.contains("image") && base64 != nil {
+      //   let previewLength = min(100, base64?.count ?? 0)
+      //   result += "\n\nBase64 (preview): \(base64?.prefix(previewLength) ?? "")..."
+      // }
 
       return result
     }

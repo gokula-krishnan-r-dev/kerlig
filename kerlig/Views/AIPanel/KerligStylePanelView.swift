@@ -458,7 +458,8 @@ struct KerligStylePanelView: View {
     let requestPublisher = self.aiService.generateResponse(
       prompt: formattedPrompt,
       systemPrompt: systemPrompt,
-      model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      type: detectContentType(from: formattedPrompt)
     )
 
     // Add retry logic with better error handling
@@ -702,5 +703,90 @@ struct KerligStylePanelView: View {
   func updateResponse(_ response: String) {
     self.generatedResponse = response
     self.isProcessing = false
+  }
+
+  // Professional content type detection system
+  private func detectContentType(from prompt: String) -> String? {
+    // Check if the prompt contains file paths
+    let lines = prompt.components(separatedBy: .newlines)
+    
+    for line in lines {
+      let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      
+      // Skip empty lines or lines that are clearly text content
+      if trimmedLine.isEmpty || trimmedLine.count < 3 {
+        continue
+      }
+      
+      // Check if this line looks like a file path
+      if isFilePath(trimmedLine) {
+        return getContentTypeFromPath(trimmedLine)
+      }
+    }
+    
+    // If no file paths found, return nil for regular text content
+    return nil
+  }
+  
+  // Helper function to detect if text is a file path
+  private func isFilePath(_ text: String) -> Bool {
+    // Check if it looks like a file path
+    guard text.contains("/") || text.contains("\\") else { return false }
+    
+    // Must have a file extension
+    let components = text.components(separatedBy: ".")
+    guard components.count > 1, let lastComponent = components.last, !lastComponent.isEmpty else {
+      return false
+    }
+    
+    // Check if the extension looks reasonable (2-4 characters)
+    let ext = lastComponent.lowercased()
+    guard ext.count >= 2 && ext.count <= 4 else {
+      return false
+    }
+    
+    // Additional validation: should not be a URL
+    if text.hasPrefix("http://") || text.hasPrefix("https://") || text.hasPrefix("ftp://") {
+      return false
+    }
+    
+    return true
+  }
+  
+  // Get specific content type based on file extension
+  private func getContentTypeFromPath(_ path: String) -> String {
+    let ext = getFileExtension(path).lowercased()
+    
+    // Define file type categories
+    let imageExtensions = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "webp", "svg", "ico", "heic", "heif"]
+    let audioExtensions = ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "aiff"]
+    let videoExtensions = ["mp4", "avi", "mov", "wmv", "flv", "webm", "mkv", "m4v"]
+    let documentExtensions = ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp"]
+    let textExtensions = ["txt", "md", "json", "xml", "csv", "log", "py", "js", "html", "css", "swift", "java", "cpp", "c", "h"]
+    let archiveExtensions = ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]
+    
+    // Return specific file type
+    if ext == "pdf" {
+      return "pdf"
+    } else if imageExtensions.contains(ext) {
+      return "image"
+    } else if audioExtensions.contains(ext) {
+      return "audio"
+    } else if videoExtensions.contains(ext) {
+      return "video"
+    } else if documentExtensions.contains(ext) {
+      return "document"
+    } else if textExtensions.contains(ext) {
+      return "text"
+    } else if archiveExtensions.contains(ext) {
+      return "archive"
+    } else {
+      return "file"  // Generic file type
+    }
+  }
+  
+  // Helper function to get file extension
+  private func getFileExtension(_ path: String) -> String {
+    return (path as NSString).pathExtension
   }
 }

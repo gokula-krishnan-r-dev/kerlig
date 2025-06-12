@@ -70,6 +70,7 @@ class Logger {
 class AIService {
   private let baseURL = "http://localhost:8080/ai/generate"  // Update with your actual API URL
   private let logger = Logger.shared
+  private let geminiVisionService = GeminiVisionService()  // Add Gemini Vision service
   @EnvironmentObject var appState: AppState
 
   // Define actions directly in this class to avoid conflicts
@@ -109,12 +110,17 @@ class AIService {
     }
   }
 
-  func generateResponse(prompt: String, systemPrompt: String, model: String) -> AnyPublisher<
+  func generateResponse(prompt: String, systemPrompt: String, model: String , type: String? = nil) -> AnyPublisher<
     String, Error
   > {
     logger.log("Generating response with \(systemPrompt) model: \(model)", level: .info)
 
-   
+    // Check if type indicates a file and route to appropriate service
+    if let fileType = type, shouldUseGeminiVision(for: fileType) {
+      return handleFileWithGeminiVision(prompt: prompt, systemPrompt: systemPrompt, type: fileType)
+    }
+    
+    // Standard text processing
     guard let url = URL(string: baseURL) else {
       logger.log("Invalid URL: \(baseURL)", level: .error)
       return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
@@ -362,6 +368,170 @@ class AIService {
        */
 
       """
+  }
+  
+  // MARK: - Gemini Vision Integration
+  
+  // Determine if we should use Gemini Vision for this file type
+  private func shouldUseGeminiVision(for type: String) -> Bool {
+    let visionSupportedTypes = ["image", "pdf", "document", "text", "archive", "audio", "video", "file"]
+    return visionSupportedTypes.contains(type.lowercased())
+  }
+  
+  // Handle file processing with Gemini Vision
+  private func handleFileWithGeminiVision(prompt: String, systemPrompt: String, type: String) -> AnyPublisher<String, Error> {
+    logger.log("Processing file with Gemini Vision, type: \(type)", level: .info)
+    
+    return Future<String, Error> { [weak self] promise in
+      guard let self = self else {
+        promise(.failure(APIError.invalidResponse))
+        return
+      }
+      
+      // Extract file path from prompt
+      let filePath = self.extractFilePathFromPrompt(prompt)
+      
+      guard !filePath.isEmpty else {
+        promise(.failure(FileProcessingError.noFilePathFound))
+        return
+      }
+      
+      // Create comprehensive prompt combining system prompt and user request
+      let visionPrompt = self.createVisionPrompt(systemPrompt: systemPrompt, userPrompt: prompt, filePath: filePath)
+      
+             // Process file with appropriate handler
+       self.processFileWithGeminiVision(filePath: filePath, prompt: visionPrompt, completion: promise)
+      
+    }.eraseToAnyPublisher()
+  }
+  
+  // Extract file path from prompt text
+  private func extractFilePathFromPrompt(_ prompt: String) -> String {
+    let lines = prompt.components(separatedBy: .newlines)
+    
+    for line in lines {
+      let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      
+      // Check if this line looks like a file path
+      if isValidFilePath(trimmedLine) {
+        return trimmedLine
+      }
+    }
+    
+    return ""
+  }
+  
+  // Validate if a string is a valid file path
+  private func isValidFilePath(_ path: String) -> Bool {
+    guard path.contains("/") || path.contains("\\") else { return false }
+    
+    let components = path.components(separatedBy: ".")
+    guard components.count > 1, let ext = components.last, !ext.isEmpty else { return false }
+    
+    // Check if extension is reasonable (2-4 characters)
+    return ext.count >= 2 && ext.count <= 4
+  }
+  
+  // Create a comprehensive prompt for vision processing
+  private func createVisionPrompt(systemPrompt: String, userPrompt: String, filePath: String) -> String {
+    var visionPrompt = ""
+    
+    // Add system context if provided
+    if !systemPrompt.isEmpty {
+      visionPrompt += "Context: \(systemPrompt)\n\n"
+    }
+    
+    // Add user request, filtering out the file path
+    let userRequest = userPrompt.replacingOccurrences(of: filePath, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !userRequest.isEmpty {
+      visionPrompt += "User Request: \(userRequest)\n\n"
+    }
+    
+    // Add default instruction if no specific request
+    if userRequest.isEmpty {
+      visionPrompt += "Please analyze this file and provide detailed insights about its content, structure, and any relevant information.\n\n"
+    }
+    
+    return visionPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+  
+  // Process files with Gemini Vision (images, PDFs, documents, etc.)
+  private func processFileWithGeminiVision(filePath: String, prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
+    logger.log("Processing file: \(filePath)", level: .info)
+    
+    // Convert path to URL
+    let fileURL = URL(fileURLWithPath: expandFilePath(filePath))
+    
+    geminiVisionService.processFile(fileURL: fileURL, prompt: prompt) { [weak self] result in
+      DispatchQueue.main.async {
+        switch result {
+        case .success(let response):
+          self?.logger.log("Successfully processed file with Gemini Vision", level: .info)
+          completion(.success(response))
+        case .failure(let error):
+          self?.logger.log("Failed to process file: \(error.localizedDescription)", level: .error)
+          completion(.failure(error))
+        }
+      }
+    }
+  }
+  
+
+  
+  // Helper to expand file paths (handle ~ and file:// URLs)
+  private func expandFilePath(_ path: String) -> String {
+    var expandedPath = path
+    
+    // Handle file:// URLs
+    if expandedPath.hasPrefix("file://") {
+      if let url = URL(string: expandedPath) {
+        expandedPath = url.path
+      }
+    }
+    
+    // Expand tilde for home directory
+    if expandedPath.hasPrefix("~") {
+      expandedPath = NSString(string: expandedPath).expandingTildeInPath
+    }
+    
+    return expandedPath
+  }
+  
+  // Describe file type based on extension
+  private func describeFileType(_ fileExtension: String) -> String {
+    switch fileExtension.lowercased() {
+    case "pdf": return "PDF document"
+    case "doc", "docx": return "Microsoft Word document" 
+    case "xls", "xlsx": return "Microsoft Excel spreadsheet"
+    case "ppt", "pptx": return "Microsoft PowerPoint presentation"
+    case "txt": return "text document"
+    case "md": return "Markdown document"
+    case "json": return "JSON data file"
+    case "xml": return "XML document"
+    case "csv": return "CSV data file"
+    case "zip", "rar", "7z": return "compressed archive"
+    case "mp3", "wav", "flac": return "audio file"
+    case "mp4", "avi", "mov": return "video file"
+    default: return "document"
+    }
+  }
+}
+
+// MARK: - File Processing Errors
+enum FileProcessingError: Error, LocalizedError {
+  case noFilePathFound
+  case unsupportedFileType(String)
+  case fileNotFound(String)
+  
+  var errorDescription: String? {
+    switch self {
+    case .noFilePathFound:
+      return "No valid file path found in the request"
+    case .unsupportedFileType(let type):
+      return "Unsupported file type: \(type)"
+    case .fileNotFound(let path):
+      return "File not found at path: \(path)"
+    }
   }
 }
 
