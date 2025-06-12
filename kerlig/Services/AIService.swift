@@ -466,6 +466,7 @@ class AIService {
       DispatchQueue.main.async {
         switch result {
         case .success(let response):
+          print("response: \(response)")
           self?.logger.log("Successfully processed file with Gemini Vision", level: .info)
           completion(.success(response))
         case .failure(let error):
@@ -475,9 +476,9 @@ class AIService {
       }
     }
   }
-  
 
-  
+
+
   // Helper to expand file paths (handle ~ and file:// URLs)
   private func expandFilePath(_ path: String) -> String {
     var expandedPath = path

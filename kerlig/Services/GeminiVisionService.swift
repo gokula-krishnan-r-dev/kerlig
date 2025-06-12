@@ -4,7 +4,7 @@ import PDFKit
 import UniformTypeIdentifiers
 
 class GeminiVisionService {
-  // API URL for Gemini Vision API (Updated to use Gemini 1.5 Flash)
+  // API URL for Gemini Vision API (Using Pro Vision model)
   private let baseURL =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
@@ -149,8 +149,24 @@ class GeminiVisionService {
         analysis += "User Request: \(prompt)\n"
         analysis += "Response: I can see this is a \(getDocumentTypeDescription(fileExtension)) file. To provide detailed analysis of the content, please export it as a PDF or text file, or share specific questions about the document structure or content."
       }
+
+      print("analysis: \(analysis)")
+
+      // Convert document to text and combine with user prompt
+      let extractedContent = convertDocToText(fileURL: fileURL)
       
-      completion(.success(analysis))
+      // Create comprehensive prompt for Gemini
+      let combinedPrompt = """
+      \(prompt)
+      
+      \(extractedContent)
+      
+      Please analyze this document and provide insights based on the user's request above and the extracted content.
+      """
+
+      // Process with Gemini text API
+      sendTextToGemini(text: combinedPrompt, completion: completion)
+      
     } catch {
       completion(.failure(error))
     }
@@ -313,9 +329,8 @@ class GeminiVisionService {
   private func sendTextToGemini(
     text: String, completion: @escaping (Result<String, Error>) -> Void
   ) {
-    // Use the text-only Gemini model for text processing
+    // Use the high-level Gemini Pro model for advanced text processing
     let textURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-    
     guard !apiKey.isEmpty else {
       completion(.failure(GeminiError.missingAPIKey))
       return
@@ -339,10 +354,10 @@ class GeminiVisionService {
         ]
       ],
       "generationConfig": [
-        "temperature": 0.4,
-        "topK": 32,
-        "topP": 1,
-        "maxOutputTokens": 2048,
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 4096,
       ],
     ]
     
@@ -372,9 +387,11 @@ class GeminiVisionService {
            let parts = content["parts"] as? [[String: Any]],
            let firstPart = parts.first,
            let text = firstPart["text"] as? String {
+            print("text: \(text)")
           completion(.success(text))
         } else {
           let responseString = String(data: data, encoding: .utf8) ?? "Could not decode response"
+          print("responseString: \(responseString)")
           completion(.failure(GeminiError.parsingError(responseString)))
         }
       } catch {
@@ -580,6 +597,7 @@ class GeminiVisionService {
           let firstPart = parts.first,
           let text = firstPart["text"] as? String
         {
+          print("text: \(text)")
           completion(.success(text))
         } else {
           // If we can't parse the JSON structure, return the raw response
@@ -613,5 +631,576 @@ enum GeminiError: Error, LocalizedError {
     case .noData: return "No data received"
     case .parsingError(let response): return "Failed to parse response: \(response)"
     }
+  }
+}
+
+
+// MARK: - Document Conversion
+
+private func convertDocToText(fileURL: URL) -> String {
+  let fileExtension = fileURL.pathExtension.lowercased()
+  let fileName = fileURL.lastPathComponent
+  
+  // Create a comprehensive analysis prompt for the document
+  var analysisText = """
+  Document Analysis Request:
+  
+  File: \(fileName)
+  Type: \(getDocumentTypeDescription(fileExtension: fileExtension))
+  Path: \(fileURL.path)
+  
+  """
+  
+  // Add file metadata
+  do {
+    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+    if let fileSize = attributes[.size] as? Int64 {
+        analysisText += "Size: \(formatFileSize(bytes: fileSize))\n"
+    }
+    if let modificationDate = attributes[.modificationDate] as? Date {
+      let formatter = DateFormatter()
+      formatter.dateStyle = .medium
+      formatter.timeStyle = .short
+      analysisText += "Modified: \(formatter.string(from: modificationDate))\n"
+    }
+  } catch {
+    analysisText += "Could not read file metadata: \(error.localizedDescription)\n"
+  }
+  
+  analysisText += "\n"
+  
+  // Try different extraction methods based on file type
+  switch fileExtension {
+  case "docx":
+    analysisText += extractDocxContent(fileURL: fileURL)
+  case "doc":
+    analysisText += extractDocContent(fileURL: fileURL)
+  case "rtf":
+    analysisText += extractRTFContent(fileURL: fileURL)
+  case "pages":
+    analysisText += extractPagesContent(fileURL: fileURL)
+  case "odt":
+    analysisText += extractODTContent(fileURL: fileURL)
+  case "txt":
+    analysisText += extractPlainTextContent(fileURL: fileURL)
+  default:
+    analysisText += extractGenericDocumentContent(fileURL: fileURL)
+  }
+  
+  return analysisText
+}
+
+// MARK: - Document Content Extraction Methods
+
+private func extractDocxContent(fileURL: URL) -> String {
+  var content = "DOCX Document Content Extraction:\n\n"
+  
+  // Method 1: Try NSAttributedString with proper DOCX options
+  if let extractedText = extractTextWithNSAttributedString(fileURL: fileURL) {
+    content += "Extracted Text Content:\n"
+    content += extractedText
+    content += "\n\nDocument successfully parsed using NSAttributedString."
+    return content
+  }
+  
+  // Method 2: Extract from DOCX ZIP structure
+  if let extractedText = extractTextFromDocxZip(fileURL: fileURL) {
+    content += "Extracted Text Content (ZIP method):\n"
+    content += extractedText
+    content += "\n\nDocument successfully parsed by extracting from DOCX internal structure."
+    return content
+  }
+  
+  // Method 3: Try reading as plain text (sometimes works)
+  if let extractedText = extractAsPlainText(fileURL: fileURL) {
+    content += "Extracted Text Content (Plain text method):\n"
+    content += extractedText
+    content += "\n\nDocument parsed using plain text extraction."
+    return content
+  }
+  
+  // Final fallback: Analyze structure
+  content += analyzeDocumentStructure(fileURL: fileURL)
+  content += "\n\nNote: Multiple extraction methods attempted. This DOCX file may have complex formatting or protection that prevents text extraction."
+  
+  return content
+}
+
+// MARK: - Advanced Text Extraction Methods
+
+private func extractTextWithNSAttributedString(fileURL: URL) -> String? {
+  // Try multiple document type options
+  let documentTypes: [NSAttributedString.DocumentType] = [
+    .docFormat,
+    .rtf,
+    .html,
+    .plain
+  ]
+  
+  for docType in documentTypes {
+    do {
+      let attributedString = try NSAttributedString(
+        url: fileURL,
+        options: [
+          .documentType: docType,
+          .characterEncoding: String.Encoding.utf8.rawValue
+        ],
+        documentAttributes: nil
+      )
+      
+      let text = attributedString.string.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !text.isEmpty && text.count > 10 { // Ensure we got meaningful content
+        return text
+      }
+    } catch {
+      continue // Try next method
+    }
+  }
+  
+  return nil
+}
+
+private func extractTextFromDocxZip(fileURL: URL) -> String? {
+  // DOCX files are ZIP archives containing XML files
+  // The main document content is in word/document.xml
+  
+  do {
+    // Create temporary directory for extraction
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    
+    defer {
+      // Clean up temporary directory
+      try? FileManager.default.removeItem(at: tempDir)
+    }
+    
+    // Try to unzip the DOCX file
+    if let extractedText = unzipAndExtractDocxText(docxURL: fileURL, tempDir: tempDir) {
+      return extractedText
+    }
+    
+  } catch {
+    print("Error extracting DOCX ZIP: \(error)")
+  }
+  
+  return nil
+}
+
+private func unzipAndExtractDocxText(docxURL: URL, tempDir: URL) -> String? {
+  do {
+    // Method 1: Try using unzip command
+    if let extractedText = extractUsingUnzipCommand(docxURL: docxURL, tempDir: tempDir) {
+      return extractedText
+    }
+    
+    // Method 2: Read the DOCX file as data and parse directly
+    let docxData = try Data(contentsOf: docxURL)
+    return extractTextFromDocxData(data: docxData)
+    
+  } catch {
+    print("Error reading DOCX data: \(error)")
+    return nil
+  }
+}
+
+private func extractUsingUnzipCommand(docxURL: URL, tempDir: URL) -> String? {
+  // Use the system's unzip command to extract the DOCX file
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+  process.arguments = ["-q", "-o", docxURL.path, "-d", tempDir.path]
+  
+  do {
+    try process.run()
+    process.waitUntilExit()
+    
+    if process.terminationStatus == 0 {
+      // Successfully extracted, now look for document.xml
+      let documentXMLPath = tempDir.appendingPathComponent("word/document.xml")
+      
+      if FileManager.default.fileExists(atPath: documentXMLPath.path) {
+        let xmlContent = try String(contentsOf: documentXMLPath, encoding: .utf8)
+        return extractTextFromDocumentXML(xmlContent: xmlContent)
+      }
+    }
+  } catch {
+    print("Error using unzip command: \(error)")
+  }
+  
+  return nil
+}
+
+private func extractTextFromDocumentXML(xmlContent: String) -> String? {
+  var extractedText = ""
+  
+  // Parse Word document XML to extract text content
+  // Look for <w:t> tags which contain the actual text
+  do {
+    let regex = try NSRegularExpression(pattern: "<w:t[^>]*>([^<]*)</w:t>", options: [])
+    let matches = regex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
+    
+    for match in matches {
+      if match.numberOfRanges > 1 {
+        let range = match.range(at: 1)
+        if let swiftRange = Range(range, in: xmlContent) {
+          let text = String(xmlContent[swiftRange])
+          // Decode XML entities
+          let decodedText = text
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&apos;", with: "'")
+          
+          extractedText += decodedText
+        }
+      }
+    }
+    
+    // Also look for paragraph breaks
+    let paragraphRegex = try NSRegularExpression(pattern: "</w:p>", options: [])
+    let paragraphMatches = paragraphRegex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
+    
+    // Add line breaks for paragraphs
+    var result = extractedText
+    for _ in paragraphMatches {
+      result = result.replacingOccurrences(of: "</w:p>", with: "\n")
+    }
+    
+    let cleanedText = result
+      .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    return cleanedText.isEmpty ? nil : cleanedText
+    
+  } catch {
+    print("Error parsing document XML: \(error)")
+    return nil
+  }
+}
+
+private func extractTextFromDocxData(data: Data) -> String? {
+  // Convert data to string and look for text content
+  // DOCX files contain XML, so we can try to extract text from XML-like structures
+  
+  if let dataString = String(data: data, encoding: .utf8) {
+    return extractTextFromXMLString(xmlString: dataString)
+  }
+  
+  // Try with different encodings
+  if let dataString = String(data: data, encoding: .ascii) {
+    return extractTextFromXMLString(xmlString: dataString)
+  }
+  
+  // Try to find readable text in the binary data
+  return extractReadableTextFromBinary(data: data)
+}
+
+private func extractTextFromXMLString(xmlString: String) -> String? {
+  var extractedText = ""
+  
+  // Look for text between XML tags (simplified XML parsing)
+  let patterns = [
+    "<w:t[^>]*>([^<]*)</w:t>", // Word text elements (most important)
+    "<w:instrText[^>]*>([^<]*)</w:instrText>", // Word instruction text
+    "<text[^>]*>([^<]*)</text>", // Generic text elements
+    ">([A-Za-z0-9\\s.,!?;:\"'()\\-_@#$%&*+=\\[\\]{}|\\\\/:;<>?~`]+)<" // Any readable text between angle brackets
+  ]
+  
+  for pattern in patterns {
+    do {
+      let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+      let matches = regex.matches(in: xmlString, options: [], range: NSRange(location: 0, length: xmlString.count))
+      
+      for match in matches {
+        if match.numberOfRanges > 1 {
+          let range = match.range(at: 1)
+          if let swiftRange = Range(range, in: xmlString) {
+            let matchedText = String(xmlString[swiftRange])
+            // Clean and validate the text
+            let cleanedMatch = matchedText
+              .replacingOccurrences(of: "&lt;", with: "<")
+              .replacingOccurrences(of: "&gt;", with: ">")
+              .replacingOccurrences(of: "&amp;", with: "&")
+              .replacingOccurrences(of: "&quot;", with: "\"")
+              .replacingOccurrences(of: "&apos;", with: "'")
+              .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if cleanedMatch.count > 1 && !cleanedMatch.contains("<") && !cleanedMatch.contains(">") {
+              extractedText += cleanedMatch + " "
+            }
+          }
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+  
+  // Clean up the extracted text
+  let cleanedText = extractedText
+    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  
+  return cleanedText.count > 10 ? cleanedText : nil
+}
+
+private func extractReadableTextFromBinary(data: Data) -> String? {
+  // Look for readable text in the binary data
+  var extractedText = ""
+  var currentWord = ""
+  var wordCount = 0
+  
+  for byte in data {
+    if (byte >= 32 && byte <= 126) || byte == 9 || byte == 10 || byte == 13 { // Printable ASCII + tab, newline, carriage return
+        let char = Character(UnicodeScalar(byte))
+      
+      if char.isWhitespace {
+        if currentWord.count > 2 && isValidWord(currentWord) {
+          extractedText += currentWord + " "
+          wordCount += 1
+        }
+        currentWord = ""
+      } else {
+        currentWord += String(char)
+      }
+    } else {
+      // Non-printable character, end current word
+      if currentWord.count > 2 && isValidWord(currentWord) {
+        extractedText += currentWord + " "
+        wordCount += 1
+      }
+      currentWord = ""
+    }
+  }
+  
+  // Add the last word if it's valid
+  if currentWord.count > 2 && isValidWord(currentWord) {
+    extractedText += currentWord
+    wordCount += 1
+  }
+  
+  // Only return if we found a reasonable amount of text
+  let cleanedText = extractedText
+    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  
+  return (wordCount > 5 && cleanedText.count > 50) ? cleanedText : nil
+}
+
+private func isValidWord(_ word: String) -> Bool {
+  // Check if the word looks like actual text (not random characters)
+  let vowelCount = word.lowercased().filter { "aeiou".contains($0) }.count
+  let consonantCount = word.filter { $0.isLetter && !"aeiouAEIOU".contains($0) }.count
+  let digitCount = word.filter { $0.isNumber }.count
+  
+  // Valid words should have some vowels, or be common short words, or contain some letters
+  return word.count >= 3 && (
+    vowelCount > 0 || // Has vowels
+    ["the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "its", "may", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "man", "men", "run", "she", "too", "use"].contains(word.lowercased()) || // Common short words
+    (word.filter { $0.isLetter }.count > word.count / 2) // Mostly letters
+  ) && digitCount < word.count / 2 // Not mostly digits
+}
+
+private func extractAsPlainText(fileURL: URL) -> String? {
+  // Sometimes DOCX files can be partially read as plain text
+  do {
+    let content = try String(contentsOf: fileURL, encoding: .utf8)
+    
+    // Filter out XML tags and keep only readable text
+    let cleanedContent = content.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+      .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    return cleanedContent.count > 50 ? cleanedContent : nil
+    
+  } catch {
+    // Try with different encodings
+    if let content = try? String(contentsOf: fileURL, encoding: .ascii) {
+      let cleanedContent = content.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      
+      return cleanedContent.count > 50 ? cleanedContent : nil
+    }
+  }
+  
+  return nil
+}
+
+private func extractDocContent(fileURL: URL) -> String {
+  var content = "DOC Document Content Extraction:\n\n"
+  
+  // Try to extract text using NSAttributedString
+  if let attributedString = try? NSAttributedString(url: fileURL, options: [:], documentAttributes: nil) {
+    content += "Extracted Text Content:\n"
+    content += attributedString.string
+    content += "\n\nDocument successfully parsed as DOC format."
+  } else {
+    content += analyzeDocumentStructure(fileURL: fileURL)
+    content += "\n\nNote: Direct text extraction failed. This DOC file may require Microsoft Word or compatible software for full content access."
+  }
+  
+  return content
+}
+
+private func extractRTFContent(fileURL: URL) -> String {
+  var content = "RTF Document Content Extraction:\n\n"
+  
+  do {
+    let attributedString = try NSAttributedString(url: fileURL, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil)
+    content += "Extracted Text Content:\n"
+    content += attributedString.string
+    content += "\n\nRTF document successfully parsed."
+  } catch {
+    content += "RTF parsing error: \(error.localizedDescription)\n"
+    content += analyzeDocumentStructure(fileURL: fileURL)
+  }
+  
+  return content
+}
+
+private func extractPagesContent(fileURL: URL) -> String {
+  var content = "Apple Pages Document Analysis:\n\n"
+  
+  // Pages files are actually packages (directories)
+  if fileURL.hasDirectoryPath {
+    content += "Pages document detected as package format.\n"
+    content += "Contents:\n"
+    
+    do {
+      let contents = try FileManager.default.contentsOfDirectory(at: fileURL, includingPropertiesForKeys: nil)
+      for item in contents {
+        content += "- \(item.lastPathComponent)\n"
+      }
+      
+      // Look for preview or index files
+      let previewURL = fileURL.appendingPathComponent("preview.jpg")
+      let indexURL = fileURL.appendingPathComponent("index.xml")
+      
+      if FileManager.default.fileExists(atPath: previewURL.path) {
+        content += "\nPreview image found - document contains visual content.\n"
+      }
+      
+      if FileManager.default.fileExists(atPath: indexURL.path) {
+        content += "\nDocument structure file found.\n"
+        if let xmlContent = try? String(contentsOf: indexURL) {
+          content += "Document metadata available for analysis.\n"
+        }
+      }
+      
+    } catch {
+      content += "Error reading Pages document structure: \(error.localizedDescription)\n"
+    }
+  }
+  
+  content += "\nNote: Pages documents require Apple Pages or compatible software for full text extraction."
+  return content
+}
+
+private func extractODTContent(fileURL: URL) -> String {
+  var content = "OpenDocument Text (ODT) Analysis:\n\n"
+  
+  // ODT files are ZIP archives containing XML
+  content += "ODT files are compressed archives containing structured XML content.\n"
+  content += analyzeDocumentStructure(fileURL: fileURL)
+  content += "\n\nNote: ODT files require LibreOffice, OpenOffice, or compatible software for full text extraction."
+  
+  return content
+}
+
+private func extractPlainTextContent(fileURL: URL) -> String {
+  var content = "Plain Text File Content:\n\n"
+  
+  do {
+    let textContent = try String(contentsOf: fileURL, encoding: .utf8)
+    content += textContent
+  } catch {
+    // Try different encodings
+    if let textContent = try? String(contentsOf: fileURL, encoding: .ascii) {
+      content += textContent
+    } else if let textContent = try? String(contentsOf: fileURL, encoding: .utf16) {
+      content += textContent
+    } else {
+      content += "Error reading text file: \(error.localizedDescription)"
+    }
+  }
+  
+  return content
+}
+
+private func extractGenericDocumentContent(fileURL: URL) -> String {
+  var content = "Generic Document Analysis:\n\n"
+  content += analyzeDocumentStructure(fileURL: fileURL)
+  content += "\n\nNote: This document type requires specialized software for full content extraction."
+  return content
+}
+
+private func analyzeDocumentStructure(fileURL: URL) -> String {
+  var analysis = "Document Structure Analysis:\n"
+  
+  do {
+    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+    
+    if let fileSize = attributes[.size] as? Int64 {
+        analysis += "File Size: \(formatFileSize(bytes: fileSize))\n"
+      
+      // Read first few bytes to determine file signature
+      if let fileHandle = FileHandle(forReadingAtPath: fileURL.path) {
+        let headerData = fileHandle.readData(ofLength: 16)
+        fileHandle.closeFile()
+        
+        let headerHex = headerData.map { String(format: "%02x", $0) }.joined(separator: " ")
+        analysis += "File Header: \(headerHex)\n"
+        
+        // Identify common document signatures
+        if headerData.starts(with: Data([0x50, 0x4B])) {
+          analysis += "Format: ZIP-based document (DOCX, ODT, etc.)\n"
+        } else if headerData.starts(with: Data([0xD0, 0xCF, 0x11, 0xE0])) {
+          analysis += "Format: Microsoft Compound Document (DOC, XLS, PPT)\n"
+        } else if headerData.starts(with: Data([0x7B, 0x5C, 0x72, 0x74])) {
+          analysis += "Format: Rich Text Format (RTF)\n"
+        } else {
+          analysis += "Format: Unknown or proprietary format\n"
+        }
+      }
+    }
+    
+    // Check if it's a package/bundle
+    if fileURL.hasDirectoryPath {
+      analysis += "Type: Document Package/Bundle\n"
+      let contents = try FileManager.default.contentsOfDirectory(at: fileURL, includingPropertiesForKeys: nil)
+      analysis += "Contains \(contents.count) items\n"
+    }
+    
+  } catch {
+    analysis += "Error analyzing document: \(error.localizedDescription)\n"
+  }
+  
+  return analysis
+}
+
+
+//formatFileSize
+
+private func formatFileSize(bytes: Int64) -> String {
+  let formatter = ByteCountFormatter()
+  formatter.allowedUnits = [.useKB, .useMB, .useGB]
+  formatter.countStyle = .file
+  return formatter.string(fromByteCount: bytes)
+}
+
+
+//getDocumentTypeDescription
+private func getDocumentTypeDescription(fileExtension: String) -> String {
+  switch fileExtension.lowercased() {
+  case "doc", "docx": return "Microsoft Word Document"
+  case "ppt", "pptx": return "Microsoft PowerPoint Presentation"
+  case "xls", "xlsx": return "Microsoft Excel Spreadsheet"
+  case "odt": return "OpenDocument Text"
+  case "odp": return "OpenDocument Presentation"
+  case "pages": return "Apple Pages Document"
+  case "key": return "Apple Keynote Presentation"
+  case "rtf": return "Rich Text Format Document"
+  default: return "Document"
   }
 }
