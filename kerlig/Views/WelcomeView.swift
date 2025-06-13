@@ -145,7 +145,7 @@ struct DemoCard: View {
             .padding(.horizontal, 15)
             .padding(.vertical, 10)
             .background(Color(hex: "1E1E1E"))
-            .cornerRadius(10, corners: [.topLeft, .topRight])
+
             
             // Message content
             VStack(alignment: .leading, spacing: 15) {
@@ -205,7 +205,7 @@ struct DemoCard: View {
             }
             .padding(15)
             .background(Color(hex: "222222"))
-            .cornerRadius(10, corners: [.bottomLeft, .bottomRight])
+//            .cornerRadius(10, corners: [.bottomLeft, .bottomRight])
         }
         .background(Color(hex: "222222"))
         .cornerRadius(10)

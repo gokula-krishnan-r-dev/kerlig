@@ -3,6 +3,14 @@ import Combine
 import SwiftUI
 import UserNotifications
 
+// Preference key for measuring content height
+struct ViewHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 // Internal struct for model option information
 private struct ModelOption: Identifiable {
   let id: String
@@ -48,6 +56,7 @@ struct KerligStylePanelView: View {
   @State private var cancellables = Set<AnyCancellable>()
   @State private var shouldFocusTextField: Bool = true
   @State private var animatePanel: Bool = false
+  @State private var contentHeight: CGFloat = 100
   @State private var isAnimating: Bool = false
   @FocusState private var searchQueryIsFocused: Bool
   // Rich model options for the dropdown
@@ -207,8 +216,15 @@ struct KerligStylePanelView: View {
         // Main content from existing view
         mainContentView
       }
+      .onPreferenceChange(ViewHeightKey.self) { value in
+        let totalHeight = value + 60 // Add header height
+        contentHeight = max(100, min(totalHeight, 600))
+      }
     }
-    .frame(width: 640, height: 520)
+    .frame(
+    height: contentHeight,
+    alignment: .center
+)
     .clipShape(RoundedRectangle(cornerRadius: 20))
     .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 5)
     .onAppear {
@@ -252,7 +268,7 @@ struct KerligStylePanelView: View {
       } else {
         // Animate panel out
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-          self.animatePanel = false
+          self.animatePanel = false  
         }
         self.searchQueryIsFocused = false
 
@@ -538,7 +554,14 @@ struct KerligStylePanelView: View {
               // }
             }
             .padding(.bottom, 20)
+            .background(
+              GeometryReader { geo in
+                Color.clear
+                  .preference(key: ViewHeightKey.self, value: geo.size.height)
+              }
+            )
           }
+          .frame(maxHeight: contentHeight > 300 ? .infinity : 300)
           .cornerRadius(16)
           .padding(.horizontal, 8)
           .padding(.bottom, 8)
@@ -563,7 +586,14 @@ struct KerligStylePanelView: View {
               // }
             }
             .padding(.bottom, 20)
+            .background(
+              GeometryReader { geo in
+                Color.clear
+                  .preference(key: ViewHeightKey.self, value: geo.size.height)
+              }
+            )
           }
+          .frame(maxHeight: contentHeight > 300 ? .infinity : 300)
           .cornerRadius(16)
           .padding(.horizontal, 8)
           .padding(.bottom, 8)
@@ -789,4 +819,11 @@ struct KerligStylePanelView: View {
   private func getFileExtension(_ path: String) -> String {
     return (path as NSString).pathExtension
   }
+}
+
+
+
+#Preview {
+  KerligStylePanelView()
+    .environmentObject(AppState())
 }

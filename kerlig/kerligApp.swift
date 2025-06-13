@@ -22,7 +22,7 @@ struct kerligApp: App {
         if !appState.isFirstLaunch && appState.onboardingComplete {
           ContentView()
             .environmentObject(appState)
-            .frame(minWidth: 800, minHeight: 600)
+            .frame(minWidth: 800)
             .onAppear {
               if statusBarController == nil {
                 statusBarController = StatusBarController(captureService: textCaptureService)
