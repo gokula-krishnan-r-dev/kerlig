@@ -38,9 +38,8 @@ class TextInsertionService {
     }
     
     private var insertionTimer: Timer?
-    private var verificationTimer: Timer?
     private var insertAttempts: Int = 0
-    private let maxAttempts = 3
+    private let maxAttempts = 2
     
     private var insertedText: String = ""
     private var previousClipboardContent: String?
@@ -62,14 +61,10 @@ class TextInsertionService {
         }
     }
     
-    // Dictionary of application-specific insertion handlers
-    private var appHandlers: [String: ApplicationInsertionHandler] = [:]
-    
     // MARK: - Initialization
     
     init(delegate: TextInsertionDelegate?) {
         self.delegateObject = delegate as AnyObject?
-        registerApplicationHandlers()
     }
     
     deinit {
@@ -86,31 +81,29 @@ class TextInsertionService {
             return 
         }
         
-        print("🔄 [SERVICE] Starting text insertion process for: \(text.prefix(20))...")
+        print("🔄 [SERVICE] Starting universal text insertion for: \(text.prefix(30))...")
         
-        // Save text for verification later
+        // Save text and reset attempts
         insertedText = text
         insertAttempts = 0
         
         // Set status to preparing
         status = .preparing
         
-        // Save current clipboard content for potential restoration
+        // Save current clipboard content for restoration
         saveClipboardContent()
         
-        // Copy to clipboard
+        // Copy to clipboard and start insertion
         if copyToClipboard(text) {
-            // Notify user
             delegate?.displayNotification(
                 title: "Text Ready", 
                 message: "Preparing to insert text...", 
                 isError: false
             )
             
-            // Start insertion sequence after a delay
-            print("🔄 [SERVICE] Scheduling insertion sequence in 0.5 seconds")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.executeInsertionSequence()
+            // Start insertion sequence
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.executeUniversalInsertion()
             }
         } else {
             status = .failed(reason: .clipboardFailed)
@@ -129,108 +122,126 @@ class TextInsertionService {
         if status == .inserting || status == .preparing {
             print("🔄 [SERVICE] Insertion canceled by user")
             status = .none
-            
-            // Restore previous clipboard content if possible
             restoreClipboardContent()
         }
     }
     
-    // MARK: - Core Insertion Logic
+    // MARK: - Core Universal Insertion Logic
     
-    private func executeInsertionSequence() {
-        print("🔄 [SERVICE] Starting insertion sequence")
+    private func executeUniversalInsertion() {
+        print("🔄 [SERVICE] Starting universal insertion sequence")
         status = .inserting
         
-        // First, activate the target application
-        guard activateFrontmostApp() else {
+        // Find and activate the most appropriate target application
+        if let targetApp = findTargetApplication() {
+            print("🔄 [SERVICE] Target application: \(targetApp.localizedName ?? "Unknown")")
+            
+            // Activate the target application
+            activateApplication(targetApp)
+            
+            // Wait for activation and then insert
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.performUniversalTextInsertion()
+            }
+        } else {
+            print("🔄 [SERVICE] No suitable target application found")
             status = .failed(reason: .noActiveApplication)
             delegate?.displayNotification(
-                title: "Insertion Failed", 
-                message: "Could not identify the target application.", 
+                title: "Insertion Failed",
+                message: "No suitable application found for text insertion.",
                 isError: true
             )
-            return
-        }
-        
-        // Get frontmost app info
-        guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
-              let appName = frontmostApp.localizedName else {
-            status = .failed(reason: .noActiveApplication)
-            return
-        }
-        
-        print("🔄 [SERVICE] Target application: \(appName)")
-        
-        // Find the appropriate handler for this application
-        if let handler = getHandlerForApp(named: appName) {
-            print("🔄 [SERVICE] Using application-specific handler for: \(appName)")
-            handler.insertText(service: self)
-        } else {
-            print("🔄 [SERVICE] Using generic insertion method")
-            executeGenericInsertion()
         }
     }
     
-    // MARK: - Generic Insertion Strategy
-    
-    /// Generic insertion strategy using progressive delays
-    private func executeGenericInsertion() {
-        print("🔄 [SERVICE] Generic insertion - Using adaptive paste attempts")
-        attemptInsertion()
+    private func findTargetApplication() -> NSRunningApplication? {
+        let runningApps = NSWorkspace.shared.runningApplications
+        let currentFrontmost = NSWorkspace.shared.frontmostApplication
+        
+        // Filter for applications that can accept text input
+        let potentialTargets = runningApps.filter { app in
+            guard let appName = app.localizedName,
+                  app.activationPolicy == .regular,
+                  !app.isHidden,
+                  app.processIdentifier != currentFrontmost?.processIdentifier else {
+                return false
+            }
+            
+            // Exclude system apps and utilities that typically don't need text input
+            let excludedApps = ["Finder", "System Preferences", "Activity Monitor", "Console"]
+            return !excludedApps.contains { excluded in
+                appName.contains(excluded)
+            }
+        }
+        
+        // Sort by most recently used (higher process ID generally means more recent)
+        let sortedTargets = potentialTargets.sorted { $0.processIdentifier > $1.processIdentifier }
+        
+        print("🔄 [SERVICE] Found \(sortedTargets.count) potential target applications")
+        
+        // Return the most recently used application
+        return sortedTargets.first
     }
     
-    /// Attempt to insert text with progressive backoff
-    private func attemptInsertion() {
+    private func activateApplication(_ app: NSRunningApplication) {
+        print("🔄 [SERVICE] Activating application: \(app.localizedName ?? "Unknown")")
+        app.activate(options: [.activateIgnoringOtherApps])
+    }
+    
+    private func performUniversalTextInsertion() {
+        print("🔄 [SERVICE] Performing universal text insertion")
+        
+        // Universal insertion strategy
         insertAttempts += 1
-        print("🔄 [SERVICE] Insertion attempt #\(insertAttempts) of \(maxAttempts)")
         
-        // Calculate delay with progressive backoff
-        let baseDelay: TimeInterval = 0.3
-        let delay = baseDelay * pow(1.5, Double(insertAttempts - 1))
+        // Step 1: Ensure focus by clicking at current cursor position
+        clickAtCurrentMouseLocation()
         
-        // Try paste with delay
+        // Step 2: Wait briefly and paste
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             guard let self = self else { return }
             
-            // Click to ensure focus if this isn't the first attempt
-            if self.insertAttempts > 1 {
-                self.clickAtCurrentMouseLocation()
-            }
-            
-            // Paste
-            print("🔄 [SERVICE] Pasting with Cmd+V")
+            print("🔄 [SERVICE] Attempting paste (attempt \(self.insertAttempts))")
             self.simulatePaste()
             
-            // Schedule verification after paste
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            // Step 3: Verify or retry
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self else { return }
                 
-                // Verify if successful or try again
-                if self.insertAttempts >= self.maxAttempts {
-                    self.verifyAndCompleteInsertion()
+                if self.insertAttempts < self.maxAttempts {
+                    // Try alternative focus method and retry
+                    self.tryAlternativeFocusAndRetry()
                 } else {
-                    self.attemptInsertion()
+                    // Assume success after max attempts
+                    self.completeInsertion()
                 }
             }
         }
     }
     
-    // MARK: - Insertion Verification
-    
-    private func verifyAndCompleteInsertion() {
-        print("🔄 [SERVICE] Verifying insertion result")
+    private func tryAlternativeFocusAndRetry() {
+        print("🔄 [SERVICE] Trying alternative focus method")
         
-        // In a real implementation, we would verify the text was inserted
-        // For now, we assume success for UX purposes
-        self.markAsSuccessful()
+        // Try Tab key to find an input field
+        simulateTab()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.performUniversalTextInsertion()
+        }
     }
+    
+    private func completeInsertion() {
+        print("🔄 [SERVICE] Completing insertion process")
+        markAsSuccessful()
+    }
+    
+    // MARK: - Insertion Status Management
     
     /// Marks the insertion as successful and cleans up
     func markAsSuccessful() {
         status = .success
         print("🔄 [SERVICE] Insertion successful")
         
-        // Show success notification
         delegate?.displayNotification(
             title: "Text Inserted",
             message: "Successfully inserted text",
@@ -238,10 +249,8 @@ class TextInsertionService {
         )
         
         // Reset status after delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-            guard let self = self else { return }
-            print("🔄 [SERVICE] Resetting status back to .none")
-            self.status = .none
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.resetStatus()
         }
     }
     
@@ -250,7 +259,6 @@ class TextInsertionService {
         status = .failed(reason: reason)
         print("🔄 [SERVICE] Insertion failed: \(reason.rawValue)")
         
-        // Show error notification
         delegate?.displayNotification(
             title: "Insertion Failed",
             message: reason.rawValue,
@@ -259,45 +267,14 @@ class TextInsertionService {
         
         // Reset status after delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-            guard let self = self else { return }
-            print("🔄 [SERVICE] Resetting status back to .none")
-            self.status = .none
+            self?.resetStatus()
         }
     }
     
-    // MARK: - Application Handlers Registry
-    
-    private func registerApplicationHandlers() {
-        // Register Microsoft Teams handler
-        appHandlers["Microsoft Teams"] = TeamsInsertionHandler()
-        appHandlers["Teams"] = TeamsInsertionHandler()
-        
-        // Register Slack handler
-        appHandlers["Slack"] = SlackInsertionHandler()
-        
-        // Register Discord handler
-        appHandlers["Discord"] = DiscordInsertionHandler()
-        
-        // Register Mail handler
-        appHandlers["Mail"] = MailInsertionHandler()
-        
-        print("🔄 [SERVICE] Registered handlers for \(appHandlers.count) applications")
-    }
-    
-    private func getHandlerForApp(named appName: String) -> ApplicationInsertionHandler? {
-        // First try exact match
-        if let handler = appHandlers[appName] {
-            return handler
-        }
-        
-        // Then try partial match (for apps like "Microsoft Teams" vs "Teams")
-        for (key, handler) in appHandlers {
-            if appName.contains(key) || key.contains(appName) {
-                return handler
-            }
-        }
-        
-        return nil
+    private func resetStatus() {
+        print("🔄 [SERVICE] Resetting status to .none")
+        status = .none
+        restoreClipboardContent()
     }
     
     // MARK: - Clipboard Management
@@ -314,11 +291,12 @@ class TextInsertionService {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(previousContent, forType: .string)
+        previousClipboardContent = nil
         print("🔄 [SERVICE] Restored previous clipboard content")
     }
     
     private func copyToClipboard(_ text: String) -> Bool {
-        print("🔄 [SERVICE] Copying to clipboard: \(text.prefix(20))...")
+        print("🔄 [SERVICE] Copying to clipboard: \(text.prefix(30))...")
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let success = pasteboard.setString(text, forType: .string)
@@ -335,288 +313,85 @@ class TextInsertionService {
     private func invalidateTimers() {
         insertionTimer?.invalidate()
         insertionTimer = nil
-        
-        verificationTimer?.invalidate()
-        verificationTimer = nil
     }
     
     // MARK: - Input Simulation
     
     /// Simulates mouse click at current pointer location
-    func clickAtCurrentMouseLocation() {
-        print("🔄 [SERVICE] Simulating mouse click at current location")
+    private func clickAtCurrentMouseLocation() {
+        print("🔄 [SERVICE] Clicking at current mouse location")
         let mouseLoc = NSEvent.mouseLocation
         
-        // Convert screen location to window location if needed
-        if let clickEvent = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: mouseLoc, mouseButton: .left) {
-            clickEvent.post(tap: .cghidEventTap)
-            
-            // Brief delay between down and up
-            usleep(5000)
-            
-            // Mouse up
-            if let clickUpEvent = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: mouseLoc, mouseButton: .left) {
-                clickUpEvent.post(tap: .cghidEventTap)
-                print("🔄 [SERVICE] Mouse click complete")
-            }
-        } else {
+        guard let clickEvent = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseDown,
+            mouseCursorPosition: mouseLoc,
+            mouseButton: .left
+        ) else {
             print("🔄 [SERVICE] ⚠️ Failed to create mouse click event")
+            return
         }
-    }
-    
-    /// Simulates a click at specific coordinates
-    func clickAtPoint(x: CGFloat, y: CGFloat) {
-        print("🔄 [SERVICE] Simulating mouse click at point: (\(x), \(y))")
-        let point = CGPoint(x: x, y: y)
         
-        if let clickEvent = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left) {
-            clickEvent.post(tap: .cghidEventTap)
-            
-            // Brief delay
-            usleep(5000)
-            
-            if let clickUpEvent = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) {
-                clickUpEvent.post(tap: .cghidEventTap)
-                print("🔄 [SERVICE] Point click complete")
-            }
-        } else {
-            print("🔄 [SERVICE] ⚠️ Failed to create point click event")
+        clickEvent.post(tap: .cghidEventTap)
+        
+        // Brief delay between down and up
+        usleep(5000)
+        
+        // Mouse up
+        if let clickUpEvent = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseUp,
+            mouseCursorPosition: mouseLoc,
+            mouseButton: .left
+        ) {
+            clickUpEvent.post(tap: .cghidEventTap)
+            print("🔄 [SERVICE] Mouse click completed")
         }
     }
     
     // MARK: - Keyboard Simulation
     
     /// Simulates keystrokes using CGEvent
-    func simulateKeyPress(keyCode: CGKeyCode, withFlags flags: CGEventFlags? = nil) {
-        let keyName = keyCodeToName(keyCode) 
-        print("🔄 [SERVICE] Simulating key press: \(keyName)\(flags != nil ? " with modifiers" : "")")
-        
+    private func simulateKeyPress(keyCode: CGKeyCode, withFlags flags: CGEventFlags? = nil) {
         let source = CGEventSource(stateID: .hidSystemState)
         
         // Key down
-        if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) {
-            if let flags = flags {
-                keyDown.flags = flags
-            }
-            keyDown.post(tap: .cghidEventTap)
-        } else {
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) else {
             print("🔄 [SERVICE] ⚠️ Failed to create key down event")
+            return
         }
+        
+        if let flags = flags {
+            keyDown.flags = flags
+        }
+        keyDown.post(tap: .cghidEventTap)
         
         // Short delay between down and up
         usleep(10000) // 10ms
         
         // Key up
-        if let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {
-            if let flags = flags {
-                keyUp.flags = flags
-            }
-            keyUp.post(tap: .cghidEventTap)
-        } else {
+        guard let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
             print("🔄 [SERVICE] ⚠️ Failed to create key up event")
+            return
         }
         
-        print("🔄 [SERVICE] Key press complete: \(keyName)")
-    }
-    
-    /// Simulates typing a string character by character
-    func simulateTyping(text: String, delay: TimeInterval = 0.01) {
-        print("🔄 [SERVICE] Simulating typing of text: \(text.prefix(20))...")
-        
-        // This is a simplified implementation - ideally we would map characters to key codes
-        // For now we'll just use the clipboard as an alternative
-        copyToClipboard(text)
-        simulatePaste()
-    }
-    
-    /// Key code to name mapping for logs
-    private func keyCodeToName(_ keyCode: CGKeyCode) -> String {
-        switch keyCode {
-        case 0: return "A"
-        case 1: return "S"
-        case 2: return "D"
-        case 3: return "F"
-        case 4: return "H"
-        case 5: return "G"
-        case 6: return "Z"
-        case 7: return "X"
-        case 8: return "C"
-        case 9: return "V"
-        case 11: return "B"
-        case 12: return "Q"
-        case 13: return "W"
-        case 14: return "E"
-        case 15: return "R"
-        case 16: return "Y"
-        case 17: return "T"
-        case 31: return "O"
-        case 32: return "U"
-        case 33: return "Esc"
-        case 34: return "I"
-        case 35: return "P"
-        case 36: return "Return"
-        case 37: return "L"
-        case 38: return "J"
-        case 39: return "'"
-        case 40: return "K"
-        case 41: return ";"
-        case 42: return "\\"
-        case 43: return ","
-        case 44: return "/"
-        case 45: return "N"
-        case 46: return "M"
-        case 47: return "."
-        case 48: return "Tab"
-        case 49: return "Space"
-        case 51: return "Delete"
-        case 123: return "Left Arrow"
-        case 124: return "Right Arrow"
-        case 125: return "Down Arrow"
-        case 126: return "Up Arrow"
-        default: return "Key(\(keyCode))"
+        if let flags = flags {
+            keyUp.flags = flags
         }
+        keyUp.post(tap: .cghidEventTap)
     }
     
     // MARK: - Common Keyboard Commands
     
     /// Simulates paste command (Cmd+V)
-    func simulatePaste() {
+    private func simulatePaste() {
         print("🔄 [SERVICE] Executing paste command (Cmd+V)")
-        simulateKeyPress(keyCode: 9, withFlags: .maskCommand) // 9 is 'V'
-    }
-    
-    /// Simulates copy command (Cmd+C)
-    func simulateCopy() {
-        print("🔄 [SERVICE] Executing copy command (Cmd+C)")
-        simulateKeyPress(keyCode: 8, withFlags: .maskCommand) // 8 is 'C'
-    }
-    
-    /// Simulates return key
-    func simulateReturn() {
-        print("🔄 [SERVICE] Executing return key")
-        simulateKeyPress(keyCode: 36) // 36 is Return
+        simulateKeyPress(keyCode: 9, withFlags: .maskCommand) // V key
     }
     
     /// Simulates tab key
-    func simulateTab() {
+    private func simulateTab() {
         print("🔄 [SERVICE] Executing tab key")
-        simulateKeyPress(keyCode: 48) // 48 is Tab
-    }
-    
-    /// Simulates escape key
-    func simulateEscape() {
-        print("🔄 [SERVICE] Executing escape key")
-        simulateKeyPress(keyCode: 53) // 53 is Escape
-    }
-    
-    // MARK: - Application Management
-    
-    /// Brings the frontmost application to the front
-    @discardableResult
-    private func activateFrontmostApp() -> Bool {
-        print("🔄 [SERVICE] Attempting to activate frontmost application")
-        guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
-            print("🔄 [SERVICE] ⚠️ No frontmost application found")
-            return false
-        }
-        
-        print("🔄 [SERVICE] Activating app: \(frontmostApp.localizedName ?? "Unknown")")
-        frontmostApp.activate(options: .activateIgnoringOtherApps)
-        return true
-    }
-}
-
-// MARK: - Application-Specific Insertion Handlers
-
-/// Protocol for application-specific insertion handlers
-protocol ApplicationInsertionHandler {
-    func insertText(service: TextInsertionService)
-}
-
-// Microsoft Teams insertion handler
-class TeamsInsertionHandler: ApplicationInsertionHandler {
-    func insertText(service: TextInsertionService) {
-        print("🔄 [TEAMS] Starting Teams-specific insertion sequence")
-        
-        // Step 1: Click to focus
-        service.clickAtCurrentMouseLocation()
-        
-        // Step 2: Try to focus input with tab key
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            print("🔄 [TEAMS] Sending Tab key to focus input field")
-            service.simulateTab()
-            
-            // Step 3: Try to paste
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                print("🔄 [TEAMS] Pasting with Cmd+V")
-                service.simulatePaste()
-                
-                // Check result
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    print("🔄 [TEAMS] Verifying insertion")
-                    service.markAsSuccessful()
-                }
-            }
-        }
-    }
-}
-
-// Slack insertion handler
-class SlackInsertionHandler: ApplicationInsertionHandler {
-    func insertText(service: TextInsertionService) {
-        print("🔄 [SLACK] Starting Slack-specific insertion sequence")
-        
-        // Simply click and paste for Slack
-        service.clickAtCurrentMouseLocation()
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            service.simulatePaste()
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                service.markAsSuccessful()
-            }
-        }
-    }
-}
-
-// Discord insertion handler
-class DiscordInsertionHandler: ApplicationInsertionHandler {
-    func insertText(service: TextInsertionService) {
-        print("🔄 [DISCORD] Starting Discord-specific insertion sequence")
-        
-        // Click to focus
-        service.clickAtCurrentMouseLocation()
-        
-        // Discord sometimes needs additional focus help
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            // Try tab to focus chat input
-            service.simulateTab()
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                service.simulatePaste()
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    service.markAsSuccessful()
-                }
-            }
-        }
-    }
-}
-
-// Mail app insertion handler
-class MailInsertionHandler: ApplicationInsertionHandler {
-    func insertText(service: TextInsertionService) {
-        print("🔄 [MAIL] Starting Mail-specific insertion sequence")
-        
-        // Mail usually requires just a click and paste
-        service.clickAtCurrentMouseLocation()
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            service.simulatePaste()
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                service.markAsSuccessful()
-            }
-        }
+        simulateKeyPress(keyCode: 48) // Tab key
     }
 } 

@@ -299,7 +299,7 @@ struct KerligStylePanelView: View {
   }
 
   // Handle text insertion using the service
-  private func handleInsertText(_ text: String) {
+ private func handleInsertText(_ text: String) {
     // Save text for potential help dialog
     textToInsert = text
 
@@ -322,7 +322,6 @@ struct KerligStylePanelView: View {
     // Use a sequence for proper timing
     DispatchQueue.main.async {
       print("⏺️ [INSERT] Closing panel...")
-      // First close the panel
 
       // Wait for panel to fully close before attempting to insert
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

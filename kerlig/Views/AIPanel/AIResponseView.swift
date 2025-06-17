@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 // Update the extension to use our glass effect
 extension View {
@@ -15,6 +16,42 @@ extension View {
     }
 }
 
+// Custom view for highlighted text during speech
+struct HighlightedTextView: View {
+    let text: String
+    let highlightedRange: NSRange?
+    
+    var body: some View {
+        let attributedText = createAttributedText()
+        
+        Text(AttributedString(attributedText))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(.easeInOut(duration: 0.2), value: highlightedRange)
+    }
+    
+    private func createAttributedText() -> NSAttributedString {
+        let attributedString = NSMutableAttributedString(string: text)
+        
+        // Default text color
+        attributedString.addAttribute(.foregroundColor, 
+                                    value: NSColor.labelColor, 
+                                    range: NSRange(location: 0, length: text.count))
+        
+        // Highlight the current word/phrase
+        if let range = highlightedRange,
+           range.location >= 0 && range.location + range.length <= text.count {
+            attributedString.addAttribute(.backgroundColor, 
+                                        value: NSColor.systemBlue.withAlphaComponent(0.3), 
+                                        range: range)
+            attributedString.addAttribute(.foregroundColor, 
+                                        value: NSColor.white, 
+                                        range: range)
+        }
+        
+        return attributedString
+    }
+}
+
 struct AIResponseView: View {
     @EnvironmentObject var appState: AppState
     
@@ -25,6 +62,12 @@ struct AIResponseView: View {
     @Binding var isInserting: Bool
     @Binding var insertAttempts: Int
     @Binding var selectedAction: AIAction?
+    
+    // Speech synthesis state
+    @State private var speechSynthesizer = AVSpeechSynthesizer()
+    @State private var isSpeaking = false
+    @State private var currentHighlightRange: NSRange?
+    @State private var speechText = ""
     
     // Callback functions
     var onCopy: (String) -> Void
@@ -40,7 +83,25 @@ struct AIResponseView: View {
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: !appState.aiResponse.isEmpty || isProcessing)
             .onAppear {
                 self.isAnimating = true
+                setupSpeechSynthesizer()
             }
+    }
+    
+    // Setup speech synthesizer delegate
+    private func setupSpeechSynthesizer() {
+        speechSynthesizer.delegate = SpeechDelegate(
+            onWordBoundary: { range in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    currentHighlightRange = range
+                }
+            },
+            onFinish: {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    isSpeaking = false
+                    currentHighlightRange = nil
+                }
+            }
+        )
     }
     
     // Main container for the response section
@@ -81,10 +142,55 @@ struct AIResponseView: View {
             
             if isProcessing {
                 processingIndicator
+            } else if isSpeaking {
+                speakingIndicator
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
+    }
+    
+    // Speaking indicator
+    private var speakingIndicator: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { index in
+                animatedSpeakingDot(delay: animationDelays[index])
+            }
+            
+            Text("Speaking...")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.green.opacity(0.2), lineWidth: 1)
+                )
+        )
+        .transition(.scale.combined(with: .opacity))
+    }
+    
+    // Individual animated dot for speaking indicator
+    private func animatedSpeakingDot(delay: Double) -> some View {
+        Circle()
+            .fill(Color.green.opacity(0.2))
+            .frame(width: 8, height: 8)
+            .overlay(
+                Circle()
+                    .stroke(Color.green, lineWidth: 1)
+                    .scaleEffect(isSpeaking ? 2 : 0.1)
+                    .opacity(isSpeaking ? 0 : 1)
+                    .animation(
+                        Animation.easeOut(duration: 1)
+                            .repeatForever(autoreverses: false)
+                            .delay(delay),
+                        value: isSpeaking
+                    )
+            )
     }
     
     // Animated processing indicator with dots
@@ -137,14 +243,41 @@ struct AIResponseView: View {
                 skeletonLoadingView
             } else {
                 if !appState.aiResponse.isEmpty {
-                    FormattedTextView(appState.aiResponse)
-                        .padding(3)
-                        .frame(maxWidth: .infinity, alignment: .leading);
+                   FormattedTextView(appState.aiResponse)
+                    .padding(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     emptyResponseView
                 }
             }
         }
+    }
+    
+    // Text-to-speech functionality
+    private func startSpeaking() {
+        guard !appState.aiResponse.isEmpty else { return }
+        
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+            withAnimation(.easeOut(duration: 0.3)) {
+                isSpeaking = false
+                currentHighlightRange = nil
+            }
+            return
+        }
+        
+        speechText = appState.aiResponse
+        let utterance = AVSpeechUtterance(string: speechText)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.5
+        utterance.pitchMultiplier = 1.0
+        utterance.volume = 0.8
+        
+        withAnimation(.easeIn(duration: 0.3)) {
+            isSpeaking = true
+        }
+        
+        speechSynthesizer.speak(utterance)
     }
     
     // Skeleton loading placeholder
@@ -223,7 +356,7 @@ struct AIResponseView: View {
     
     // Action buttons displayed below the response
     private var actionButtons: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 12) {
             Spacer()
             
             // Copy button
@@ -245,8 +378,37 @@ struct AIResponseView: View {
                 .background(Color.blue.opacity(0.1))
                 .cornerRadius(8)
                 .contentShape(Rectangle())
+
+                //show a shortcut key
+                Text("⌘C")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
             }
             .buttonStyle(PlainButtonStyle())
+            .keyboardShortcut("c", modifiers: .command)
+            
+            // Speak button
+            Button(action: {
+                startSpeaking()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isSpeaking ? "stop.circle" : "speaker.wave.2")
+                        .font(.system(size: 12))
+                    
+                    Text(isSpeaking ? "Stop" : "Speak")
+                        .font(.system(size: 13))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSpeaking ? Color.red.opacity(0.1) : Color.orange.opacity(0.1))
+                .cornerRadius(8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+            .animation(.easeInOut(duration: 0.2), value: isSpeaking)
             
             // Insert button
             Button(action: {
@@ -260,6 +422,14 @@ struct AIResponseView: View {
                     
                     Text("Insert")
                         .font(.system(size: 13))
+
+                //show a shortcut key
+                Text("⌘I")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -268,7 +438,8 @@ struct AIResponseView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
-            
+            .keyboardShortcut("i", modifiers: .command)
+
             // Regenerate button
             Button(action: {
                 onRegenerate()
@@ -279,6 +450,14 @@ struct AIResponseView: View {
                     
                     Text("Regenerate")
                         .font(.system(size: 13))
+
+                //show a shortcut key
+                Text("⌘R")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -287,6 +466,7 @@ struct AIResponseView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
+            .keyboardShortcut("r", modifiers: .command)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
@@ -298,5 +478,34 @@ struct AIResponseView: View {
         notification.title = message
         notification.soundName = nil
         NSUserNotificationCenter.default.deliver(notification)
+    }
+}
+
+// Speech synthesizer delegate
+class SpeechDelegate: NSObject, AVSpeechSynthesizerDelegate {
+    let onWordBoundary: (NSRange) -> Void
+    let onFinish: () -> Void
+    
+    init(onWordBoundary: @escaping (NSRange) -> Void, onFinish: @escaping () -> Void) {
+        self.onWordBoundary = onWordBoundary
+        self.onFinish = onFinish
+    }
+    
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange, utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.onWordBoundary(characterRange)
+        }
+    }
+    
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.onFinish()
+        }
+    }
+    
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.onFinish()
+        }
     }
 }

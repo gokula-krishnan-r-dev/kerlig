@@ -164,6 +164,9 @@ class GeminiVisionService {
       Please analyze this document and provide insights based on the user's request above and the extracted content.
       """
 
+
+      print("combinedPrompt: \(combinedPrompt)")
+
       // Process with Gemini text API
       sendTextToGemini(text: combinedPrompt, completion: completion)
       
@@ -202,8 +205,33 @@ class GeminiVisionService {
         analysis += "User Request: \(prompt)\n"
         analysis += "Response: I can see this is a \(getSpreadsheetTypeDescription(fileExtension)) file. For detailed analysis of the data, formulas, or charts, please export it as CSV for data analysis or PDF for visual examination."
       }
+
+
+      print("analysis: \(analysis)")
+
+      let extractedContent = convertSpreadsheetToText(fileURL: fileURL)
       
-      completion(.success(analysis))
+      print("extractedContent: \(extractedContent)")
+
+      let combinedPrompt = """
+      \(prompt)
+      
+      \(extractedContent)
+
+      Please analyze this spreadsheet and provide insights based on the user's request above and the extracted content.
+      
+      """
+
+
+      print("combinedPrompt: \(combinedPrompt)")
+
+      sendTextToGemini(text: combinedPrompt, completion: completion)
+
+
+
+
+      
+      // completion(.success(analysis))
     } catch {
       completion(.failure(error))
     }
@@ -695,38 +723,289 @@ private func convertDocToText(fileURL: URL) -> String {
 private func extractDocxContent(fileURL: URL) -> String {
   var content = "DOCX Document Content Extraction:\n\n"
   
-  // Method 1: Try NSAttributedString with proper DOCX options
+  // Try the new robust DOCX extraction method
+  if let extractedText = extractDocxContentRobust(fileURL: fileURL) {
+    content += "Successfully extracted text content:\n\n"
+    content += extractedText
+    return content
+  }
+  
+  // Fallback to NSAttributedString method
   if let extractedText = extractTextWithNSAttributedString(fileURL: fileURL) {
-    content += "Extracted Text Content:\n"
+    content += "Extracted using NSAttributedString:\n\n"
     content += extractedText
-    content += "\n\nDocument successfully parsed using NSAttributedString."
-    return content
-  }
-  
-  // Method 2: Extract from DOCX ZIP structure
-  if let extractedText = extractTextFromDocxZip(fileURL: fileURL) {
-    content += "Extracted Text Content (ZIP method):\n"
-    content += extractedText
-    content += "\n\nDocument successfully parsed by extracting from DOCX internal structure."
-    return content
-  }
-  
-  // Method 3: Try reading as plain text (sometimes works)
-  if let extractedText = extractAsPlainText(fileURL: fileURL) {
-    content += "Extracted Text Content (Plain text method):\n"
-    content += extractedText
-    content += "\n\nDocument parsed using plain text extraction."
     return content
   }
   
   // Final fallback: Analyze structure
   content += analyzeDocumentStructure(fileURL: fileURL)
-  content += "\n\nNote: Multiple extraction methods attempted. This DOCX file may have complex formatting or protection that prevents text extraction."
+  content += "\n\nNote: Unable to extract text content. The DOCX file may be corrupted, password-protected, or use unsupported formatting."
   
   return content
 }
 
 // MARK: - Advanced Text Extraction Methods
+
+private func extractDocxContentRobust(fileURL: URL) -> String? {
+  print("🔄 Starting robust DOCX extraction for: \(fileURL.lastPathComponent)")
+  
+  do {
+    // Verify file exists and is readable
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      print("❌ File does not exist: \(fileURL.path)")
+      return nil
+    }
+    
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("docx_extraction_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    print("📁 Created temporary directory: \(tempDir.path)")
+    
+    defer {
+      do {
+        try FileManager.default.removeItem(at: tempDir)
+        print("🗑️ Cleaned up temporary directory")
+      } catch {
+        print("⚠️ Failed to cleanup temp directory: \(error)")
+      }
+    }
+    
+    // Extract DOCX (ZIP) file
+    print("📦 Attempting to extract DOCX ZIP structure...")
+    if extractDocxZip(sourceURL: fileURL, destinationURL: tempDir) {
+      print("✅ Successfully extracted DOCX ZIP")
+      
+      // Look for document.xml
+      let documentXMLPath = tempDir.appendingPathComponent("word/document.xml")
+      
+      if FileManager.default.fileExists(atPath: documentXMLPath.path) {
+        print("📄 Found document.xml, parsing content...")
+        let xmlContent = try String(contentsOf: documentXMLPath, encoding: .utf8)
+        
+        if let parsedText = parseWordDocumentXML(xmlContent) {
+          print("✅ Successfully extracted \(parsedText.count) characters from DOCX")
+          return parsedText
+        } else {
+          print("⚠️ XML parsing returned no text")
+        }
+      } else {
+        print("❌ document.xml not found in expected location")
+        // List contents to debug
+        do {
+          let contents = try FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
+          print("📂 Available files in extracted DOCX:")
+          for item in contents {
+            print("  - \(item.lastPathComponent)")
+          }
+        } catch {
+          print("❌ Failed to list extracted contents: \(error)")
+        }
+      }
+    } else {
+      print("❌ Failed to extract DOCX ZIP structure")
+    }
+    
+    // Fallback: Try direct binary extraction
+    print("🔄 Attempting fallback binary extraction...")
+    if let binaryText = extractTextFromDocxBinary(fileURL: fileURL) {
+      print("✅ Binary extraction successful, found \(binaryText.count) characters")
+      return binaryText
+    } else {
+      print("❌ Binary extraction failed")
+    }
+    
+    return nil
+    
+  } catch {
+    print("❌ Error in robust DOCX extraction: \(error.localizedDescription)")
+    return nil
+  }
+}
+
+private func extractDocxZip(sourceURL: URL, destinationURL: URL) -> Bool {
+  let task = Process()
+  task.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+  task.arguments = ["-q", "-o", sourceURL.path, "-d", destinationURL.path]
+  
+  do {
+    try task.run()
+    task.waitUntilExit()
+    return task.terminationStatus == 0
+  } catch {
+    return false
+  }
+}
+
+private func parseWordDocumentXML(_ xmlContent: String) -> String? {
+  print("🔍 Parsing Word document XML (\(xmlContent.count) characters)")
+  var extractedText = ""
+  var textElements: [String] = []
+  
+  // Parse Word document XML using comprehensive regex patterns
+  let patterns = [
+    // Main text content in <w:t> tags with various attributes
+    "<w:t(?:\\s[^>]*)?>([^<]*)</w:t>",
+    // Text with space preservation
+    "<w:t\\s+xml:space=\"preserve\"[^>]*>([^<]*)</w:t>",
+    // Simple text pattern for fallback
+    "<w:t>([^<]*)</w:t>",
+    // Alternative text patterns
+    "<text[^>]*>([^<]*)</text>"
+  ]
+  
+  var totalMatches = 0
+  
+  for (index, pattern) in patterns.enumerated() {
+    do {
+      let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+      let matches = regex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
+      
+      print("📊 Pattern \(index + 1): Found \(matches.count) matches")
+      totalMatches += matches.count
+      
+      for match in matches {
+        if match.numberOfRanges > 1 {
+          let range = match.range(at: 1)
+          if let swiftRange = Range(range, in: xmlContent) {
+            let text = String(xmlContent[swiftRange])
+            let decodedText = decodeXMLEntities(text).trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if !decodedText.isEmpty && decodedText.count > 0 {
+              textElements.append(decodedText)
+            }
+          }
+        }
+      }
+    } catch {
+      print("⚠️ Regex error for pattern \(index + 1): \(error)")
+      continue
+    }
+  }
+  
+  print("📝 Found \(textElements.count) text elements from \(totalMatches) total matches")
+  
+  // Remove duplicates while preserving order
+  var uniqueElements: [String] = []
+  var seen = Set<String>()
+  
+  for element in textElements {
+    if !seen.contains(element) && element.count > 0 {
+      uniqueElements.append(element)
+      seen.insert(element)
+    }
+  }
+  
+  print("✨ Unique text elements: \(uniqueElements.count)")
+  
+  // Join elements with appropriate spacing
+  extractedText = uniqueElements.joined(separator: " ")
+  
+  // Add paragraph structure based on XML
+  extractedText = addParagraphStructure(xmlContent: xmlContent, text: extractedText)
+  
+  // Final cleanup and validation
+  let cleanedText = extractedText
+    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  
+  print("📄 Final extracted text length: \(cleanedText.count) characters")
+  
+  if cleanedText.count > 5 {
+    print("✅ Successfully parsed DOCX content")
+    return cleanedText
+  } else {
+    print("❌ Insufficient text content extracted")
+    return nil
+  }
+}
+
+private func addParagraphStructure(xmlContent: String, text: String) -> String {
+  print("📋 Adding paragraph structure to text")
+  
+  // Count paragraph breaks in XML
+  let paragraphElements = xmlContent.components(separatedBy: "</w:p>")
+  let paragraphCount = paragraphElements.count - 1
+  
+  print("📊 Found \(paragraphCount) paragraphs in XML structure")
+  
+  if paragraphCount <= 1 {
+    return text
+  }
+  
+  // Try to intelligently add paragraph breaks
+  let words = text.components(separatedBy: " ")
+  let wordsPerParagraph = max(10, words.count / paragraphCount)
+  
+  var result = ""
+  var currentParagraph = ""
+  var wordCount = 0
+  
+  for word in words {
+    currentParagraph += word + " "
+    wordCount += 1
+    
+    // Check if we should end this paragraph
+    if wordCount >= wordsPerParagraph {
+      // Look for a natural break point (sentence end)
+      if word.hasSuffix(".") || word.hasSuffix("!") || word.hasSuffix("?") {
+        result += currentParagraph.trimmingCharacters(in: .whitespaces) + "\n\n"
+        currentParagraph = ""
+        wordCount = 0
+      }
+    }
+  }
+  
+  // Add any remaining text
+  if !currentParagraph.isEmpty {
+    result += currentParagraph.trimmingCharacters(in: .whitespaces)
+  }
+  
+  let finalResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
+  print("📝 Added paragraph structure: \(finalResult.components(separatedBy: "\n\n").count) paragraphs")
+  
+  return finalResult
+}
+
+private func decodeXMLEntities(_ text: String) -> String {
+  return text
+    .replacingOccurrences(of: "&lt;", with: "<")
+    .replacingOccurrences(of: "&gt;", with: ">")
+    .replacingOccurrences(of: "&amp;", with: "&")
+    .replacingOccurrences(of: "&quot;", with: "\"")
+    .replacingOccurrences(of: "&apos;", with: "'")
+    .replacingOccurrences(of: "&nbsp;", with: " ")
+}
+
+private func extractTextFromDocxBinary(fileURL: URL) -> String? {
+  guard let data = try? Data(contentsOf: fileURL) else { return nil }
+  
+  // Convert to string and extract readable content
+  let dataString = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) ?? ""
+  
+  // Look for readable text patterns in the binary data
+  var extractedWords: [String] = []
+  let words = dataString.components(separatedBy: .whitespacesAndNewlines)
+  
+  for word in words {
+    let cleanWord = word.trimmingCharacters(in: .punctuationCharacters.union(.symbols))
+    if isReadableWord(cleanWord) {
+      extractedWords.append(cleanWord)
+    }
+  }
+  
+  // Join words and validate
+  let result = extractedWords.joined(separator: " ")
+  return result.count > 50 ? result : nil
+}
+
+private func isReadableWord(_ word: String) -> Bool {
+  guard word.count >= 2 && word.count <= 50 else { return false }
+  
+  let letterCount = word.filter { $0.isLetter }.count
+  let digitCount = word.filter { $0.isNumber }.count
+  
+  // Must be mostly letters
+  return letterCount >= word.count / 2 && digitCount < word.count / 2
+}
 
 private func extractTextWithNSAttributedString(fileURL: URL) -> String? {
   // Try multiple document type options
@@ -760,272 +1039,7 @@ private func extractTextWithNSAttributedString(fileURL: URL) -> String? {
   return nil
 }
 
-private func extractTextFromDocxZip(fileURL: URL) -> String? {
-  // DOCX files are ZIP archives containing XML files
-  // The main document content is in word/document.xml
-  
-  do {
-    // Create temporary directory for extraction
-    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-    
-    defer {
-      // Clean up temporary directory
-      try? FileManager.default.removeItem(at: tempDir)
-    }
-    
-    // Try to unzip the DOCX file
-    if let extractedText = unzipAndExtractDocxText(docxURL: fileURL, tempDir: tempDir) {
-      return extractedText
-    }
-    
-  } catch {
-    print("Error extracting DOCX ZIP: \(error)")
-  }
-  
-  return nil
-}
-
-private func unzipAndExtractDocxText(docxURL: URL, tempDir: URL) -> String? {
-  do {
-    // Method 1: Try using unzip command
-    if let extractedText = extractUsingUnzipCommand(docxURL: docxURL, tempDir: tempDir) {
-      return extractedText
-    }
-    
-    // Method 2: Read the DOCX file as data and parse directly
-    let docxData = try Data(contentsOf: docxURL)
-    return extractTextFromDocxData(data: docxData)
-    
-  } catch {
-    print("Error reading DOCX data: \(error)")
-    return nil
-  }
-}
-
-private func extractUsingUnzipCommand(docxURL: URL, tempDir: URL) -> String? {
-  // Use the system's unzip command to extract the DOCX file
-  let process = Process()
-  process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-  process.arguments = ["-q", "-o", docxURL.path, "-d", tempDir.path]
-  
-  do {
-    try process.run()
-    process.waitUntilExit()
-    
-    if process.terminationStatus == 0 {
-      // Successfully extracted, now look for document.xml
-      let documentXMLPath = tempDir.appendingPathComponent("word/document.xml")
-      
-      if FileManager.default.fileExists(atPath: documentXMLPath.path) {
-        let xmlContent = try String(contentsOf: documentXMLPath, encoding: .utf8)
-        return extractTextFromDocumentXML(xmlContent: xmlContent)
-      }
-    }
-  } catch {
-    print("Error using unzip command: \(error)")
-  }
-  
-  return nil
-}
-
-private func extractTextFromDocumentXML(xmlContent: String) -> String? {
-  var extractedText = ""
-  
-  // Parse Word document XML to extract text content
-  // Look for <w:t> tags which contain the actual text
-  do {
-    let regex = try NSRegularExpression(pattern: "<w:t[^>]*>([^<]*)</w:t>", options: [])
-    let matches = regex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
-    
-    for match in matches {
-      if match.numberOfRanges > 1 {
-        let range = match.range(at: 1)
-        if let swiftRange = Range(range, in: xmlContent) {
-          let text = String(xmlContent[swiftRange])
-          // Decode XML entities
-          let decodedText = text
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&apos;", with: "'")
-          
-          extractedText += decodedText
-        }
-      }
-    }
-    
-    // Also look for paragraph breaks
-    let paragraphRegex = try NSRegularExpression(pattern: "</w:p>", options: [])
-    let paragraphMatches = paragraphRegex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
-    
-    // Add line breaks for paragraphs
-    var result = extractedText
-    for _ in paragraphMatches {
-      result = result.replacingOccurrences(of: "</w:p>", with: "\n")
-    }
-    
-    let cleanedText = result
-      .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    return cleanedText.isEmpty ? nil : cleanedText
-    
-  } catch {
-    print("Error parsing document XML: \(error)")
-    return nil
-  }
-}
-
-private func extractTextFromDocxData(data: Data) -> String? {
-  // Convert data to string and look for text content
-  // DOCX files contain XML, so we can try to extract text from XML-like structures
-  
-  if let dataString = String(data: data, encoding: .utf8) {
-    return extractTextFromXMLString(xmlString: dataString)
-  }
-  
-  // Try with different encodings
-  if let dataString = String(data: data, encoding: .ascii) {
-    return extractTextFromXMLString(xmlString: dataString)
-  }
-  
-  // Try to find readable text in the binary data
-  return extractReadableTextFromBinary(data: data)
-}
-
-private func extractTextFromXMLString(xmlString: String) -> String? {
-  var extractedText = ""
-  
-  // Look for text between XML tags (simplified XML parsing)
-  let patterns = [
-    "<w:t[^>]*>([^<]*)</w:t>", // Word text elements (most important)
-    "<w:instrText[^>]*>([^<]*)</w:instrText>", // Word instruction text
-    "<text[^>]*>([^<]*)</text>", // Generic text elements
-    ">([A-Za-z0-9\\s.,!?;:\"'()\\-_@#$%&*+=\\[\\]{}|\\\\/:;<>?~`]+)<" // Any readable text between angle brackets
-  ]
-  
-  for pattern in patterns {
-    do {
-      let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-      let matches = regex.matches(in: xmlString, options: [], range: NSRange(location: 0, length: xmlString.count))
-      
-      for match in matches {
-        if match.numberOfRanges > 1 {
-          let range = match.range(at: 1)
-          if let swiftRange = Range(range, in: xmlString) {
-            let matchedText = String(xmlString[swiftRange])
-            // Clean and validate the text
-            let cleanedMatch = matchedText
-              .replacingOccurrences(of: "&lt;", with: "<")
-              .replacingOccurrences(of: "&gt;", with: ">")
-              .replacingOccurrences(of: "&amp;", with: "&")
-              .replacingOccurrences(of: "&quot;", with: "\"")
-              .replacingOccurrences(of: "&apos;", with: "'")
-              .trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            if cleanedMatch.count > 1 && !cleanedMatch.contains("<") && !cleanedMatch.contains(">") {
-              extractedText += cleanedMatch + " "
-            }
-          }
-        }
-      }
-    } catch {
-      continue
-    }
-  }
-  
-  // Clean up the extracted text
-  let cleanedText = extractedText
-    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-    .trimmingCharacters(in: .whitespacesAndNewlines)
-  
-  return cleanedText.count > 10 ? cleanedText : nil
-}
-
-private func extractReadableTextFromBinary(data: Data) -> String? {
-  // Look for readable text in the binary data
-  var extractedText = ""
-  var currentWord = ""
-  var wordCount = 0
-  
-  for byte in data {
-    if (byte >= 32 && byte <= 126) || byte == 9 || byte == 10 || byte == 13 { // Printable ASCII + tab, newline, carriage return
-        let char = Character(UnicodeScalar(byte))
-      
-      if char.isWhitespace {
-        if currentWord.count > 2 && isValidWord(currentWord) {
-          extractedText += currentWord + " "
-          wordCount += 1
-        }
-        currentWord = ""
-      } else {
-        currentWord += String(char)
-      }
-    } else {
-      // Non-printable character, end current word
-      if currentWord.count > 2 && isValidWord(currentWord) {
-        extractedText += currentWord + " "
-        wordCount += 1
-      }
-      currentWord = ""
-    }
-  }
-  
-  // Add the last word if it's valid
-  if currentWord.count > 2 && isValidWord(currentWord) {
-    extractedText += currentWord
-    wordCount += 1
-  }
-  
-  // Only return if we found a reasonable amount of text
-  let cleanedText = extractedText
-    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-    .trimmingCharacters(in: .whitespacesAndNewlines)
-  
-  return (wordCount > 5 && cleanedText.count > 50) ? cleanedText : nil
-}
-
-private func isValidWord(_ word: String) -> Bool {
-  // Check if the word looks like actual text (not random characters)
-  let vowelCount = word.lowercased().filter { "aeiou".contains($0) }.count
-  let consonantCount = word.filter { $0.isLetter && !"aeiouAEIOU".contains($0) }.count
-  let digitCount = word.filter { $0.isNumber }.count
-  
-  // Valid words should have some vowels, or be common short words, or contain some letters
-  return word.count >= 3 && (
-    vowelCount > 0 || // Has vowels
-    ["the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "its", "may", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "man", "men", "run", "she", "too", "use"].contains(word.lowercased()) || // Common short words
-    (word.filter { $0.isLetter }.count > word.count / 2) // Mostly letters
-  ) && digitCount < word.count / 2 // Not mostly digits
-}
-
-private func extractAsPlainText(fileURL: URL) -> String? {
-  // Sometimes DOCX files can be partially read as plain text
-  do {
-    let content = try String(contentsOf: fileURL, encoding: .utf8)
-    
-    // Filter out XML tags and keep only readable text
-    let cleanedContent = content.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-      .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    return cleanedContent.count > 50 ? cleanedContent : nil
-    
-  } catch {
-    // Try with different encodings
-    if let content = try? String(contentsOf: fileURL, encoding: .ascii) {
-      let cleanedContent = content.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-      
-      return cleanedContent.count > 50 ? cleanedContent : nil
-    }
-  }
-  
-  return nil
-}
+// Legacy extraction methods removed - replaced with robust extraction above
 
 private func extractDocContent(fileURL: URL) -> String {
   var content = "DOC Document Content Extraction:\n\n"
@@ -1202,5 +1216,551 @@ private func getDocumentTypeDescription(fileExtension: String) -> String {
   case "key": return "Apple Keynote Presentation"
   case "rtf": return "Rich Text Format Document"
   default: return "Document"
+  }
+}
+
+
+// MARK: - Spreadsheet Content Extraction
+
+private func convertSpreadsheetToText(fileURL: URL) -> String {
+  let fileExtension = fileURL.pathExtension.lowercased()
+  let fileName = fileURL.lastPathComponent
+  
+  print("🔄 Starting spreadsheet extraction for: \(fileName) (.\(fileExtension))")
+  
+  // Create comprehensive analysis prompt for the spreadsheet
+  var analysisText = """
+  Spreadsheet Analysis Request:
+  
+  File: \(fileName)
+  Type: \(getSpreadsheetTypeDescription(fileExtension))
+  Path: \(fileURL.path)
+  
+  """
+  
+  // Add file metadata
+  do {
+    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+    if let fileSize = attributes[.size] as? Int64 {
+      analysisText += "Size: \(formatFileSize(bytes: fileSize))\n"
+    }
+    if let modificationDate = attributes[.modificationDate] as? Date {
+      let formatter = DateFormatter()
+      formatter.dateStyle = .medium
+      formatter.timeStyle = .short
+      analysisText += "Modified: \(formatter.string(from: modificationDate))\n"
+    }
+  } catch {
+    analysisText += "Could not read file metadata: \(error.localizedDescription)\n"
+  }
+  
+  analysisText += "\n"
+  
+  // Route to appropriate extraction method based on file type
+  switch fileExtension {
+  case "xlsx":
+    analysisText += extractXlsxContent(fileURL: fileURL)
+  case "xls":
+    analysisText += extractXlsContent(fileURL: fileURL)
+  case "csv":
+    analysisText += extractCsvContent(fileURL: fileURL)
+  case "numbers":
+    analysisText += extractNumbersContent(fileURL: fileURL)
+  case "ods":
+    analysisText += extractOdsContent(fileURL: fileURL)
+  default:
+    analysisText += extractGenericSpreadsheetContent(fileURL: fileURL)
+  }
+  
+  return analysisText
+}
+
+// MARK: - Excel XLSX Extraction
+
+private func extractXlsxContent(fileURL: URL) -> String {
+  var content = "XLSX Spreadsheet Content Extraction:\n\n"
+  
+  // Try the robust XLSX extraction method
+  if let extractedContent = extractXlsxContentRobust(fileURL: fileURL) {
+    content += "Successfully extracted spreadsheet content:\n\n"
+    content += extractedContent
+    return content
+  }
+  
+  // Fallback to NSAttributedString method
+  if let extractedText = extractSpreadsheetWithNSAttributedString(fileURL: fileURL) {
+    content += "Extracted using NSAttributedString:\n\n"
+    content += extractedText
+    return content
+  }
+  
+  // Final fallback: Analyze structure
+  content += analyzeSpreadsheetStructure(fileURL: fileURL)
+  content += "\n\nNote: Unable to extract spreadsheet content. The XLSX file may be corrupted, password-protected, or use unsupported formatting."
+  
+  return content
+}
+
+private func extractXlsxContentRobust(fileURL: URL) -> String? {
+  print("🔄 Starting robust XLSX extraction for: \(fileURL.lastPathComponent)")
+  
+  do {
+    // Verify file exists and is readable
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      print("❌ File does not exist: \(fileURL.path)")
+      return nil
+    }
+    
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("xlsx_extraction_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    print("📁 Created temporary directory: \(tempDir.path)")
+    
+    defer {
+      do {
+        try FileManager.default.removeItem(at: tempDir)
+        print("🗑️ Cleaned up temporary directory")
+      } catch {
+        print("⚠️ Failed to cleanup temp directory: \(error)")
+      }
+    }
+    
+    // Extract XLSX (ZIP) file
+    print("📦 Attempting to extract XLSX ZIP structure...")
+    if extractSpreadsheetZip(sourceURL: fileURL, destinationURL: tempDir) {
+      print("✅ Successfully extracted XLSX ZIP")
+      
+      // Parse worksheet data
+      if let parsedContent = parseXlsxWorksheets(tempDir: tempDir) {
+        print("✅ Successfully extracted \(parsedContent.count) characters from XLSX")
+        return parsedContent
+      } else {
+        print("⚠️ Worksheet parsing returned no content")
+      }
+    } else {
+      print("❌ Failed to extract XLSX ZIP structure")
+    }
+    
+    return nil
+    
+  } catch {
+    print("❌ Error in robust XLSX extraction: \(error.localizedDescription)")
+    return nil
+  }
+}
+
+private func extractSpreadsheetZip(sourceURL: URL, destinationURL: URL) -> Bool {
+  let task = Process()
+  task.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+  task.arguments = ["-q", "-o", sourceURL.path, "-d", destinationURL.path]
+  
+  do {
+    try task.run()
+    task.waitUntilExit()
+    return task.terminationStatus == 0
+  } catch {
+    print("❌ Unzip failed: \(error)")
+    return false
+  }
+}
+
+private func parseXlsxWorksheets(tempDir: URL) -> String? {
+  print("📊 Parsing XLSX worksheets")
+  var extractedContent = ""
+  
+  // Look for worksheet files
+  let xlWorksheetDir = tempDir.appendingPathComponent("xl/worksheets")
+  
+  guard FileManager.default.fileExists(atPath: xlWorksheetDir.path) else {
+    print("❌ xl/worksheets directory not found")
+    return nil
+  }
+  
+  do {
+    let worksheetFiles = try FileManager.default.contentsOfDirectory(at: xlWorksheetDir, includingPropertiesForKeys: nil)
+      .filter { $0.pathExtension == "xml" }
+      .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    
+    print("📋 Found \(worksheetFiles.count) worksheet(s)")
+    
+    for (index, worksheetFile) in worksheetFiles.enumerated() {
+      print("📄 Processing worksheet \(index + 1): \(worksheetFile.lastPathComponent)")
+      
+      let xmlContent = try String(contentsOf: worksheetFile, encoding: .utf8)
+      
+      if let worksheetData = parseWorksheetXML(xmlContent, worksheetName: "Sheet\(index + 1)") {
+        extractedContent += worksheetData + "\n\n"
+      }
+    }
+    
+    // Also try to get shared strings if available
+    let sharedStringsPath = tempDir.appendingPathComponent("xl/sharedStrings.xml")
+    if FileManager.default.fileExists(atPath: sharedStringsPath.path) {
+      print("📝 Processing shared strings")
+      let sharedStringsXML = try String(contentsOf: sharedStringsPath, encoding: .utf8)
+      if let sharedStrings = parseSharedStrings(sharedStringsXML) {
+        extractedContent = replaceSharedStringReferences(in: extractedContent, with: sharedStrings)
+      }
+    }
+    
+    return extractedContent.isEmpty ? nil : extractedContent
+    
+  } catch {
+    print("❌ Error parsing worksheets: \(error)")
+    return nil
+  }
+}
+
+private func parseWorksheetXML(_ xmlContent: String, worksheetName: String) -> String? {
+  print("🔍 Parsing worksheet XML (\(xmlContent.count) characters)")
+  var worksheetContent = "=== \(worksheetName) ===\n"
+  var cells: [(row: Int, col: Int, value: String)] = []
+  
+  // Extract cell data using regex
+  let cellPattern = "<c[^>]*r=\"([A-Z]+)(\\d+)\"[^>]*>.*?<v>([^<]*)</v>.*?</c>"
+  
+  do {
+    let regex = try NSRegularExpression(pattern: cellPattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+    let matches = regex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
+    
+    print("📊 Found \(matches.count) cells with values")
+    
+    for match in matches {
+      if match.numberOfRanges >= 4 {
+        let colRange = match.range(at: 1)
+        let rowRange = match.range(at: 2)
+        let valueRange = match.range(at: 3)
+        
+        if let colSwiftRange = Range(colRange, in: xmlContent),
+           let rowSwiftRange = Range(rowRange, in: xmlContent),
+           let valueSwiftRange = Range(valueRange, in: xmlContent) {
+          
+          let colRef = String(xmlContent[colSwiftRange])
+          let rowRef = String(xmlContent[rowSwiftRange])
+          let value = String(xmlContent[valueSwiftRange])
+          
+          if let rowNum = Int(rowRef) {
+            let colNum = columnLetterToNumber(colRef)
+            cells.append((row: rowNum, col: colNum, value: value))
+          }
+        }
+      }
+    }
+    
+    // Also look for inline strings
+    let inlineStringPattern = "<c[^>]*r=\"([A-Z]+)(\\d+)\"[^>]*>.*?<is>.*?<t>([^<]*)</t>.*?</is>.*?</c>"
+    let inlineRegex = try NSRegularExpression(pattern: inlineStringPattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+    let inlineMatches = inlineRegex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
+    
+    print("📝 Found \(inlineMatches.count) inline string cells")
+    
+    for match in inlineMatches {
+      if match.numberOfRanges >= 4 {
+        let colRange = match.range(at: 1)
+        let rowRange = match.range(at: 2)
+        let valueRange = match.range(at: 3)
+        
+        if let colSwiftRange = Range(colRange, in: xmlContent),
+           let rowSwiftRange = Range(rowRange, in: xmlContent),
+           let valueSwiftRange = Range(valueRange, in: xmlContent) {
+          
+          let colRef = String(xmlContent[colSwiftRange])
+          let rowRef = String(xmlContent[rowSwiftRange])
+          let value = String(xmlContent[valueSwiftRange])
+          
+          if let rowNum = Int(rowRef) {
+            let colNum = columnLetterToNumber(colRef)
+            cells.append((row: rowNum, col: colNum, value: value))
+          }
+        }
+      }
+    }
+    
+    // Sort cells by row and column
+    cells.sort { ($0.row, $0.col) < ($1.row, $1.col) }
+    
+    // Convert to readable format
+    if !cells.isEmpty {
+      var currentRow = -1
+      var rowContent = ""
+      
+      for cell in cells {
+        if cell.row != currentRow {
+          if !rowContent.isEmpty {
+            worksheetContent += "Row \(currentRow): \(rowContent.trimmingCharacters(in: .whitespaces))\n"
+          }
+          currentRow = cell.row
+          rowContent = ""
+        }
+        
+        let decodedValue = decodeXMLEntities(cell.value)
+        rowContent += "\(numberToColumnLetter(cell.col)): \(decodedValue) | "
+      }
+      
+      // Add the last row
+      if !rowContent.isEmpty {
+        worksheetContent += "Row \(currentRow): \(rowContent.trimmingCharacters(in: .whitespaces))\n"
+      }
+    }
+    
+    print("✅ Parsed worksheet with \(cells.count) cells")
+    return worksheetContent.isEmpty ? nil : worksheetContent
+    
+  } catch {
+    print("❌ Error parsing worksheet XML: \(error)")
+    return nil
+  }
+}
+
+private func parseSharedStrings(_ xmlContent: String) -> [String]? {
+  print("🔤 Parsing shared strings")
+  var sharedStrings: [String] = []
+  
+  // Extract shared string values
+  let stringPattern = "<si[^>]*>.*?<t[^>]*>([^<]*)</t>.*?</si>"
+  
+  do {
+    let regex = try NSRegularExpression(pattern: stringPattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+    let matches = regex.matches(in: xmlContent, options: [], range: NSRange(location: 0, length: xmlContent.count))
+    
+    for match in matches {
+      if match.numberOfRanges >= 2 {
+        let valueRange = match.range(at: 1)
+        if let valueSwiftRange = Range(valueRange, in: xmlContent) {
+          let value = String(xmlContent[valueSwiftRange])
+          sharedStrings.append(decodeXMLEntities(value))
+        }
+      }
+    }
+    
+    print("📚 Found \(sharedStrings.count) shared strings")
+    return sharedStrings.isEmpty ? nil : sharedStrings
+    
+  } catch {
+    print("❌ Error parsing shared strings: \(error)")
+    return nil
+  }
+}
+
+private func replaceSharedStringReferences(in content: String, with sharedStrings: [String]) -> String {
+  // This is a simplified implementation - in a real XLSX file,
+  // we'd need to track which cells reference shared strings
+  return content
+}
+
+private func columnLetterToNumber(_ letter: String) -> Int {
+  var result = 0
+  for char in letter.uppercased() {
+    result = result * 26 + Int(char.asciiValue! - 64)
+  }
+  return result
+}
+
+private func numberToColumnLetter(_ number: Int) -> String {
+  var num = number
+  var result = ""
+  
+  while num > 0 {
+    num -= 1
+    result = String(Character(UnicodeScalar(65 + num % 26)!)) + result
+    num /= 26
+  }
+  
+  return result.isEmpty ? "A" : result
+}
+
+// MARK: - Other Spreadsheet Format Extraction
+
+private func extractXlsContent(fileURL: URL) -> String {
+  var content = "XLS (Legacy Excel) Content Extraction:\n\n"
+  
+  // Try NSAttributedString first
+  if let extractedText = extractSpreadsheetWithNSAttributedString(fileURL: fileURL) {
+    content += "Extracted using NSAttributedString:\n\n"
+    content += extractedText
+    return content
+  }
+  
+  // Try binary extraction
+  if let binaryContent = extractSpreadsheetFromBinary(fileURL: fileURL) {
+    content += "Extracted from binary data:\n\n"
+    content += binaryContent
+    return content
+  }
+  
+  content += analyzeSpreadsheetStructure(fileURL: fileURL)
+  content += "\n\nNote: XLS files require specialized parsers. Consider converting to XLSX or CSV format for better analysis."
+  
+  return content
+}
+
+private func extractCsvContent(fileURL: URL) -> String {
+  var content = "CSV Content Extraction:\n\n"
+  
+  do {
+    let csvContent = try String(contentsOf: fileURL, encoding: .utf8)
+    let lines = csvContent.components(separatedBy: .newlines).prefix(100) // Limit to first 100 rows
+    
+    content += "CSV Data (first 100 rows):\n"
+    for (index, line) in lines.enumerated() {
+      if !line.trimmingCharacters(in: .whitespaces).isEmpty {
+        content += "Row \(index + 1): \(line)\n"
+      }
+    }
+    
+    let totalLines = csvContent.components(separatedBy: .newlines).count
+    if totalLines > 100 {
+      content += "\n... and \(totalLines - 100) more rows\n"
+    }
+    
+    print("✅ Successfully extracted CSV with \(totalLines) rows")
+    
+  } catch {
+    content += "Error reading CSV file: \(error.localizedDescription)\n"
+    
+    // Try different encodings
+    if let csvContent = try? String(contentsOf: fileURL, encoding: .windowsCP1252) {
+      content += "\nExtracted using Windows-1252 encoding:\n"
+      content += String(csvContent.prefix(1000)) + "...\n"
+    }
+  }
+  
+  return content
+}
+
+private func extractNumbersContent(fileURL: URL) -> String {
+  var content = "Apple Numbers Content Analysis:\n\n"
+  
+  if fileURL.hasDirectoryPath {
+    content += "Numbers document detected as package format.\n"
+    
+    do {
+      let contents = try FileManager.default.contentsOfDirectory(at: fileURL, includingPropertiesForKeys: nil)
+      content += "Package contents:\n"
+      for item in contents {
+        content += "- \(item.lastPathComponent)\n"
+      }
+      
+      // Look for preview or data files
+      let previewURL = fileURL.appendingPathComponent("preview.jpg")
+      if FileManager.default.fileExists(atPath: previewURL.path) {
+        content += "\nPreview image found - spreadsheet contains visual elements.\n"
+      }
+      
+    } catch {
+      content += "Error reading Numbers package: \(error.localizedDescription)\n"
+    }
+  }
+  
+  content += "\nNote: Numbers files require Apple Numbers or compatible software for full data extraction."
+  return content
+}
+
+private func extractOdsContent(fileURL: URL) -> String {
+  var content = "OpenDocument Spreadsheet (ODS) Analysis:\n\n"
+  content += "ODS files are compressed archives containing structured XML content.\n"
+  content += analyzeSpreadsheetStructure(fileURL: fileURL)
+  content += "\n\nNote: ODS files require LibreOffice, OpenOffice, or compatible software for full data extraction."
+  return content
+}
+
+private func extractGenericSpreadsheetContent(fileURL: URL) -> String {
+  var content = "Generic Spreadsheet Analysis:\n\n"
+  content += analyzeSpreadsheetStructure(fileURL: fileURL)
+  content += "\n\nNote: This spreadsheet format requires specialized software for content extraction."
+  return content
+}
+
+// MARK: - Helper Methods
+
+private func extractSpreadsheetWithNSAttributedString(fileURL: URL) -> String? {
+  do {
+    let attributedString = try NSAttributedString(url: fileURL, options: [:], documentAttributes: nil)
+    let text = attributedString.string.trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.count > 10 ? text : nil
+  } catch {
+    print("NSAttributedString extraction failed: \(error)")
+    return nil
+  }
+}
+
+private func extractSpreadsheetFromBinary(fileURL: URL) -> String? {
+  guard let data = try? Data(contentsOf: fileURL) else { return nil }
+  
+  // Look for readable text in binary data
+  let dataString = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) ?? ""
+  
+  var extractedLines: [String] = []
+  let lines = dataString.components(separatedBy: .newlines)
+  
+  for line in lines.prefix(50) { // Limit to first 50 lines
+    let cleanLine = line.trimmingCharacters(in: .controlCharacters.union(.whitespaces))
+    if cleanLine.count > 3 && isReadableSpreadsheetLine(cleanLine) {
+      extractedLines.append(cleanLine)
+    }
+  }
+  
+  return extractedLines.isEmpty ? nil : extractedLines.joined(separator: "\n")
+}
+
+private func isReadableSpreadsheetLine(_ line: String) -> Bool {
+  let letterCount = line.filter { $0.isLetter }.count
+  let digitCount = line.filter { $0.isNumber }.count
+  let totalCount = line.count
+  
+  // Should contain some letters or numbers, and not be mostly symbols
+  return (letterCount + digitCount) > totalCount / 3 && totalCount < 500
+}
+
+private func analyzeSpreadsheetStructure(fileURL: URL) -> String {
+  var analysis = "Spreadsheet Structure Analysis:\n"
+  
+  do {
+    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+    
+    if let fileSize = attributes[.size] as? Int64 {
+      analysis += "File Size: \(formatFileSize(bytes: fileSize))\n"
+      
+      // Read first few bytes to determine file signature
+      if let fileHandle = FileHandle(forReadingAtPath: fileURL.path) {
+        let headerData = fileHandle.readData(ofLength: 16)
+        fileHandle.closeFile()
+        
+        let headerHex = headerData.map { String(format: "%02x", $0) }.joined(separator: " ")
+        analysis += "File Header: \(headerHex)\n"
+        
+        // Identify common spreadsheet signatures
+        if headerData.starts(with: Data([0x50, 0x4B])) {
+          analysis += "Format: ZIP-based spreadsheet (XLSX, ODS, etc.)\n"
+        } else if headerData.starts(with: Data([0xD0, 0xCF, 0x11, 0xE0])) {
+          analysis += "Format: Microsoft Compound Document (XLS)\n"
+        } else if headerData.prefix(3) == Data([0xEF, 0xBB, 0xBF]) {
+          analysis += "Format: UTF-8 with BOM (likely CSV)\n"
+        } else {
+          analysis += "Format: Unknown or plain text format\n"
+        }
+      }
+    }
+    
+  } catch {
+    analysis += "Error analyzing spreadsheet: \(error.localizedDescription)\n"
+  }
+  
+  return analysis
+}
+
+
+//getSpreadsheetTypeDescription
+private func getSpreadsheetTypeDescription(_ fileExtension: String) -> String {
+  switch fileExtension.lowercased() {
+    case "xlsx", "xlsm", "xlsb", "xls":
+      return "Excel"
+    case "csv":
+      return "CSV"
+    case "ods":
+      return "OpenDocument Spreadsheet"
+    case "numbers":
+      return "Apple Numbers"
+    default:
+      return "Spreadsheet"
   }
 }

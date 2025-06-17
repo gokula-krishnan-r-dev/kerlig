@@ -178,12 +178,22 @@ private let modelOptions: [String: [ModelOption]] = [
                         Image(systemName: "arrow.up.forward.square")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
+
+
+                            //show a shortcut key
+                            Text("⌘N")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 4)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(4)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .cornerRadius(6)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .keyboardShortcut("n", modifiers: .command)
                 .help("Start a new blank conversation")
 
                 // Pin Button
@@ -198,6 +208,14 @@ private let modelOptions: [String: [ModelOption]] = [
                         Image(systemName: appState.isPinned ? "pin.fill" : "pin.slash")
                             .font(.system(size: 12))
                             .foregroundColor(appState.isPinned ? .blue : .secondary)
+
+                            //show a shortcut key
+                            Text("⌘P")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 4)
+                                .background(Color.secondary.opacity(0.1))
+                                
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -205,6 +223,7 @@ private let modelOptions: [String: [ModelOption]] = [
                 .buttonStyle(PlainButtonStyle())
                 .help(appState.isPinned ? "Unpin panel (panel will close when clicking outside)" : "Pin panel (panel will stay open when clicking outside)")
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appState.isPinned)
+                .keyboardShortcut("p", modifiers: .command)
                 .scaleEffect(appState.isPinned ? 1.03 : 1.0)
 
                 // AI Model Selector - Enhanced Menu
