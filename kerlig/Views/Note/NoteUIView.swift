@@ -133,12 +133,12 @@ struct NoteUIView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 8)
                 
-                // Category scroll view
-                if !isShowingProjects {
-                    CategoryScrollView(selectedCategory: $selectedCategory)
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
-                }
+//                // Category scroll view
+//                if !isShowingProjects {
+//                    CategoryScrollView(selectedCategory: $selectedCategory)
+//                        .padding(.horizontal)
+//                        .padding(.bottom, 8)
+//                }
                 
                 // List content
                 Group {

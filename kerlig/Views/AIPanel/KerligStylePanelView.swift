@@ -5,10 +5,10 @@ import UserNotifications
 
 // Preference key for measuring content height
 struct ViewHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = max(value, nextValue())
+  }
 }
 
 // Internal struct for model option information
@@ -53,7 +53,6 @@ struct KerligStylePanelView: View {
   }
   @FocusState private var focusedField: FocusableField?
 
-  @State private var cancellables = Set<AnyCancellable>()
   @State private var shouldFocusTextField: Bool = true
   @State private var animatePanel: Bool = false
   @State private var contentHeight: CGFloat = 100
@@ -177,7 +176,7 @@ struct KerligStylePanelView: View {
   @State var shouldInsertAfterClose: Bool = false
 
   // Services
-  private let aiService = AIService()
+  @State private var aiService: AIService?
   private let hotkeyManager = HotkeyManager()
 
   // Enum to track insertion status
@@ -217,17 +216,22 @@ struct KerligStylePanelView: View {
         mainContentView
       }
       .onPreferenceChange(ViewHeightKey.self) { value in
-        let totalHeight = value + 60 // Add header height
+        let totalHeight = value + 60  // Add header height
         contentHeight = max(100, min(totalHeight, 600))
       }
     }
     .frame(
-    height: contentHeight,
-    alignment: .center
-)
+      height: contentHeight,
+      alignment: .center
+    )
     .clipShape(RoundedRectangle(cornerRadius: 20))
     .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 5)
     .onAppear {
+      // Initialize AIService with AppState reference
+      if aiService == nil {
+        aiService = AIService(appState: appState)
+      }
+
       // Initialize displayed text from appState
       displayedText = appState.selectedText
 
@@ -268,7 +272,7 @@ struct KerligStylePanelView: View {
       } else {
         // Animate panel out
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-          self.animatePanel = false  
+          self.animatePanel = false
         }
         self.searchQueryIsFocused = false
 
@@ -299,7 +303,7 @@ struct KerligStylePanelView: View {
   }
 
   // Handle text insertion using the service
- private func handleInsertText(_ text: String) {
+  private func handleInsertText(_ text: String) {
     // Save text for potential help dialog
     textToInsert = text
 
@@ -410,31 +414,13 @@ struct KerligStylePanelView: View {
 
     isProcessing = true
 
-    aiService.processWithAction(
-      text: textToProcess,
-      action: AIService.ActionType(rawValue: action.rawValue) ?? .summarize,
-      apiKey: appState.apiKey,
-      model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-      metadata: appState.textMetadata
-    )
-    .sink { completion in
-      self.isProcessing = false
-      if case .failure(let error) = completion {
-        self.generatedResponse = "Error: \(error.localizedDescription)"
-      }
-    } receiveValue: { response in
-      self.generatedResponse = response
-      self.isProcessing = false
-
-      // Save to app state
-      self.appState.aiResponse = response
-      self.appState.saveInteraction()
-    }
-    .store(in: &cancellables)
   }
 
   private func processCustomPrompt() {
+    print("🎯 [UI] processCustomPrompt called with query: '\(searchQuery.prefix(50))...'")
+
     guard !searchQuery.isEmpty else {
+      print("⚠️ [UI] Empty search query, giving visual feedback")
       // Give visual feedback for empty query
       withAnimation {
         self.searchQueryIsFocused = true
@@ -442,6 +428,7 @@ struct KerligStylePanelView: View {
       return
     }
 
+    print("🎯 [UI] Setting loading state")
     // Set loading state
     self.isProcessing = true
     self.isAnimating = true
@@ -449,8 +436,13 @@ struct KerligStylePanelView: View {
     // Clear previous response to show loading state properly
     self.generatedResponse = ""
 
+    print("🎯 [UI] Resetting streaming state in AppState")
+    // Reset streaming state in AppState
+    self.appState.resetStreamingState()
+
     // Check if user has selected text or is making a direct query
     let hasSelectedText = !displayedText.isEmpty && selectedTab == .withContent
+    print("🎯 [UI] Has selected text: \(hasSelectedText)")
 
     // Use the PromptManager to generate a well-structured prompt
     let promptManager = PromptManager()
@@ -463,64 +455,103 @@ struct KerligStylePanelView: View {
     let formattedPrompt = promptManager.addResponseFormat(to: promptContent)
 
     // Log the request for debugging
-    print("System prompt: \(systemPrompt)")
-    print("Content prompt: \(formattedPrompt)")
+    print("🎯 [UI] System prompt: \(systemPrompt.prefix(100))...")
+    print("🎯 [UI] Content prompt: \(formattedPrompt.prefix(100))...")
 
-    // Cancel any existing requests
-    self.cancellables.removeAll()
+    print("🎯 [UI] Canceling any existing streaming requests")
+    // Cancel any existing streaming requests
+    self.aiService?.cancelStreaming()
 
-    // Use API key if available with enhanced error handling
-    let requestPublisher = self.aiService.generateResponse(
-      prompt: formattedPrompt,
-      systemPrompt: systemPrompt,
-      model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-      type: detectContentType(from: formattedPrompt)
-    )
+    print("🎯 [UI] Starting new streaming request")
 
-    // Add retry logic with better error handling
-    requestPublisher
-      .retry(2)  // Retry up to 2 times before failing
-      .timeout(.seconds(45), scheduler: DispatchQueue.main, customError: { URLError(.timedOut) })
-      .receive(on: DispatchQueue.main)
-      .sink(
-        receiveCompletion: { completion in
-          DispatchQueue.main.async {
-            self.isProcessing = false
-            self.isAnimating = false
+    // Check if we should use simulation mode (for testing when API is not available)
+    let useSimulation = UserDefaults.standard.bool(forKey: "useSimulationMode")
 
-            if case .failure(let error) = completion {
-              // Provide user-friendly error messages based on error type
-              if let urlError = error as? URLError {
-                switch urlError.code {
-                case .notConnectedToInternet:
-                  self.generatedResponse =
-                    "No internet connection. Please check your connection and try again."
-                case .timedOut:
-                  self.generatedResponse =
-                    "Request timed out. The server might be busy, please try again."
-                case .cancelled:
-                  self.generatedResponse = "Request was cancelled."
-                default:
-                  self.generatedResponse = "Network error: \(urlError.localizedDescription)"
-                }
-              } else {
-                self.generatedResponse = "Error: \(error.localizedDescription)"
-              }
-            }
-          }
-        },
-        receiveValue: { response in
-          DispatchQueue.main.async {
-            self.generatedResponse = response
-            self.isProcessing = false
-            self.isAnimating = false
-            // self.appState.selectedText = self.searchQuery
-            self.appState.aiResponse = response
+    if useSimulation {
+      print("🎯 [UI] Using simulation mode")
+      self.aiService?.simulateStreamingResponse(
+        text: formattedPrompt,
+        action: "improvewriting"
+      ) { result in
+        print("🎯 [UI] Simulation completion callback called")
+        DispatchQueue.main.async {
+          print("🎯 [UI] Processing simulation result on main thread")
+
+          self.isProcessing = false
+          self.isAnimating = false
+
+          switch result {
+          case .success:
+            print("🎯 [UI] Simulation completed successfully")
+            let finalResponse =
+              !self.appState.displayedResponse.isEmpty
+              ? self.appState.displayedResponse : self.appState.aiResponse
+            print("🎯 [UI] Final response length: \(finalResponse.count)")
+            self.generatedResponse = finalResponse
             self.appState.saveInteraction()
+
+          case .failure(let error):
+            print("🎯 [UI] Simulation failed with error: \(error.localizedDescription)")
+            let errorMessage = "Simulation error: \(error.localizedDescription)"
+            print("🎯 [UI] Setting error message: \(errorMessage)")
+            self.generatedResponse = errorMessage
+            self.appState.handleStreamingError(errorMessage)
           }
         }
-      )
-      .store(in: &cancellables)
+      }
+    } else {
+      // Use the real streaming API
+      self.aiService?.generateStreamingResponse(
+        prompt: formattedPrompt,
+        systemPrompt: systemPrompt,
+        model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        type: detectContentType(from: formattedPrompt)
+      ) { result in
+        print("🎯 [UI] Streaming completion callback called")
+        DispatchQueue.main.async {
+          print("🎯 [UI] Processing streaming result on main thread")
+
+          self.isProcessing = false
+          self.isAnimating = false
+
+          switch result {
+          case .success:
+            print("🎯 [UI] Streaming completed successfully")
+            // Response is already being updated in real-time through AppState
+            // Just sync the final response
+            let finalResponse =
+              !self.appState.displayedResponse.isEmpty
+              ? self.appState.displayedResponse : self.appState.aiResponse
+            print("🎯 [UI] Final response length: \(finalResponse.count)")
+            self.generatedResponse = finalResponse
+            self.appState.saveInteraction()
+
+          case .failure(let error):
+            print("🎯 [UI] Streaming failed with error: \(error.localizedDescription)")
+            // Provide user-friendly error messages based on error type
+            let errorMessage: String
+            if let urlError = error as? URLError {
+              switch urlError.code {
+              case .notConnectedToInternet:
+                errorMessage = "No internet connection. Please check your connection and try again."
+              case .timedOut:
+                errorMessage = "Request timed out. The server might be busy, please try again."
+              case .cancelled:
+                errorMessage = "Request was cancelled."
+              default:
+                errorMessage = "Network error: \(urlError.localizedDescription)"
+              }
+            } else {
+              errorMessage = "Error: \(error.localizedDescription)"
+            }
+
+            print("🎯 [UI] Setting error message: \(errorMessage)")
+            self.generatedResponse = errorMessage
+            self.appState.handleStreamingError(errorMessage)
+          }
+        }
+      }
+    }  // Close else block for real API
   }
 
   // Copy to clipboard (still needed for certain operations)
@@ -539,18 +570,14 @@ struct KerligStylePanelView: View {
         if selectedTab == .blank {
           ScrollView {
             VStack(spacing: 0) {
-              // actionButtonsView
-              if !appState.aiResponse.isEmpty {
+              if !appState.displayedResponse.isEmpty {
                 responseView
               }
-
+              
               // Search/prompt field
               promptField
 
-              // Quick action buttons
-              // if appState.aiResponse.isEmpty {
-              //     actionButtonsView
-              // }
+             
             }
             .padding(.bottom, 20)
             .background(
@@ -568,9 +595,10 @@ struct KerligStylePanelView: View {
           // Content when "with content" tab is selected
           ScrollView {
             VStack(spacing: 0) {
-              if !appState.aiResponse.isEmpty {
+              if !appState.displayedResponse.isEmpty {
                 responseView
               }
+
               // Selected text display
               if !appState.selectedText.isEmpty {
                 selectedTextView
@@ -579,10 +607,7 @@ struct KerligStylePanelView: View {
               // Search/prompt field
               promptField
 
-              // // Quick action buttons
-              // if appState.aiResponse.isEmpty {
-              //     actionButtonsView
-              // }
+          
             }
             .padding(.bottom, 20)
             .background(
@@ -671,7 +696,7 @@ struct KerligStylePanelView: View {
         self.processCustomPrompt()
       },
       onCancel: {
-        self.cancellables.removeAll()
+        self.aiService?.cancelStreaming()
         self.isProcessing = false
         self.generatedResponse = "Request canceled."
       }
@@ -738,62 +763,69 @@ struct KerligStylePanelView: View {
   private func detectContentType(from prompt: String) -> String? {
     // Check if the prompt contains file paths
     let lines = prompt.components(separatedBy: .newlines)
-    
+
     for line in lines {
       let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
-      
+
       // Skip empty lines or lines that are clearly text content
       if trimmedLine.isEmpty || trimmedLine.count < 3 {
         continue
       }
-      
+
       // Check if this line looks like a file path
       if isFilePath(trimmedLine) {
         return getContentTypeFromPath(trimmedLine)
       }
     }
-    
+
     // If no file paths found, return nil for regular text content
     return nil
   }
-  
+
   // Helper function to detect if text is a file path
   private func isFilePath(_ text: String) -> Bool {
     // Check if it looks like a file path
     guard text.contains("/") || text.contains("\\") else { return false }
-    
+
     // Must have a file extension
     let components = text.components(separatedBy: ".")
     guard components.count > 1, let lastComponent = components.last, !lastComponent.isEmpty else {
       return false
     }
-    
+
     // Check if the extension looks reasonable (2-4 characters)
     let ext = lastComponent.lowercased()
     guard ext.count >= 2 && ext.count <= 4 else {
       return false
     }
-    
+
     // Additional validation: should not be a URL
     if text.hasPrefix("http://") || text.hasPrefix("https://") || text.hasPrefix("ftp://") {
       return false
     }
-    
+
     return true
   }
-  
+
   // Get specific content type based on file extension
   private func getContentTypeFromPath(_ path: String) -> String {
     let ext = getFileExtension(path).lowercased()
-    
+
     // Define file type categories
-    let imageExtensions = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "webp", "svg", "ico", "heic", "heif"]
+    let imageExtensions = [
+      "png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "webp", "svg", "ico", "heic", "heif",
+    ]
     let audioExtensions = ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "aiff"]
     let videoExtensions = ["mp4", "avi", "mov", "wmv", "flv", "webm", "mkv", "m4v"]
-    let documentExtensions = ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp"]
-    let textExtensions = ["txt", "md", "json", "xml", "csv", "log", "py", "js", "html", "css", "swift", "java", "cpp", "c", "h"]
+    let documentExtensions = [
+      "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp",
+    ]
+    let textExtensions = [
+      "txt", "md", "json", "xml", "csv", "log", "py", "js", "html", "css", "swift", "java", "cpp",
+      "c", "h",
+    ]
     let archiveExtensions = ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]
-    
+
     // Return specific file type
     if ext == "pdf" {
       return "pdf"
@@ -813,14 +845,12 @@ struct KerligStylePanelView: View {
       return "file"  // Generic file type
     }
   }
-  
+
   // Helper function to get file extension
   private func getFileExtension(_ path: String) -> String {
     return (path as NSString).pathExtension
   }
 }
-
-
 
 #Preview {
   KerligStylePanelView()

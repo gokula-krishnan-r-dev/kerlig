@@ -31,6 +31,7 @@
 		558AF8E92DD20927009924D2 /* kerlig.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = kerlig.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		558AF8F72DD2092A009924D2 /* kerligTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = kerligTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		558AF9012DD2092A009924D2 /* kerligUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = kerligUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		558F13A12E02FCA7000019D5 /* macwriteTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = macwriteTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -47,6 +48,11 @@
 		558AF9042DD2092A009924D2 /* kerligUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = kerligUITests;
+			sourceTree = "<group>";
+		};
+		558F13A22E02FCA7000019D5 /* macwriteTest */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = macwriteTest;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -74,6 +80,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		558F139E2E02FCA7000019D5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -83,6 +96,7 @@
 				558AF8EB2DD20927009924D2 /* kerlig */,
 				558AF8FA2DD2092A009924D2 /* kerligTests */,
 				558AF9042DD2092A009924D2 /* kerligUITests */,
+				558F13A22E02FCA7000019D5 /* macwriteTest */,
 				558AF8EA2DD20927009924D2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,6 +107,7 @@
 				558AF8E92DD20927009924D2 /* kerlig.app */,
 				558AF8F72DD2092A009924D2 /* kerligTests.xctest */,
 				558AF9012DD2092A009924D2 /* kerligUITests.xctest */,
+				558F13A12E02FCA7000019D5 /* macwriteTest.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -169,6 +184,28 @@
 			productReference = 558AF9012DD2092A009924D2 /* kerligUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		558F13A02E02FCA7000019D5 /* macwriteTest */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 558F13A72E02FCA7000019D5 /* Build configuration list for PBXNativeTarget "macwriteTest" */;
+			buildPhases = (
+				558F139D2E02FCA7000019D5 /* Sources */,
+				558F139E2E02FCA7000019D5 /* Frameworks */,
+				558F139F2E02FCA7000019D5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				558F13A22E02FCA7000019D5 /* macwriteTest */,
+			);
+			name = macwriteTest;
+			packageProductDependencies = (
+			);
+			productName = macwriteTest;
+			productReference = 558F13A12E02FCA7000019D5 /* macwriteTest.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -176,7 +213,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1630;
+				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					558AF8E82DD20927009924D2 = {
@@ -189,6 +226,9 @@
 					558AF9002DD2092A009924D2 = {
 						CreatedOnToolsVersion = 16.3;
 						TestTargetID = 558AF8E82DD20927009924D2;
+					};
+					558F13A02E02FCA7000019D5 = {
+						CreatedOnToolsVersion = 26.0;
 					};
 				};
 			};
@@ -212,6 +252,7 @@
 				558AF8E82DD20927009924D2 /* kerlig */,
 				558AF8F62DD2092A009924D2 /* kerligTests */,
 				558AF9002DD2092A009924D2 /* kerligUITests */,
+				558F13A02E02FCA7000019D5 /* macwriteTest */,
 			);
 		};
 /* End PBXProject section */
@@ -238,6 +279,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		558F139F2E02FCA7000019D5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -256,6 +304,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		558AF8FD2DD2092A009924D2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		558F139D2E02FCA7000019D5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -548,6 +603,53 @@
 			};
 			name = Release;
 		};
+		558F13A52E02FCA7000019D5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GZM73634C6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.notezyne.app.macwriteTest;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		558F13A62E02FCA7000019D5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GZM73634C6;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.notezyne.app.macwriteTest;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -583,6 +685,15 @@
 			buildConfigurations = (
 				558AF9122DD2092A009924D2 /* Debug */,
 				558AF9132DD2092A009924D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		558F13A72E02FCA7000019D5 /* Build configuration list for PBXNativeTarget "macwriteTest" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				558F13A52E02FCA7000019D5 /* Debug */,
+				558F13A62E02FCA7000019D5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

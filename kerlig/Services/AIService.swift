@@ -68,10 +68,17 @@ class Logger {
 #endif
 
 class AIService {
-  private let baseURL = "http://localhost:8080/ai/generate"  // Update with your actual API URL
+  private let baseURL = "https://auto-comment.gokulakrishnanr812-492.workers.dev/"  // Streaming endpoint
   private let logger = Logger.shared
-  private let geminiVisionService = GeminiVisionService()  // Add Gemini Vision service
-  @EnvironmentObject var appState: AppState
+  private let geminiVisionService = GeminiVisionService()
+  private var streamingTask: URLSessionDataTask?
+  
+  // Weak reference to AppState for streaming updates
+  weak var appState: AppState?
+  
+  init(appState: AppState? = nil) {
+    self.appState = appState
+  }
 
   // Define actions directly in this class to avoid conflicts
   enum ActionType: String {
@@ -110,95 +117,141 @@ class AIService {
     }
   }
 
-  func generateResponse(prompt: String, systemPrompt: String, model: String , type: String? = nil) -> AnyPublisher<
-    String, Error
-  > {
-    logger.log("Generating response with \(systemPrompt) model: \(model)", level: .info)
-
+  // MARK: - Streaming Response Generation
+  
+  func generateStreamingResponse(
+    prompt: String,
+    systemPrompt: String,
+    model: String,
+    type: String? = nil,
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
+    logger.log("🚀 [STREAMING] Starting streaming response generation", level: .info)
+    logger.log("🚀 [STREAMING] Model: \(model)", level: .info)
+    logger.log("🚀 [STREAMING] Prompt length: \(prompt.count) chars", level: .info)
+    logger.log("🚀 [STREAMING] System prompt: \(systemPrompt.prefix(100))...", level: .info)
+    logger.log("🚀 [STREAMING] Type: \(type ?? "nil")", level: .info)
+    
     // Check if type indicates a file and route to appropriate service
     if let fileType = type, shouldUseGeminiVision(for: fileType) {
-      return handleFileWithGeminiVision(prompt: prompt, systemPrompt: systemPrompt, type: fileType)
+      logger.log("🚀 [STREAMING] Routing to Gemini Vision for file type: \(fileType)", level: .info)
+      handleFileWithGeminiVisionStreaming(
+        prompt: prompt,
+        systemPrompt: systemPrompt,
+        type: fileType,
+        completion: completion
+      )
+      return
     }
     
-    // Standard text processing
+    logger.log("🚀 [STREAMING] Using standard streaming API", level: .info)
+    
+    // Cancel any existing streaming task
+    logger.log("🚀 [STREAMING] Canceling any existing streaming task", level: .info)
+    cancelStreaming()
+    
+    // Start streaming session
+    logger.log("🚀 [STREAMING] Starting streaming session in AppState", level: .info)
+    appState?.startStreaming()
+    
     guard let url = URL(string: baseURL) else {
-      logger.log("Invalid URL: \(baseURL)", level: .error)
-      return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
+      logger.log("❌ [STREAMING] Invalid URL: \(baseURL)", level: .error)
+      appState?.handleStreamingError("Invalid API URL")
+      completion(.failure(URLError(.badURL)))
+      return
     }
-
+    
+    logger.log("🚀 [STREAMING] Created URL: \(url.absoluteString)", level: .info)
+    
     // Create the request
+    logger.log("🚀 [STREAMING] Creating HTTP request", level: .info)
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-    // Construct a dynamic payload with model preference from UserDefaults
-    // and structured instruction template for AI responses
+    request.addValue("text/event-stream", forHTTPHeaderField: "Accept")
+    request.addValue("no-cache", forHTTPHeaderField: "Cache-Control")
+    request.timeoutInterval = 60.0
+    
+    logger.log("🚀 [STREAMING] Request headers configured", level: .info)
+    
+    // Construct payload
+    let selectedModel = UserDefaults.standard.string(forKey: "aiModel") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+    logger.log("🚀 [STREAMING] Using model: \(selectedModel)", level: .info)
+    
     let payload: [String: Any] = [
-      "model": UserDefaults.standard.string(forKey: "aiModel")
-        ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "messages": [
+        [
+          "content": systemPrompt.isEmpty ? "You are a helpful assistant that provides clear and concise responses." : systemPrompt,
+          "role": "system"
+        ],
+        [
+          "content": prompt,
+          "role": "user"
+        ]
+      ],
+      "instruction": systemPrompt,
       "text": prompt,
-      "instruction": generateInstructionTemplate(systemPrompt: systemPrompt),
+      "stream": true,
     ]
-
-    logger.log("Payload prepared: \(payload)", level: .debug)
-
-    // Convert payload to JSON
+    
+    logger.log("🚀 [STREAMING] Payload created with keys: \(payload.keys.joined(separator: ", "))", level: .info)
+    
     guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else {
-      logger.log("Failed to serialize payload to JSON", level: .error)
-      return Fail(error: URLError(.cannotParseResponse)).eraseToAnyPublisher()
+      logger.log("❌ [STREAMING] Failed to serialize payload to JSON", level: .error)
+      appState?.handleStreamingError("Failed to prepare request")
+      completion(.failure(URLError(.cannotParseResponse)))
+      return
     }
     request.httpBody = httpBody
-
-    // Make the API call
-    logger.log("Making API request to: \(url.absoluteString)", level: .debug)
-
-    return URLSession.shared.dataTaskPublisher(for: request)
-      .tryMap { [weak self] data, response -> Data in
-        guard let self = self else { throw APIError.invalidResponse }
-        guard let httpResponse = response as? HTTPURLResponse else {
-          self.logger.log("Invalid HTTP response", level: .error)
-          throw APIError.invalidResponse
-        }
-
-        let responseData = String(data: data, encoding: .utf8) ?? "Unable to decode response"
-        self.logger.log(
-          "Received API response with status code: \(httpResponse.statusCode)", level: .debug)
-        self.logger.log("Response body: \(responseData)", level: .debug)
-
-        if !(200...299).contains(httpResponse.statusCode) {
-          self.logger.log(
-            "API error: Status \(httpResponse.statusCode) - \(responseData)", level: .error)
-          throw APIError.serverError(statusCode: httpResponse.statusCode, message: responseData)
-        }
-
-        return data
-      }
-      .decode(type: AIResponse.self, decoder: JSONDecoder())
-      .map { [weak self] response in
-        self?.logger.log(
-          "Successfully decoded response with \(response.usage?.totalTokens ?? 0) tokens",
-          level: .info)
-        if let toolCalls = response.toolCalls, !toolCalls.isEmpty {
-          self?.logger.log("Response includes tool calls", level: .debug)
-        }
-        return response.response
-      }
-      .catch { [weak self] error -> AnyPublisher<String, Error> in
-        self?.logger.log("API Error: \(error.localizedDescription)", level: .error)
-        if let apiError = error as? APIError {
-          self?.logger.log(
-            "Detailed API error: \(apiError.errorDescription ?? "Unknown error")", level: .error)
-        }
-        return Fail(error: error).eraseToAnyPublisher()
-      }
-      .receive(on: DispatchQueue.main)
-      .eraseToAnyPublisher()
+    
+    logger.log("🚀 [STREAMING] HTTP body serialized successfully, size: \(httpBody.count) bytes", level: .info)
+    logger.log("🚀 [STREAMING] Ready to start streaming request to: \(url.absoluteString)", level: .info)
+    
+    // Set up streaming with custom delegate for real-time processing
+    logger.log("🚀 [STREAMING] Setting up URLSession with custom delegate", level: .info)
+    let delegate = StreamingDelegate(aiService: self)
+    let config = URLSessionConfiguration.default
+    config.timeoutIntervalForRequest = 60.0
+    config.timeoutIntervalForResource = 300.0
+    
+    logger.log("🚀 [STREAMING] URLSession configuration created", level: .info)
+    let session = URLSession(configuration: config, delegate: delegate, delegateQueue: .main)
+    
+    // Create streaming task with custom session for real-time processing
+    logger.log("🚀 [STREAMING] Creating streaming task with custom session", level: .info)
+    streamingTask = session.dataTask(with: request)
+    
+    logger.log("🚀 [STREAMING] Starting streaming task...", level: .info)
+    streamingTask?.resume()
+    
+    logger.log("🚀 [STREAMING] Setting connection state to connected", level: .info)
+    appState?.connectionState = .connected
+    
+    logger.log("✅ [STREAMING] Streaming setup complete - waiting for real-time response", level: .info)
+    
+         // Call completion to indicate the request was initiated successfully
+     completion(.success(()))
+   }
+  
+  
+  
+  // Cancel current streaming
+  func cancelStreaming() {
+    streamingTask?.cancel()
+    streamingTask = nil
+    appState?.cancelStreaming()
+    logger.log("Streaming cancelled", level: .info)
   }
 
-  // Modified to use our internal ActionType
+  // Modified to use our internal ActionType with streaming
   func processWithAction(
-    text: String, action: ActionType, apiKey: String, model: String, metadata: [String: Any]? = nil
-  ) -> AnyPublisher<String, Error> {
+    text: String,
+    action: ActionType,
+    apiKey: String,
+    model: String,
+    metadata: [String: Any]? = nil,
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
     logger.log("Processing text with action: \(action.rawValue)", level: .info)
 
     // Check if this is a file analysis action and we have file details
@@ -209,71 +262,36 @@ class AIService {
         fileDetails: fileDetails, userRequest: text.isEmpty ? nil : text)
 
       logger.log("Using specialized file analysis prompt", level: .info)
-      return generateResponse(prompt: filePrompt, systemPrompt: "", model: model)
+      generateStreamingResponse(
+        prompt: filePrompt,
+        systemPrompt: "",
+        model: model,
+        completion: completion
+      )
+      return
     }
 
     // Standard processing for other action types
-    return generateResponse(
+    generateStreamingResponse(
       prompt: text,
       systemPrompt: action.systemPrompt,
-      model: model
+      model: model,
+      completion: completion
     )
   }
 
-  // Quick simulated response for when API key isn't set up
-  func simulateResponseForAction(text: String, action: ActionType) -> AnyPublisher<String, Error> {
-    logger.log("Simulating response for action", level: .info)
 
-    return Future<String, Error> { [weak self] promise in
-      // Add a short delay to simulate processing
-      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-        let response: String
-
-        switch action {
-        case .fixSpellingGrammar:
-          response =
-            "I've fixed the spelling and grammar issues in your text:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
-
-        case .improveWriting:
-          response =
-            "Here's an improved version of your text with better clarity and engagement:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
-
-        case .translate:
-          let isEnglish = text.range(of: "[^a-zA-Z0-9\\s.,?!]", options: .regularExpression) == nil
-          if isEnglish {
-            response =
-              "Voici la traduction en français:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
-          } else {
-            response =
-              "Here's the English translation:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
-          }
-
-        case .makeShorter:
-          let words = text.split(separator: " ")
-          let shortenedCount = max(3, Int(Double(words.count) * 0.6))
-          response =
-            "Here's a more concise version:\n\n"
-            + words.prefix(shortenedCount).joined(separator: " ")
-        case .summarize:
-          response =
-            "Here's a summary of your text:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
-        case .analyzeFile:
-          response = "Analyzing file details..."
-        case .analyzeImage:
-          response = "Analyzing image details..."
-        }
-
-        self?.logger.log("Generated simulated response", level: .debug)
-        promise(.success(response))
-      }
-    }.eraseToAnyPublisher()
-  }
 
   // Adapter method to convert from AIAction to our internal ActionType
   // This allows the existing code to keep working with AIAction
   func processWithAIAction(
-    text: String, action: String, apiKey: String, model: String, metadata: [String: Any]? = nil
-  ) -> AnyPublisher<String, Error> {
+    text: String,
+    action: String,
+    apiKey: String,
+    model: String,
+    metadata: [String: Any]? = nil,
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
     // Convert string action to our internal action type
     let actionType: ActionType
     switch action.lowercased() {
@@ -293,12 +311,22 @@ class AIService {
       actionType = .improveWriting  // Default action
     }
 
-    return processWithAction(
-      text: text, action: actionType, apiKey: apiKey, model: model, metadata: metadata)
+    processWithAction(
+      text: text,
+      action: actionType,
+      apiKey: apiKey,
+      model: model,
+      metadata: metadata,
+      completion: completion
+    )
   }
 
-  // Adapter for simulate method
-  func simulateResponseForAIAction(text: String, action: String) -> AnyPublisher<String, Error> {
+  // Simulate streaming response for demo/testing
+  func simulateStreamingResponse(
+    text: String,
+    action: String,
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
     // Convert string action to our internal action type
     let actionType: ActionType
     switch action.lowercased() {
@@ -316,7 +344,48 @@ class AIService {
       actionType = .improveWriting  // Default action
     }
 
-    return simulateResponseForAction(text: text, action: actionType)
+    simulateStreamingResponseForAction(text: text, action: actionType, completion: completion)
+  }
+  
+  // Simulate streaming response for testing/demo purposes
+  private func simulateStreamingResponseForAction(
+    text: String,
+    action: ActionType,
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
+    logger.log("Simulating streaming response for action: \(action.rawValue)", level: .info)
+    
+    appState?.startStreaming()
+    
+    // Generate simulated response
+    let response: String
+    switch action {
+    case .fixSpellingGrammar:
+      response = "I've fixed the spelling and grammar issues in your text:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
+    case .improveWriting:
+      response = "Here's an improved version of your text with better clarity and engagement:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
+    case .translate:
+      let isEnglish = text.range(of: "[^a-zA-Z0-9\\s.,?!]", options: .regularExpression) == nil
+      if isEnglish {
+        response = "Voici la traduction en français:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
+      } else {
+        response = "Here's the English translation:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
+      }
+    case .makeShorter:
+      let words = text.split(separator: " ")
+      let shortenedCount = max(3, Int(Double(words.count) * 0.6))
+      response = "Here's a more concise version:\n\n" + words.prefix(shortenedCount).joined(separator: " ")
+    case .summarize:
+      response = "Here's a summary of your text:\n\n\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
+    case .analyzeFile:
+      response = "File analysis complete. The file contains structured content with various elements..."
+    case .analyzeImage:
+      response = "Image analysis complete. The image shows various visual elements and content..."
+    }
+    
+    // Simulate streaming effect
+    simulateStreamingForStaticResponse(response)
+    completion(.success(()))
   }
 
   func generateInstructionTemplate(systemPrompt: String) -> String {
@@ -476,8 +545,86 @@ class AIService {
       }
     }
   }
-
-
+  
+  // Streaming version for Gemini Vision file processing
+  private func handleFileWithGeminiVisionStreaming(
+    prompt: String,
+    systemPrompt: String,
+    type: String,
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
+    logger.log("Processing file with Gemini Vision streaming, type: \(type)", level: .info)
+    
+    // Start streaming session
+    appState?.startStreaming()
+    
+    // Extract file path from prompt
+    let filePath = extractFilePathFromPrompt(prompt)
+    
+    guard !filePath.isEmpty else {
+      appState?.handleStreamingError("No valid file path found")
+      completion(.failure(FileProcessingError.noFilePathFound))
+      return
+    }
+    
+    // Create comprehensive prompt combining system prompt and user request
+    let visionPrompt = createVisionPrompt(systemPrompt: systemPrompt, userPrompt: prompt, filePath: filePath)
+    
+    // Convert path to URL
+    let fileURL = URL(fileURLWithPath: expandFilePath(filePath))
+    
+    // Process file with Gemini Vision
+    geminiVisionService.processFile(fileURL: fileURL, prompt: visionPrompt) { [weak self] result in
+      DispatchQueue.main.async {
+        switch result {
+        case .success(let response):
+          self?.logger.log("Successfully processed file with Gemini Vision", level: .info)
+          
+          // Simulate streaming for Gemini Vision response
+          self?.simulateStreamingForStaticResponse(response)
+          completion(.success(()))
+          
+        case .failure(let error):
+          self?.logger.log("Failed to process file: \(error.localizedDescription)", level: .error)
+          self?.appState?.handleStreamingError(error.localizedDescription)
+          completion(.failure(error))
+        }
+      }
+    }
+  }
+  
+  // Simulate streaming effect for static responses (like Gemini Vision)
+  private func simulateStreamingForStaticResponse(_ response: String) {
+    appState?.connectionState = .streaming
+    
+    let words = response.components(separatedBy: .whitespacesAndNewlines)
+    let wordsPerChunk = max(1, words.count / 20) // Divide into ~20 chunks
+    
+    var wordIndex = 0
+    let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+      guard let self = self else {
+        timer.invalidate()
+        return
+      }
+      
+      let endIndex = min(wordIndex + wordsPerChunk, words.count)
+      let chunk = words[wordIndex..<endIndex].joined(separator: " ")
+      
+      if !chunk.isEmpty {
+        self.appState?.updateStreamingResponse(chunk + " ")
+      }
+      
+      wordIndex = endIndex
+      
+      if wordIndex >= words.count {
+        timer.invalidate()
+        self.appState?.completeStreaming()
+      }
+    }
+    
+    // Ensure timer runs on main thread
+    RunLoop.main.add(timer, forMode: .common)
+  }
 
   // Helper to expand file paths (handle ~ and file:// URLs)
   private func expandFilePath(_ path: String) -> String {
@@ -577,6 +724,208 @@ enum APIError: Error, LocalizedError {
       return "Invalid response from server"
     case .serverError(let statusCode, let message):
       return "Server error (code \(statusCode)): \(message)"
+    }
+  }
+}
+
+// MARK: - Streaming Delegate
+
+class StreamingDelegate: NSObject, URLSessionDataDelegate {
+  weak var aiService: AIService?
+  private var receivedData = Data()
+  
+  init(aiService: AIService) {
+    self.aiService = aiService
+    super.init()
+  }
+  
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+    print("📦 [DELEGATE] Received data chunk: \(data)")
+    
+    receivedData.append(data)
+    print("📦 [DELEGATE] Total buffered data: \(receivedData)")
+    
+    // Process complete lines from the received data
+    if let string = String(data: receivedData, encoding: .utf8) {
+      print("📦 [DELEGATE] Decoded string: \(string.prefix(200))...")
+      
+      // Check if this looks like a complete JSON response (non-streaming)
+      if string.hasPrefix("{") && string.hasSuffix("}") && !string.contains("\n") {
+        print("📦 [DELEGATE] Detected complete JSON response (non-streaming)")
+        processCompleteJsonResponse(string)
+        receivedData = Data() // Clear buffer
+        return
+      }
+      
+      // Process as Server-Sent Events (streaming)
+      let lines = string.components(separatedBy: .newlines)
+      print("📦 [DELEGATE] Split into \(lines.count) lines for SSE processing")
+      
+      // Keep the last incomplete line in the buffer
+      if lines.count > 1 {
+        let completeLines = lines.dropLast()
+        let incompleteData = lines.last?.data(using: .utf8) ?? Data()
+        
+        receivedData = incompleteData
+        print("📦 [DELEGATE] Processing \(completeLines.count) complete SSE lines")
+        
+        // Process complete lines
+        for (index, line) in completeLines.enumerated() {
+          print("📦 [DELEGATE] Processing SSE line \(index + 1): \(line.prefix(100))...")
+          processStreamingLine(line)
+        }
+      } else {
+        print("📦 [DELEGATE] No complete SSE lines to process yet")
+      }
+    } else {
+      print("❌ [DELEGATE] Failed to decode data as UTF-8 string")
+    }
+  }
+  
+  // Handle complete JSON response (fallback for non-streaming APIs)
+  private func processCompleteJsonResponse(_ jsonString: String) {
+    print("📋 [DELEGATE] Processing complete JSON response")
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { 
+        print("❌ [DELEGATE] Self is nil in processCompleteJsonResponse")
+        return 
+      }
+      
+      if let data = jsonString.data(using: .utf8) {
+        do {
+          if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            print("📋 [DELEGATE] JSON parsed successfully: \(json.keys.joined(separator: ", "))")
+            
+            // Check for different response formats
+            if let response = json["response"] as? String {
+              print("✅ [DELEGATE] Found 'response' field: '\(response.prefix(50))...'")
+              self.aiService?.appState?.updateStreamingResponse(response)
+              
+              // Update token counts if available
+              if let usage = json["usage"] as? [String: Any] {
+                if let totalTokens = usage["total_tokens"] as? Int {
+                  self.aiService?.appState?.actualTokens = totalTokens
+                  print("📊 [DELEGATE] Updated token count: \(totalTokens)")
+                }
+              }
+              
+              self.aiService?.appState?.completeStreaming()
+            } else if let text = json["text"] as? String {
+              print("✅ [DELEGATE] Found 'text' field: '\(text.prefix(50))...'")
+              self.aiService?.appState?.updateStreamingResponse(text)
+              self.aiService?.appState?.completeStreaming()
+            } else {
+              print("⚠️ [DELEGATE] No recognized text field in JSON: \(json)")
+              self.aiService?.appState?.handleStreamingError("Unexpected response format")
+            }
+          } else {
+            print("❌ [DELEGATE] Failed to parse complete JSON")
+            self.aiService?.appState?.handleStreamingError("Invalid JSON response")
+          }
+        } catch {
+          print("❌ [DELEGATE] JSON parsing error: \(error.localizedDescription)")
+          self.aiService?.appState?.handleStreamingError("JSON parsing failed: \(error.localizedDescription)")
+        }
+      } else {
+        print("❌ [DELEGATE] Failed to create data from complete JSON string")
+        self.aiService?.appState?.handleStreamingError("Failed to process response")
+      }
+    }
+  }
+  
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didCompleteWithError error: Error?) {
+    print("🏁 [DELEGATE] URLSession task completed")
+    DispatchQueue.main.async { [weak self] in
+      if let error = error {
+        print("❌ [DELEGATE] Streaming completed with error: \(error.localizedDescription)")
+        self?.aiService?.appState?.handleStreamingError(error.localizedDescription)
+      } else {
+        print("✅ [DELEGATE] Streaming completed successfully")
+      
+        self?.aiService?.appState?.completeStreaming()
+      }
+    }
+  }
+  
+  private func processStreamingLine(_ line: String) {
+    print("🔍 [LINE] Processing line: '\(line)'")
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { 
+        print("❌ [LINE] Self is nil, cannot process line")
+        return 
+      }
+      
+      if line.hasPrefix("data: ") {
+        let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
+        print("📋 [LINE] Found data line, JSON: '\(jsonString)'")
+        
+        // Handle completion signal
+        if jsonString == "[DONE]" || jsonString.contains("[DONE") {
+          print("🏁 [LINE] Received [DONE] signal")
+          self.aiService?.appState?.completeStreaming()
+          return
+        }
+        
+        if jsonString.isEmpty {
+          print("⚠️ [LINE] Empty JSON string, skipping")
+          return
+        }
+        
+        if let data = jsonString.data(using: .utf8) {
+          print("📋 [LINE] JSON data created successfully")
+          do {
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+              print("📋 [LINE] JSON parsed successfully: \(json.keys.joined(separator: ", "))")
+              
+              // Look for 'response' field (your API format)
+              if let chunk = json["response"] as? String {
+                print("✅ [LINE] Found response chunk: '\(chunk)'")
+                if !chunk.isEmpty {
+                  self.aiService?.appState?.updateStreamingResponse(chunk)
+                }
+                
+                // Update token counts if available
+                if let usage = json["usage"] as? [String: Any] {
+                  if let totalTokens = usage["total_tokens"] as? Int {
+                    self.aiService?.appState?.actualTokens = totalTokens
+                    print("📊 [LINE] Updated token count: \(totalTokens)")
+                  }
+                }
+                
+                // Update progress indicator based on 'p' field length
+                if let progressString = json["p"] as? String {
+                  let progress = min(Double(progressString.count) / 50.0, 1.0) // Normalize to 0-1
+                  self.aiService?.appState?.streamingProgress = progress
+                  print("📈 [LINE] Updated progress: \(progress)")
+                }
+              } else {
+                print("⚠️ [LINE] No 'response' field in JSON: \(json)")
+                
+                // Fallback: check for other possible text fields
+                if let text = json["text"] as? String {
+                  print("✅ [LINE] Found fallback text field: '\(text)'")
+                  if !text.isEmpty {
+                    self.aiService?.appState?.updateStreamingResponse(text)
+                  }
+                }
+              }
+            } else {
+              print("❌ [LINE] Failed to parse JSON object")
+            }
+          } catch {
+            print("❌ [LINE] JSON parsing error: \(error.localizedDescription)")
+          }
+        } else {
+          print("❌ [LINE] Failed to create data from JSON string")
+        }
+      } else if line.hasPrefix("event: error") {
+        print("❌ [LINE] Received error event")
+        self.aiService?.appState?.handleStreamingError("Streaming error occurred")
+      } else if line.hasPrefix("event: ") {
+        print("ℹ️ [LINE] Received event: '\(line)'")
+      } else if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        print("⚠️ [LINE] Unknown line format: '\(line)'")
+      }
     }
   }
 }

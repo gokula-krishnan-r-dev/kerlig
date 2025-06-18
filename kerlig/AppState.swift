@@ -17,6 +17,17 @@ enum TextSource: String, CaseIterable {
   case unknown = "Unknown"
 }
 
+// Connection state for streaming
+enum ConnectionState: String, CaseIterable {
+  case disconnected = "Disconnected"
+  case connecting = "Connecting"
+  case connected = "Connected"
+  case streaming = "Streaming"
+  case completed = "Completed"
+  case error = "Error"
+  case cancelled = "Cancelled"
+}
+
 class AppState: ObservableObject {
   // User settings
   @Published var hotkeyEnabled: Bool = true
@@ -47,6 +58,20 @@ class AppState: ObservableObject {
   @Published var currentAppName: String = ""
   @Published var currentAppPath: String = ""
   @Published var currentAppBundleID: String = ""
+
+  // Streaming state management
+  @Published var isStreaming: Bool = false
+  @Published var streamingResponse: String = ""
+  @Published var streamingError: String? = nil
+  @Published var connectionState: ConnectionState = .disconnected
+  @Published var streamingProgress: Double = 0.0
+  @Published var estimatedTokens: Int = 0
+  @Published var actualTokens: Int = 0
+
+  // Real-time typing effect
+  @Published var displayedResponse: String = ""
+  @Published var isTyping: Bool = false
+  private var typingTimer: Timer?
 
   // Text source tracking
   @Published var textSource: TextSource = .unknown
@@ -375,5 +400,132 @@ class AppState: ObservableObject {
     if let type = details["type"] as? String {
       textMetadata["fileType"] = type
     }
+  }
+
+  // MARK: - Streaming Management
+  
+  // Start streaming session
+  func startStreaming() {
+    print("🎬 [APPSTATE] Starting streaming session")
+    connectionState = .connecting
+    isStreaming = true
+    streamingResponse = ""
+    displayedResponse = ""
+    streamingError = nil
+    streamingProgress = 0.0
+    actualTokens = 0
+    isTyping = false
+    
+    // Clear previous response
+    aiResponse = ""
+    print("🎬 [APPSTATE] Streaming session initialized")
+  }
+  
+  // Update streaming response with new chunk
+  func updateStreamingResponse(_ chunk: String) {
+    print("📝 [APPSTATE] Received chunk: '\(chunk.prefix(20))...' (length: \(chunk.count))")
+    streamingResponse += chunk
+    actualTokens += chunk.split(separator: " ").count
+    
+    print("📝 [APPSTATE] Total response length: \(streamingResponse.count), tokens: \(actualTokens)")
+    
+    // Update progress estimation
+    if estimatedTokens > 0 {
+      streamingProgress = min(Double(actualTokens) / Double(estimatedTokens), 1.0)
+      print("📝 [APPSTATE] Progress updated: \(Int(streamingProgress * 100))%")
+    }
+    
+    // Trigger typing effect for display
+    if !isTyping {
+      print("📝 [APPSTATE] Starting typing effect")
+      startTypingEffect()
+    }
+  }
+  
+  // Complete streaming session
+  func completeStreaming() {
+    print("✅ [APPSTATE] Completing streaming session")
+    print("✅ [APPSTATE] Final response length: \(streamingResponse.count) characters")
+    connectionState = .completed
+    isStreaming = false
+    aiResponse = streamingResponse
+    streamingProgress = 1.0
+    
+    // Ensure typing effect completes
+    print("✅ [APPSTATE] Completing typing effect")
+    completeTypingEffect()
+  }
+  
+  // Handle streaming error
+  func handleStreamingError(_ error: String) {
+    print("❌ [APPSTATE] Handling streaming error: \(error)")
+    connectionState = .error
+    streamingError = error
+    isStreaming = false
+    isTyping = false
+    
+    // Cancel typing timer
+    typingTimer?.invalidate()
+    typingTimer = nil
+    print("❌ [APPSTATE] Streaming error handled")
+  }
+  
+  // Cancel streaming
+  func cancelStreaming() {
+    connectionState = .cancelled
+    isStreaming = false
+    isTyping = false
+    
+    // Cancel typing timer
+    typingTimer?.invalidate()
+    typingTimer = nil
+  }
+  
+  // MARK: - Typing Effect
+  
+  private func startTypingEffect() {
+    isTyping = true
+    typingTimer?.invalidate()
+    
+    typingTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+      guard let self = self else { return }
+      
+      DispatchQueue.main.async {
+        if self.displayedResponse.count < self.streamingResponse.count {
+          let nextIndex = self.streamingResponse.index(
+            self.streamingResponse.startIndex,
+            offsetBy: self.displayedResponse.count + 1
+          )
+          self.displayedResponse = String(self.streamingResponse[..<nextIndex])
+        } else {
+          self.isTyping = false
+          self.typingTimer?.invalidate()
+          self.typingTimer = nil
+        }
+      }
+    }
+  }
+  
+  private func completeTypingEffect() {
+    typingTimer?.invalidate()
+    typingTimer = nil
+    isTyping = false
+    displayedResponse = streamingResponse
+  }
+  
+  // Reset streaming state
+  func resetStreamingState() {
+    connectionState = .disconnected
+    isStreaming = false
+    streamingResponse = ""
+    displayedResponse = ""
+    streamingError = nil
+    streamingProgress = 0.0
+    estimatedTokens = 0
+    actualTokens = 0
+    isTyping = false
+    
+    typingTimer?.invalidate()
+    typingTimer = nil
   }
 }
