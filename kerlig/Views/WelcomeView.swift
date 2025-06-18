@@ -6,8 +6,6 @@ struct WelcomeView: View {
     @State private var logoScale: CGFloat = 0.6
     @State private var titleOpacity: Double = 0
     @State private var subtitleOpacity: Double = 0
-    @State private var demoCardOpacity: Double = 0
-    @State private var demoCardScale: CGFloat = 0.9
     @State private var buttonOpacity: Double = 0
     @State private var buttonScale: CGFloat = 0.8
     @State private var selectedOption: ActionOption = .fixSpelling
@@ -115,160 +113,13 @@ struct WelcomeView: View {
     }
 }
 
-// Demo card that shows example functionality
-struct DemoCard: View {
-    @State private var selectedAction: ActionOption = .fixSpelling
-    @State private var hoverAction: ActionOption? = nil
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Source App indicator
-            HStack(spacing: 10) {
-                Image(systemName: "square.grid.2x2.fill")
-                    .resizable()
-                    .frame(width: 16, height: 16)
-                    .foregroundColor(.white)
-                    .padding(5)
-                    .background(Color.gray.opacity(0.3))
-                    .cornerRadius(6)
-                
-                Text("Slack")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                Text("From Slack")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.gray)
-            }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 10)
-            .background(Color(hex: "1E1E1E"))
 
-            
-            // Message content
-            VStack(alignment: .leading, spacing: 15) {
-                Text("Hey guize, lets hve a meting at 2morrow 4 discussing the projct. I'll send the agnda soon, so stay tund!")
-                    .font(.system(size: 15))
-                    .foregroundColor(.white)
-                    .padding(.vertical, 10)
-                
-                Divider()
-                    .background(Color.gray.opacity(0.3))
-                
-                // AI Actions
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "wand.and.stars")
-                            .foregroundColor(Color(hex: "845CEF"))
-                        Text("Ask AI to...")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.gray)
-                    }
-                    .padding(.bottom, 5)
-                    
-                    // Action options
-                    ActionOptionButton(
-                        icon: "textformat.abc",
-                        title: "Fix spelling and grammar",
-                        isSelected: selectedAction == .fixSpelling,
-                        isHovered: hoverAction == .fixSpelling,
-                        action: { selectedAction = .fixSpelling }
-                    )
-                    .onHover { hovering in
-                        hoverAction = hovering ? .fixSpelling : nil
-                    }
-                    
-                    ActionOptionButton(
-                        icon: "pencil.line",
-                        title: "Improve writing",
-                        isSelected: selectedAction == .improveWriting,
-                        isHovered: hoverAction == .improveWriting,
-                        action: { selectedAction = .improveWriting }
-                    )
-                    .onHover { hovering in
-                        hoverAction = hovering ? .improveWriting : nil
-                    }
-                    
-                    ActionOptionButton(
-                        icon: "globe",
-                        title: "Translate",
-                        isSelected: selectedAction == .translate,
-                        isHovered: hoverAction == .translate,
-                        action: { selectedAction = .translate }
-                    )
-                    .onHover { hovering in
-                        hoverAction = hovering ? .translate : nil
-                    }
-                }
-            }
-            .padding(15)
-            .background(Color(hex: "222222"))
-//            .cornerRadius(10, corners: [.bottomLeft, .bottomRight])
-        }
-        .background(Color(hex: "222222"))
-        .cornerRadius(10)
-        .shadow(color: Color.black.opacity(0.3), radius: 15, x: 0, y: 10)
-    }
-}
-
-// Action option button
-struct ActionOptionButton: View {
-    let icon: String
-    let title: String
-    let isSelected: Bool
-    let isHovered: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .foregroundColor(isSelected ? .white : Color(hex: "845CEF"))
-                    .frame(width: 20)
-                
-                Text(title)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
-                    .foregroundColor(isSelected ? .white : .gray)
-                
-                Spacer()
-                
-                if isSelected {
-                    Text("Run")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                        .background(Color.white)
-                        .cornerRadius(12)
-                        .opacity(0.9)
-                }
-            }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 8)
-            .background(
-                isSelected ? 
-                    AnyView(LinearGradient(
-                        gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )) :
-                    AnyView(isHovered ? Color.gray.opacity(0.2) : Color.clear)
-            )
-            .cornerRadius(8)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
 
 // Action options enum
 enum ActionOption {
     case fixSpelling
     case improveWriting
     case translate
-    
-    
 }
 
 // Custom view to display the app icon

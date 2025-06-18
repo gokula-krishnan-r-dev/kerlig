@@ -1416,8 +1416,7 @@ struct DemoStep3View: View {
                     Image(systemName: "wand.and.stars.inverse")
                         .font(.system(size: 16))
                         .foregroundColor(Color(hex: "845CEF"))
-//                        .symbolEffect(isTyping ? .pulse : .none, options: .repeating)
-                    
+                        
                     Text("Improved Writing")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
