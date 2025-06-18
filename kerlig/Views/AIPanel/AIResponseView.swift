@@ -372,6 +372,13 @@ struct AIResponseView: View {
                     
                     Text("Copy")
                         .font(.system(size: 13))
+                          //show a shortcut key
+                Text("⌘C")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -379,13 +386,7 @@ struct AIResponseView: View {
                 .cornerRadius(8)
                 .contentShape(Rectangle())
 
-                //show a shortcut key
-                Text("⌘C")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 4)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(4)
+              
             }
             .buttonStyle(PlainButtonStyle())
             .keyboardShortcut("c", modifiers: .command)
@@ -400,6 +401,14 @@ struct AIResponseView: View {
                     
                     Text(isSpeaking ? "Stop" : "Speak")
                         .font(.system(size: 13))
+
+                //show a shortcut key
+                Text("⌘S")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -409,6 +418,7 @@ struct AIResponseView: View {
             }
             .buttonStyle(PlainButtonStyle())
             .animation(.easeInOut(duration: 0.2), value: isSpeaking)
+            .keyboardShortcut("s", modifiers: .command)
             
             // Insert button
             Button(action: {
@@ -425,7 +435,7 @@ struct AIResponseView: View {
 
                 //show a shortcut key
                 Text("⌘I")
-                    .font(.system(size: 12))
+                    .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 4)
                     .background(Color.secondary.opacity(0.1))
@@ -453,7 +463,7 @@ struct AIResponseView: View {
 
                 //show a shortcut key
                 Text("⌘R")
-                    .font(.system(size: 12))
+                        .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 4)
                     .background(Color.secondary.opacity(0.1))
