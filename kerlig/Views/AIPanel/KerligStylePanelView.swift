@@ -42,6 +42,7 @@ struct KerligStylePanelView: View {
   @State private var generatedResponse: String = ""
   @State private var isProcessing: Bool = false
   @State private var insertionStatus: InsertionStatus = .none
+  @State private var detector = ContentTypeDetector()
 
   // Focus states for keyboard navigation
   enum FocusableField: Hashable {
@@ -500,12 +501,14 @@ struct KerligStylePanelView: View {
         }
       }
     } else {
+
+      print("🎯 [UI] Using real streaming API \(promptContent)")
       // Use the real streaming API
       self.aiService?.generateStreamingResponse(
         prompt: formattedPrompt,
         systemPrompt: systemPrompt,
-        model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-        type: detectContentType(from: formattedPrompt)
+        model: aiModel,
+        type: detector.detectContentType(from: formattedPrompt)?.type ?? .text
       ) { result in
         print("🎯 [UI] Streaming completion callback called")
         DispatchQueue.main.async {
@@ -634,7 +637,7 @@ struct KerligStylePanelView: View {
 
   // Replace the old promptField implementation with our new component
   private var promptField: some View {
-    AIPromptField(
+   AIPromptField(
       searchQuery: $searchQuery,
       isProcessing: $isProcessing,
       selectedTab: Binding<AIPromptField.AIPromptTab>(
@@ -759,28 +762,6 @@ struct KerligStylePanelView: View {
     self.isProcessing = false
   }
 
-  // Professional content type detection system
-  private func detectContentType(from prompt: String) -> String? {
-    // Check if the prompt contains file paths
-    let lines = prompt.components(separatedBy: .newlines)
-
-    for line in lines {
-      let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
-
-      // Skip empty lines or lines that are clearly text content
-      if trimmedLine.isEmpty || trimmedLine.count < 3 {
-        continue
-      }
-
-      // Check if this line looks like a file path
-      if isFilePath(trimmedLine) {
-        return getContentTypeFromPath(trimmedLine)
-      }
-    }
-
-    // If no file paths found, return nil for regular text content
-    return nil
-  }
 
   // Helper function to detect if text is a file path
   private func isFilePath(_ text: String) -> Bool {
@@ -852,7 +833,3 @@ struct KerligStylePanelView: View {
   }
 }
 
-#Preview {
-  KerligStylePanelView()
-    .environmentObject(AppState())
-}

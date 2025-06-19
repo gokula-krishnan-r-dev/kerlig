@@ -61,14 +61,102 @@ private struct AIPromptAction: Identifiable, Hashable {
     ask, fix, translate, improve, summarize, makeShort, analyzeImage,
   ]
 }
+// MARK: - Paste Content Card Component
+struct PasteContentCard: View {
+    let content: String
+    let onRemove: () -> Void
+    let onExpand: () -> Void
+    
+    @State private var isExpanded: Bool = false
+    @State private var contentHeight: CGFloat = 0
+    @State private var isHovering: Bool = false
+    
+    private let maxPreviewLength = 200
+    private let maxPreviewLines = 6
+    
+    private var previewText: String {
+        if content.count <= maxPreviewLength {
+            return content
+        }
+        let truncated = String(content.prefix(maxPreviewLength))
+        return truncated + "..."
+    }
+    
+    private var wordCount: Int {
+        content.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }.count
+    }
+    
+    private var characterCount: Int {
+        content.count
+    }
+    
+    var body: some View {
+        HStack() {
 
+            
+
+            // Main card content
+            VStack(alignment: .leading, spacing: 6) {
+                
+                // Content preview/full text
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(isExpanded ? content : previewText)
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .lineLimit(isExpanded ? nil : maxPreviewLines)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                  
+                }
+            }
+            .padding(6)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.controlBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            
+        }
+        .frame(width: isExpanded ? nil : 300 )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .onTapGesture {
+            onExpand()
+        }
+        .overlay(alignment: .topTrailing) {
+
+             if isHovering {
+                    // Remove button
+                    Button(action: {
+                        onRemove()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .frame(width: 20, height: 20)
+                            .background(Color.secondary.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("Remove pasted content")
+                    .offset(x: -2, y: -10)
+            }
+        }
+    }
+}
 struct AIPromptField: View {
   @Binding var searchQuery: String
   @Binding var isProcessing: Bool
   @Binding var selectedTab: AIPromptTab
   @Binding var aiModel: String
   @EnvironmentObject var appState: AppState
-
+  @State private var pastedContent: String? = nil
+    @State private var showPasteCard: Bool = false
   @State private var hasError: Bool = false
   @State private var errorMessage: String = ""
   @State private var isHovering: Bool = false
@@ -80,7 +168,8 @@ struct AIPromptField: View {
   @State private var microphoneOpacity: Double = 1.0
   @State private var showDictationPulse: Bool = false
 
- 
+   // Paste detection threshold
+    private let pasteThreshold = 100 // characters
 
   var onSubmit: (String) -> Void
   var onCancel: () -> Void
@@ -133,8 +222,6 @@ struct AIPromptField: View {
       return "\(searchQuery.prefix(20))..."
     }
   }
-
- 
 
 
   var body: some View {
@@ -215,6 +302,14 @@ struct AIPromptField: View {
       .background(Color(.controlBackgroundColor))
       .cornerRadius(8)
 
+ // Error message display
+            if hasError {
+                errorMessageView
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(response: 0.3), value: hasError)
+            }
+
+
       // Dictation helper text - shown when dictation is active
       if isDictating {
         HStack(spacing: 8) {
@@ -291,7 +386,35 @@ struct AIPromptField: View {
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.spring(response: 0.3), value: hasError)
       }
+
+       HStack(spacing: 0) {
+
+          // Paste content card - shown when large content is pasted
+            if  showPasteCard, let content = pastedContent {
+                PasteContentCard(
+                    content: content,
+                    onRemove: {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            showPasteCard = false
+                            pastedContent = nil
+                            searchQuery = ""
+                        }
+                    },
+                    onExpand: {
+                        // Optional: Add haptic feedback or other interactions
+                        NSHapticFeedbackManager.defaultPerformer.perform(
+                            .levelChange,
+                            performanceTime: .now
+                        )
+                    }
+                )
+            }
+            Spacer()
+        }
     }
+    .onChange(of: searchQuery) { oldValue, newValue in
+            detectPasteOperation(oldValue: oldValue, newValue: newValue)
+        }
     .onAppear {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
         searchQueryIsFocused = true
@@ -303,8 +426,7 @@ struct AIPromptField: View {
         if isProcessing {
           onCancel()
         } else if !searchQuery.isEmpty {
-          searchQuery = ""
-          hasError = false
+          clearContent()
         }
       }
       .keyboardShortcut(.escape, modifiers: [])
@@ -533,7 +655,9 @@ struct AIPromptField: View {
     errorMessage = ""
 
     // Create the appropriate prompt based on the selected action
-    var actionPrompt = searchQuery
+    var actionPrompt = searchQuery 
+
+    searchQuery = searchQuery + (pastedContent ?? "")
 
     switch selectedAction.id {
     case "fix":
@@ -551,6 +675,11 @@ struct AIPromptField: View {
       break
     }
 
+    showPasteCard = false
+
+
+    pastedContent = nil
+
     // Submit the prompt with the action context
     onSubmit(actionPrompt)
   }
@@ -563,6 +692,51 @@ struct AIPromptField: View {
       startDictation()
     }
   }
+
+   private func clearContent() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            searchQuery = ""
+            pastedContent = nil
+            showPasteCard = false
+            hasError = false
+        }
+    }
+
+    // MARK: - Helper Functions
+    private func detectPasteOperation(oldValue: String, newValue: String) {
+        let lengthDifference = newValue.count - oldValue.count
+        
+        // Detect if this looks like a paste operation (large text addition)
+        if lengthDifference > pasteThreshold {
+            let pastedText = String(newValue.suffix(lengthDifference))
+            
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                pastedContent = newValue + "\n\n"
+                showPasteCard = true
+                searchQuery = ""
+            }
+            
+        }
+    }
+
+// Error message view
+    private var errorMessageView: some View {
+        HStack {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.red)
+            Text(errorMessage)
+                .font(.system(size: 12))
+                .foregroundColor(.red)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.red.opacity(0.1))
+        )
+    }
+
 
   // Start dictation with animation
   private func startDictation() {
@@ -633,4 +807,40 @@ extension View {
       // This is just a placeholder - the actual keyboard shortcut is handled by the system
     }
   }
+}
+
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State private var searchQuery = "Text"
+        @State private var isProcessing = false
+        @State private var selectedTab: AIPromptField.AIPromptTab = .blank
+        @State private var aiModel = "GPT-4"
+        @State private var focusedField: AIPromptField.FocusableField? = nil
+        
+        var body: some View {
+            VStack {
+                AIPromptField(
+                    searchQuery: $searchQuery,
+                    isProcessing: $isProcessing,
+                    selectedTab: $selectedTab,
+                    aiModel: $aiModel,
+                    focusedField: $focusedField,
+                    onSubmit: { _ in isProcessing.toggle() },
+                    onCancel: { isProcessing = false }
+                )
+                .environmentObject(AppState())
+                
+                // Example of PasteContentCard
+                PasteContentCard(
+                    content: "This is an example asdjfhksdfjkdsfjkdhfjdshfldshfkds sdj ksdjfkldj fsdj kldslfkjsd lkfjdskl fjdsfk jsdkfj dsfj dsfjdsfjds fdsk fkdsfj klasdjfklsdf s ks   dj fkdsjfkldsjfkldjsfkldjsf asdjf sdfkdsjfj of pasted content that can be used in the prompt.",
+                    onRemove: { },
+                    onExpand: { }
+                )
+                .padding()
+            }
+        }
+    }
+    
+    return PreviewWrapper()
 }

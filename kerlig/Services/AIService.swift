@@ -118,27 +118,26 @@ class AIService {
   }
 
   // MARK: - Streaming Response Generation
-  
   func generateStreamingResponse(
     prompt: String,
     systemPrompt: String,
     model: String,
-    type: String? = nil,
+    type: ContentTypeDetector.DetectedContent.ContentType = .text,
     completion: @escaping (Result<Void, Error>) -> Void
   ) {
     logger.log("🚀 [STREAMING] Starting streaming response generation", level: .info)
     logger.log("🚀 [STREAMING] Model: \(model)", level: .info)
     logger.log("🚀 [STREAMING] Prompt length: \(prompt.count) chars", level: .info)
     logger.log("🚀 [STREAMING] System prompt: \(systemPrompt.prefix(100))...", level: .info)
-    logger.log("🚀 [STREAMING] Type: \(type ?? "nil")", level: .info)
+    logger.log("🚀 [STREAMING] Type: \(type)", level: .info)
     
     // Check if type indicates a file and route to appropriate service
-    if let fileType = type, shouldUseGeminiVision(for: fileType) {
-      logger.log("🚀 [STREAMING] Routing to Gemini Vision for file type: \(fileType)", level: .info)
+    if shouldUseGeminiVision(for: type) {
+      logger.log("🚀 [STREAMING] Routing to Gemini Vision for file type: \(type)", level: .info)
       handleFileWithGeminiVisionStreaming(
         prompt: prompt,
         systemPrompt: systemPrompt,
-        type: fileType,
+        type: type,
         completion: completion
       )
       return
@@ -181,7 +180,7 @@ class AIService {
     let payload: [String: Any] = [
       "messages": [
         [
-          "content": systemPrompt.isEmpty ? "You are a helpful assistant that provides clear and concise responses." : systemPrompt,
+          "content": systemPrompt.isEmpty ? "You are a helpful assistant that provides clear and concise responses. give me response as per this library https://github.com/gonzalezreal/swift-markdown-ui" : systemPrompt,
           "role": "system"
         ],
         [
@@ -189,9 +188,10 @@ class AIService {
           "role": "user"
         ]
       ],
-      "instruction": systemPrompt,
+      "instruction": systemPrompt.isEmpty ? "You are a helpful assistant that provides clear and concise responses. give me response as per this library https://github.com/gonzalezreal/swift-markdown-ui" : systemPrompt,
       "text": prompt,
       "stream": true,
+      // "model": selectedModel
     ]
     
     logger.log("🚀 [STREAMING] Payload created with keys: \(payload.keys.joined(separator: ", "))", level: .info)
@@ -275,7 +275,7 @@ class AIService {
     generateStreamingResponse(
       prompt: text,
       systemPrompt: action.systemPrompt,
-      model: model,
+      model: model, type: ContentTypeDetector.DetectedContent.ContentType.text, 
       completion: completion
     )
   }
@@ -440,11 +440,14 @@ class AIService {
   }
   
   // MARK: - Gemini Vision Integration
-  
   // Determine if we should use Gemini Vision for this file type
-  private func shouldUseGeminiVision(for type: String) -> Bool {
-    let visionSupportedTypes = ["image", "pdf", "document", "text", "archive", "audio", "video", "file"]
-    return visionSupportedTypes.contains(type.lowercased())
+  private func shouldUseGeminiVision(for type: ContentTypeDetector.DetectedContent.ContentType) -> Bool {
+    switch type {
+    case .media(type: .image), .media(type: .audio), .media(type: .video), .document(type: .excel), .document(type: .pdf) , .document(type: .word):
+      return true
+    default:
+      return false
+    }
   }
   
   // Handle file processing with Gemini Vision
@@ -550,7 +553,7 @@ class AIService {
   private func handleFileWithGeminiVisionStreaming(
     prompt: String,
     systemPrompt: String,
-    type: String,
+    type: ContentTypeDetector.DetectedContent.ContentType,
     completion: @escaping (Result<Void, Error>) -> Void
   ) {
     logger.log("Processing file with Gemini Vision streaming, type: \(type)", level: .info)
@@ -740,18 +743,18 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
   }
   
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-    print("📦 [DELEGATE] Received data chunk: \(data)")
+    // print("📦 [DELEGATE] Received data chunk: \(data)")
     
     receivedData.append(data)
-    print("📦 [DELEGATE] Total buffered data: \(receivedData)")
+    // print("📦 [DELEGATE] Total buffered data: \(receivedData)")
     
     // Process complete lines from the received data
     if let string = String(data: receivedData, encoding: .utf8) {
-      print("📦 [DELEGATE] Decoded string: \(string.prefix(200))...")
+      // print("📦 [DELEGATE] Decoded string: \(string.prefix(200))...")
       
       // Check if this looks like a complete JSON response (non-streaming)
       if string.hasPrefix("{") && string.hasSuffix("}") && !string.contains("\n") {
-        print("📦 [DELEGATE] Detected complete JSON response (non-streaming)")
+        // print("📦 [DELEGATE] Detected complete JSON response (non-streaming)")
         processCompleteJsonResponse(string)
         receivedData = Data() // Clear buffer
         return
@@ -759,7 +762,7 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
       
       // Process as Server-Sent Events (streaming)
       let lines = string.components(separatedBy: .newlines)
-      print("📦 [DELEGATE] Split into \(lines.count) lines for SSE processing")
+      // print("📦 [DELEGATE] Split into \(lines.count) lines for SSE processing")
       
       // Keep the last incomplete line in the buffer
       if lines.count > 1 {
@@ -767,24 +770,24 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
         let incompleteData = lines.last?.data(using: .utf8) ?? Data()
         
         receivedData = incompleteData
-        print("📦 [DELEGATE] Processing \(completeLines.count) complete SSE lines")
+        // print("📦 [DELEGATE] Processing \(completeLines.count) complete SSE lines")
         
         // Process complete lines
         for (index, line) in completeLines.enumerated() {
-          print("📦 [DELEGATE] Processing SSE line \(index + 1): \(line.prefix(100))...")
+          // print("📦 [DELEGATE] Processing SSE line \(index + 1): \(line.prefix(100))...")
           processStreamingLine(line)
         }
       } else {
-        print("📦 [DELEGATE] No complete SSE lines to process yet")
+        // print("📦 [DELEGATE] No complete SSE lines to process yet")
       }
     } else {
-      print("❌ [DELEGATE] Failed to decode data as UTF-8 string")
+      // print("❌ [DELEGATE] Failed to decode data as UTF-8 string")
     }
   }
   
   // Handle complete JSON response (fallback for non-streaming APIs)
   private func processCompleteJsonResponse(_ jsonString: String) {
-    print("📋 [DELEGATE] Processing complete JSON response")
+   
     DispatchQueue.main.async { [weak self] in
       guard let self = self else { 
         print("❌ [DELEGATE] Self is nil in processCompleteJsonResponse")
@@ -794,53 +797,53 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
       if let data = jsonString.data(using: .utf8) {
         do {
           if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            print("📋 [DELEGATE] JSON parsed successfully: \(json.keys.joined(separator: ", "))")
+            // print("📋 [DELEGATE] JSON parsed successfully: \(json.keys.joined(separator: ", "))")
             
             // Check for different response formats
             if let response = json["response"] as? String {
-              print("✅ [DELEGATE] Found 'response' field: '\(response.prefix(50))...'")
+              // print("✅ [DELEGATE] Found 'response' field: '\(response.prefix(50))...'")
               self.aiService?.appState?.updateStreamingResponse(response)
               
               // Update token counts if available
               if let usage = json["usage"] as? [String: Any] {
                 if let totalTokens = usage["total_tokens"] as? Int {
                   self.aiService?.appState?.actualTokens = totalTokens
-                  print("📊 [DELEGATE] Updated token count: \(totalTokens)")
+                  // print("📊 [DELEGATE] Updated token count: \(totalTokens)")
                 }
               }
               
               self.aiService?.appState?.completeStreaming()
             } else if let text = json["text"] as? String {
-              print("✅ [DELEGATE] Found 'text' field: '\(text.prefix(50))...'")
+              // print("✅ [DELEGATE] Found 'text' field: '\(text.prefix(50))...'")
               self.aiService?.appState?.updateStreamingResponse(text)
               self.aiService?.appState?.completeStreaming()
             } else {
-              print("⚠️ [DELEGATE] No recognized text field in JSON: \(json)")
+              // print("⚠️ [DELEGATE] No recognized text field in JSON: \(json)")
               self.aiService?.appState?.handleStreamingError("Unexpected response format")
             }
           } else {
-            print("❌ [DELEGATE] Failed to parse complete JSON")
+            // print("❌ [DELEGATE] Failed to parse complete JSON")
             self.aiService?.appState?.handleStreamingError("Invalid JSON response")
           }
         } catch {
-          print("❌ [DELEGATE] JSON parsing error: \(error.localizedDescription)")
+          // print("❌ [DELEGATE] JSON parsing error: \(error.localizedDescription)")
           self.aiService?.appState?.handleStreamingError("JSON parsing failed: \(error.localizedDescription)")
         }
       } else {
-        print("❌ [DELEGATE] Failed to create data from complete JSON string")
+        // print("❌ [DELEGATE] Failed to create data from complete JSON string")
         self.aiService?.appState?.handleStreamingError("Failed to process response")
       }
     }
   }
   
   func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didCompleteWithError error: Error?) {
-    print("🏁 [DELEGATE] URLSession task completed")
+    // print("🏁 [DELEGATE] URLSession task completed")
     DispatchQueue.main.async { [weak self] in
       if let error = error {
-        print("❌ [DELEGATE] Streaming completed with error: \(error.localizedDescription)")
+        // print("❌ [DELEGATE] Streaming completed with error: \(error.localizedDescription)")
         self?.aiService?.appState?.handleStreamingError(error.localizedDescription)
       } else {
-        print("✅ [DELEGATE] Streaming completed successfully")
+        // print("✅ [DELEGATE] Streaming completed successfully")
       
         self?.aiService?.appState?.completeStreaming()
       }
@@ -848,38 +851,38 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
   }
   
   private func processStreamingLine(_ line: String) {
-    print("🔍 [LINE] Processing line: '\(line)'")
+    // print("🔍 [LINE] Processing line: '\(line)'")
     DispatchQueue.main.async { [weak self] in
       guard let self = self else { 
-        print("❌ [LINE] Self is nil, cannot process line")
+        // print("❌ [LINE] Self is nil, cannot process line")
         return 
       }
       
       if line.hasPrefix("data: ") {
         let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
-        print("📋 [LINE] Found data line, JSON: '\(jsonString)'")
+        // print("📋 [LINE] Found data line, JSON: '\(jsonString)'")
         
         // Handle completion signal
         if jsonString == "[DONE]" || jsonString.contains("[DONE") {
-          print("🏁 [LINE] Received [DONE] signal")
+          //    print("🏁 [LINE] Received [DONE
           self.aiService?.appState?.completeStreaming()
           return
         }
         
         if jsonString.isEmpty {
-          print("⚠️ [LINE] Empty JSON string, skipping")
+          // print("⚠️ [LINE] Empty JSON string, skipping")
           return
         }
         
         if let data = jsonString.data(using: .utf8) {
-          print("📋 [LINE] JSON data created successfully")
+          // print("📋 [LINE] JSON data created successfully")
           do {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-              print("📋 [LINE] JSON parsed successfully: \(json.keys.joined(separator: ", "))")
+              // print("📋 [LINE] JSON parsed successfully: \(json.keys.joined(separator: ", "))")
               
               // Look for 'response' field (your API format)
               if let chunk = json["response"] as? String {
-                print("✅ [LINE] Found response chunk: '\(chunk)'")
+                // print("✅ [LINE] Found response chunk: '\(chunk)'")
                 if !chunk.isEmpty {
                   self.aiService?.appState?.updateStreamingResponse(chunk)
                 }
@@ -888,7 +891,7 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
                 if let usage = json["usage"] as? [String: Any] {
                   if let totalTokens = usage["total_tokens"] as? Int {
                     self.aiService?.appState?.actualTokens = totalTokens
-                    print("📊 [LINE] Updated token count: \(totalTokens)")
+                    // print("📊 [LINE] Updated token count: \(totalTokens)")
                   }
                 }
                 
@@ -896,35 +899,35 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
                 if let progressString = json["p"] as? String {
                   let progress = min(Double(progressString.count) / 50.0, 1.0) // Normalize to 0-1
                   self.aiService?.appState?.streamingProgress = progress
-                  print("📈 [LINE] Updated progress: \(progress)")
+                  //print("📈 [LINE] Updated progress: \(progress)")
                 }
               } else {
-                print("⚠️ [LINE] No 'response' field in JSON: \(json)")
+                //print("⚠️ [LINE] No 'response' field in JSON: \(json)")
                 
                 // Fallback: check for other possible text fields
                 if let text = json["text"] as? String {
-                  print("✅ [LINE] Found fallback text field: '\(text)'")
+                  // print("✅ [LINE] Found fallback text field: '\(text)'")
                   if !text.isEmpty {
                     self.aiService?.appState?.updateStreamingResponse(text)
                   }
                 }
               }
             } else {
-              print("❌ [LINE] Failed to parse JSON object")
+              // print("❌ [LINE] Failed to parse JSON object")
             }
           } catch {
-            print("❌ [LINE] JSON parsing error: \(error.localizedDescription)")
+            // print("❌ [LINE] JSON parsing error: \(error.localizedDescription)")
           }
         } else {
-          print("❌ [LINE] Failed to create data from JSON string")
+          // print("❌ [LINE] Failed to create data from JSON string")
         }
       } else if line.hasPrefix("event: error") {
-        print("❌ [LINE] Received error event")
+        // print("❌ [LINE] Received error event")
         self.aiService?.appState?.handleStreamingError("Streaming error occurred")
       } else if line.hasPrefix("event: ") {
-        print("ℹ️ [LINE] Received event: '\(line)'")
+        // print("ℹ️ [LINE] Received event: '\(line)'")
       } else if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        print("⚠️ [LINE] Unknown line format: '\(line)'")
+        // print("⚠️ [LINE] Unknown line format: '\(line)'")
       }
     }
   }
