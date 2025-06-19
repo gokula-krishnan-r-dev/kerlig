@@ -79,7 +79,7 @@ struct AIResponseView: View {
     var onRegenerate: () -> Void
 
     // Loading animation timing
-    private let animationDelays = [0.2, 0.4, 0.6]
+    private let animationDelays = [0.0 , 0.0 , 0.0 , 0.0 , 0.0]
 
     var body: some View {
         responseContainer
@@ -345,7 +345,7 @@ struct AIResponseView: View {
     private var streamingContentView: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Streaming progress indicator
-            streamingProgressView
+            // streamingProgressView
 
             // Real-time response content
             FormattedTextView(appState.displayedResponse)
