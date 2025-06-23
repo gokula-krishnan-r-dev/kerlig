@@ -10,8 +10,10 @@ struct Note: Identifiable, Codable, Hashable {
     var isFavorite: Bool
     var category: NoteCategory
     var color: String? // Hex color code for note customization
+    var estimatedTime: String?
+    var isCompleted: Bool
     
-    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil) {
+    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false) {
         self.id = id
         self.title = title
         self.content = content
@@ -20,6 +22,8 @@ struct Note: Identifiable, Codable, Hashable {
         self.isFavorite = isFavorite
         self.category = category
         self.color = color
+        self.estimatedTime = estimatedTime
+        self.isCompleted = isCompleted
     }
     
     // Hashable conformance
@@ -89,16 +93,57 @@ struct Project: Identifiable, Codable, Hashable {
     }
 }
 
+struct NoteColumn: Identifiable, Codable, Hashable {
+    var id: UUID
+    var title: String
+    var noteIds: [UUID]
+    var order: Int
+    var color: Color?
+    
+    init(id: UUID = UUID(), title: String, noteIds: [UUID] = [], order: Int, color: Color? = nil) {
+        self.id = id
+        self.title = title
+        self.noteIds = noteIds
+        self.order = order
+        self.color = color
+    }
+    
+    // Hashable conformance
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: NoteColumn, rhs: NoteColumn) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+extension Color: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let colorString = try container.decode(String.self)
+        self = Color(hex: colorString) ?? .accentColor
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode("#007AFF")
+    }
+}
+
 class NoteStore: ObservableObject {
     @Published var notes: [Note] = []
     @Published var projects: [Project] = []
+    @Published var columns: [NoteColumn] = []
     
-    private let notesKey = "savedNotes"
-    private let projectsKey = "savedProjects"
+    private let notesKey = "savedNotes_v1"
+    private let projectsKey = "savedProjects_v1"
+    private let columnsKey = "savedColumns_v1"
     
     init() {
         loadNotes()
         loadProjects()
+        loadColumns()
     }
     
     func addNote(title: String, content: String, category: NoteCategory = .uncategorized) {
@@ -251,5 +296,84 @@ class NoteStore: ObservableObject {
         }
         
         projects = [sampleProject]
+    }
+    
+    // MARK: - Column Management
+    func addColumn(title: String, color: Color? = nil) {
+        let order = columns.count
+        let newColumn = NoteColumn(title: title, order: order, color: color)
+        columns.append(newColumn)
+        saveColumns()
+    }
+    
+    func updateColumn(_ column: NoteColumn) {
+        if let index = columns.firstIndex(where: { $0.id == column.id }) {
+            columns[index] = column
+            saveColumns()
+        }
+    }
+    
+    func deleteColumn(_ column: NoteColumn) {
+        columns.removeAll { $0.id == column.id }
+        // Reorder remaining columns
+        for (index, var column) in columns.enumerated() {
+            column.order = index
+            columns[index] = column
+        }
+        saveColumns()
+    }
+    
+    func moveNote(_ note: Note, from sourceColumn: NoteColumn, to targetColumn: NoteColumn) {
+        var updatedSourceColumn = sourceColumn
+        var updatedTargetColumn = targetColumn
+        
+        updatedSourceColumn.noteIds.removeAll { $0 == note.id }
+        if !updatedTargetColumn.noteIds.contains(note.id) {
+            updatedTargetColumn.noteIds.append(note.id)
+        }
+        
+        updateColumn(updatedSourceColumn)
+        updateColumn(updatedTargetColumn)
+    }
+    
+    func getNotesForColumn(_ column: NoteColumn) -> [Note] {
+        return notes.filter { column.noteIds.contains($0.id) }
+    }
+    
+    private func saveColumns() {
+        if let encoded = try? JSONEncoder().encode(columns) {
+            UserDefaults.standard.set(encoded, forKey: columnsKey)
+        }
+    }
+    
+    private func loadColumns() {
+        if let savedColumns = UserDefaults.standard.data(forKey: columnsKey) {
+            if let decodedColumns = try? JSONDecoder().decode([NoteColumn].self, from: savedColumns) {
+                columns = decodedColumns
+                return
+            }
+        }
+        
+        // Add default columns if no saved columns found
+        columns = [
+            NoteColumn(title: "Backlog", order: 0, color: .blue),
+            NoteColumn(title: "This week", order: 1, color: .orange),
+            NoteColumn(title: "Today", order: 2, color: .green),
+            NoteColumn(title: "Done", order: 3, color: .red),
+            NoteColumn(title: "Cancelled", order: 4, color: .gray)
+        ]
+        
+        // Distribute existing notes among default columns
+        if !notes.isEmpty {
+            let notesPerColumn = notes.count / columns.count
+            for (index, var column) in columns.enumerated() {
+                let start = index * notesPerColumn
+                let end = index == columns.count - 1 ? notes.count : start + notesPerColumn
+                column.noteIds = Array(notes[start..<end].map { $0.id })
+                columns[index] = column
+            }
+        }
+        
+        saveColumns()
     }
 } 

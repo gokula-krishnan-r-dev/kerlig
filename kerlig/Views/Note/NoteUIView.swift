@@ -149,7 +149,6 @@ struct NoteUIView: View {
                     }
                 }
             }
-            .frame(minWidth: 250)
             .overlay {
                 if isAddingNewProject {
                     newProjectOverlay
