@@ -7,6 +7,7 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
   private var cachedSelectedText: String = ""
   private var isAttemptingTextCapture = false
   private var appStateRef: AppState? = nil
+  private var customActionsStorage = CustomActionsStorage()
   private var visualEffectView: NSVisualEffectView? = nil
 
   // MARK: - Panel Toggling
@@ -257,6 +258,7 @@ class FloatingPanelController: NSObject, NSWindowDelegate {
       let hostingController = NSHostingController(
         rootView: KerligStylePanelView()
           .environmentObject(appState)
+          .environmentObject(customActionsStorage)
           .padding(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
       )
 

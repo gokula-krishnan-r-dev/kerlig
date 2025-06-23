@@ -30,6 +30,7 @@ private struct ModelOption: Identifiable {
 
 struct KerligStylePanelView: View {
   @EnvironmentObject var appState: AppState
+  @EnvironmentObject var customActionsStorage: CustomActionsStorage
   @State private var inputText: String = ""
   @State private var selectedAction: AIAction? = nil
   @State private var isGeneratingSuggestion: Bool = false
@@ -704,6 +705,7 @@ struct KerligStylePanelView: View {
         self.generatedResponse = "Request canceled."
       }
     )
+    .environmentObject(customActionsStorage)
   }
 
   private var actionButtonsView: some View {

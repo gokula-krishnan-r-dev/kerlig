@@ -15,6 +15,8 @@ struct kerligApp: App {
   @State private var statusBarController: StatusBarController?
 
   @StateObject private var textCaptureService = TextCaptureService()
+  @StateObject private var customActionsStorage = CustomActionsStorage()
+
   var body: some Scene {
     WindowGroup {
       ZStack {
@@ -22,6 +24,7 @@ struct kerligApp: App {
         if !appState.isFirstLaunch && appState.onboardingComplete {
           ContentView()
             .environmentObject(appState)
+            .environmentObject(customActionsStorage)
             .frame(minWidth: 800)
             .onAppear {
               if statusBarController == nil {
@@ -49,11 +52,13 @@ struct kerligApp: App {
           // Show welcome screen on first launch
           WelcomeView()
             .environmentObject(appState)
+            .environmentObject(customActionsStorage)
             .frame(minWidth: 800, minHeight: 600)
         } else {
           // Show onboarding screens after welcome but before main app
           OnboardingView()
             .environmentObject(appState)
+            .environmentObject(customActionsStorage)
             .frame(minWidth: 800, minHeight: 600)
         }
       }
@@ -85,6 +90,7 @@ struct kerligApp: App {
     // Set ContentView as the popover's contentViewController
     let contentView = ContentView()
       .environmentObject(appState)
+      .environmentObject(customActionsStorage)
     popover.contentViewController = NSHostingController(rootView: contentView)
 
   }

@@ -33,6 +33,7 @@ struct ContentView: View {
     @State private var isButtonPressed = false
 
     @StateObject private var textCaptureService = TextCaptureService()
+    @StateObject private var customActionsStorage = CustomActionsStorage()
     
     private let hotkeyManager = HotkeyManager()
     private let floatingPanel = FloatingPanelController()
@@ -60,9 +61,11 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            // Add a gradient background with animation
-            NoteUIView()
+
+            SettingsView()
+
         }
+        .environmentObject(customActionsStorage)
         .onAppear {
             // Start animations when view appears
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

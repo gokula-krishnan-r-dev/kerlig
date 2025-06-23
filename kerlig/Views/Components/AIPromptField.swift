@@ -19,48 +19,6 @@ private struct ModelOption: Identifiable {
   }
 }
 
-// Action struct for dynamic buttons
-private struct AIPromptAction: Identifiable, Hashable {
-  let id: String
-  let name: String
-  let iconName: String
-  let shortcutKey: String
-  let shortcutModifiers: EventModifiers
-
-  func hash(into hasher: inout Hasher) {
-    hasher.combine(id)
-  }
-
-  static func == (lhs: Self, rhs: Self) -> Bool {
-    return lhs.id == rhs.id
-  }
-  // Preset actions
-  static let ask = AIPromptAction(
-    id: "ask", name: "Ask", iconName: "arrow.right", shortcutKey: "p", shortcutModifiers: .command)
-  static let fix = AIPromptAction(
-    id: "fix", name: "Fix spelling and grammar", iconName: "sparkles.rectangle.stack",
-    shortcutKey: "f", shortcutModifiers: .command)
-  static let translate = AIPromptAction(
-    id: "translate", name: "Translate", iconName: "globe", shortcutKey: "t",
-    shortcutModifiers: .command)
-  static let improve = AIPromptAction(
-    id: "improve", name: "Improve writing", iconName: "pencil.line", shortcutKey: "i",
-    shortcutModifiers: .command)
-  static let summarize = AIPromptAction(
-    id: "summarize", name: "Summarize", iconName: "text.redaction", shortcutKey: "s",
-    shortcutModifiers: .command)
-  static let makeShort = AIPromptAction(
-    id: "makeShort", name: "Make shorter", iconName: "minus.forwardslash.plus", shortcutKey: "m",
-    shortcutModifiers: .command)
-  static let analyzeImage = AIPromptAction(
-    id: "analyzeImage", name: "Analyze image with Gemini Vision", iconName: "photo.on.rectangle",
-    shortcutKey: "a", shortcutModifiers: .command)
-
-  // All available actions
-  static let allActions: [AIPromptAction] = [
-    ask, fix, translate, improve, summarize, makeShort, analyzeImage,
-  ]
-}
 // MARK: - Paste Content Card Component
 struct PasteContentCard: View {
     let content: String
@@ -93,9 +51,6 @@ struct PasteContentCard: View {
     
     var body: some View {
         HStack() {
-
-            
-
             // Main card content
             VStack(alignment: .leading, spacing: 6) {
                 
@@ -149,33 +104,35 @@ struct PasteContentCard: View {
         }
     }
 }
+
 struct AIPromptField: View {
   @Binding var searchQuery: String
   @Binding var isProcessing: Bool
   @Binding var selectedTab: AIPromptTab
   @Binding var aiModel: String
   @EnvironmentObject var appState: AppState
+  @EnvironmentObject var customActionsStorage: CustomActionsStorage
   @State private var pastedContent: String? = nil
-    @State private var showPasteCard: Bool = false
+  @State private var showPasteCard: Bool = false
   @State private var hasError: Bool = false
   @State private var errorMessage: String = ""
   @State private var isHovering: Bool = false
   @State private var isModelMenuOpen: Bool = false
-  @State private var selectedAction: AIPromptAction = AIPromptAction.ask
   @State private var showActionsList: Bool = false
   @State private var hoveredActionIndex: Int? = nil
   @State private var isDictating: Bool = false
   @State private var microphoneOpacity: Double = 1.0
   @State private var showDictationPulse: Bool = false
 
-   // Paste detection threshold
-    private let pasteThreshold = 100 // characters
+  // Paste detection threshold
+  private let pasteThreshold = 100 // characters
 
   var onSubmit: (String) -> Void
   var onCancel: () -> Void
 
   @FocusState private var searchQueryIsFocused: Bool
   @Binding var focusedField: FocusableField?
+
 
   // Enum for tabs that can be customized by parent
   public enum AIPromptTab {
@@ -222,7 +179,6 @@ struct AIPromptField: View {
       return "\(searchQuery.prefix(20))..."
     }
   }
-
 
   var body: some View {
     VStack(spacing: 8) {
@@ -302,13 +258,12 @@ struct AIPromptField: View {
       .background(Color(.controlBackgroundColor))
       .cornerRadius(8)
 
- // Error message display
-            if hasError {
-                errorMessageView
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.spring(response: 0.3), value: hasError)
-            }
-
+      // Error message display
+      if hasError {
+        errorMessageView
+          .transition(.move(edge: .top).combined(with: .opacity))
+          .animation(.spring(response: 0.3), value: hasError)
+      }
 
       // Dictation helper text - shown when dictation is active
       if isDictating {
@@ -357,7 +312,7 @@ struct AIPromptField: View {
 
       // Action bar - conditionally displayed
       if appState.aiResponse.isEmpty && !searchQuery.isEmpty {
-        actionsBar
+        ActionsBarView(aiModel: $aiModel , formattedQuery: formattedQuery , showActionsList: $showActionsList , submitPrompt: submitPrompt)
           .transition(.opacity)
           .animation(
             .easeInOut(duration: 0.2),
@@ -366,9 +321,16 @@ struct AIPromptField: View {
 
       // Actions dropdown list - conditionally displayed
       if showActionsList && !searchQuery.isEmpty {
-        actionsListView
-          .transition(.scale.combined(with: .opacity))
-          .animation(.spring(response: 0.2), value: showActionsList)
+        ActionsListView(
+          selectedActionId: $customActionsStorage.selectedActionId,
+          hoveredActionIndex: $hoveredActionIndex,
+          onSelectAction: { action in
+            selectAndSubmitAction(action)
+          }
+        )
+        .environmentObject(customActionsStorage)
+        .transition(.scale.combined(with: .opacity))
+        .animation(.spring(response: 0.2), value: showActionsList)
       }
 
       // Error message display
@@ -387,38 +349,51 @@ struct AIPromptField: View {
         .animation(.spring(response: 0.3), value: hasError)
       }
 
-       HStack(spacing: 0) {
-
-          // Paste content card - shown when large content is pasted
-            if  showPasteCard, let content = pastedContent {
-                PasteContentCard(
-                    content: content,
-                    onRemove: {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                            showPasteCard = false
-                            pastedContent = nil
-                            searchQuery = ""
-                        }
-                    },
-                    onExpand: {
-                        // Optional: Add haptic feedback or other interactions
-                        NSHapticFeedbackManager.defaultPerformer.perform(
-                            .levelChange,
-                            performanceTime: .now
-                        )
-                    }
-                )
+      HStack(spacing: 0) {
+        // Paste content card - shown when large content is pasted
+        if showPasteCard, let content = pastedContent {
+          PasteContentCard(
+            content: content,
+            onRemove: {
+              withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                showPasteCard = false
+                pastedContent = nil
+                searchQuery = ""
+              }
+            },
+            onExpand: {
+              // Optional: Add haptic feedback or other interactions
+              NSHapticFeedbackManager.defaultPerformer.perform(
+                .levelChange,
+                performanceTime: .now
+              )
             }
-            Spacer()
+          )
         }
+        Spacer()
+      }
     }
     .onChange(of: searchQuery) { oldValue, newValue in
-            detectPasteOperation(oldValue: oldValue, newValue: newValue)
-        }
+      detectPasteOperation(oldValue: oldValue, newValue: newValue)
+
+      // Listen for keyboard shortcuts
+      setupKeyboardShortcuts()
+    }
     .onAppear {
+
+      customActionsStorage.loadSelectedAction()
+
+      customActionsStorage.updateActions()
+      setupKeyboardShortcuts()
+      
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
         searchQueryIsFocused = true
         focusedField = .searchField
+      }
+      
+      // Set default action if none selected
+      if customActionsStorage.selectedActionId == nil && !customActionsStorage.actions.isEmpty {
+        customActionsStorage.selectedActionId = customActionsStorage.actions.first?.id.uuidString
       }
     }
     .overlay(
@@ -453,10 +428,13 @@ struct AIPromptField: View {
     }
     .onKeyPress(.return) {
       if showActionsList, let index = hoveredActionIndex,
-        index >= 0 && index < AIPromptAction.allActions.count
+        index >= 0 && index < customActionsStorage.actions.count
       {
-        selectAndSubmitAction(AIPromptAction.allActions[index])
-        return .handled
+        let enabledActions = customActionsStorage.actions.filter { $0.isEnabled }
+        if index < enabledActions.count {
+          selectAndSubmitAction(enabledActions[index])
+          return .handled
+        }
       }
       return .ignored
     }
@@ -476,167 +454,43 @@ struct AIPromptField: View {
     }
   }
 
-  // Action bar UI
-  private var actionsBar: some View {
-    HStack(spacing: 10) {
-      // Action icon
-      Image(systemName: selectedAction.iconName)
-        .font(.system(size: 14, weight: .semibold))
-        .foregroundColor(.white)
-        .frame(width: 20)
-
-      // Dynamic action text with keyboard shortcut
-      HStack(spacing: 4) {
-        Text("\(selectedAction.name) \"\(formattedQuery)\"")
-          .font(.system(size: 13))
-          .foregroundColor(.white)
-
-        HStack(spacing: 2) {
-          Text("⌘+\(selectedAction.shortcutKey.uppercased())")
-            .font(.system(size: 12))
-            .foregroundColor(.white.opacity(0.7))
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            .background(Color.white.opacity(0.2))
-            .cornerRadius(3)
-        }
-      }
-
-      Spacer()
-
-      //show the model name
-      Text(aiModel)
-        .font(.system(size: 12))
-        .foregroundColor(.white)
-
-     
-
-      // Actions selector button (dropdown indicator)
-      Button(action: {
-        showActionsList.toggle()
-        if showActionsList {
-          hoveredActionIndex = AIPromptAction.allActions.firstIndex(of: selectedAction)
-        }
-      }) {
-        Image(systemName: "chevron.down")
-          .font(.system(size: 12))
-          .foregroundColor(.white)
-          .padding(6)
-          .background(Color.white.opacity(0.15))
-          .cornerRadius(4)
-      }
-      .buttonStyle(PlainButtonStyle())
-
-      // Run button
-      Button(action: {
-        submitPrompt()
-      }) {
-        HStack(spacing: 6) {
-          Text("Run")
-            .font(.system(size: 13, weight: .medium))
-            .foregroundColor(.white)
-
-          Image(systemName: "arrow.clockwise")
-            .font(.system(size: 12))
-            .foregroundColor(.white)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(Color.white.opacity(0.15))
-        .cornerRadius(4)
-      }
-      .buttonStyle(PlainButtonStyle())
-    }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 8)
-    .background(Color.blue)
-    .cornerRadius(8)
-  }
-
-  // Actions list dropdown
-  private var actionsListView: some View {
-    VStack(spacing: 0) {
-      ForEach(Array(AIPromptAction.allActions.enumerated()), id: \.element.id) { index, action in
-        Button(action: {
-          selectAndSubmitAction(action)
-        }) {
-          HStack(spacing: 12) {
-            // Action icon
-            Image(systemName: action.iconName)
-              .font(.system(size: 14))
-              .foregroundColor(action.id == selectedAction.id ? .blue : .primary)
-              .frame(width: 20)
-
-            // Action name
-            Text(action.name)
-              .font(.system(size: 13))
-              .foregroundColor(action.id == selectedAction.id ? .blue : .primary)
-
-            Spacer()
-
-            // Keyboard shortcut
-            Text("⌘+\(action.shortcutKey.uppercased())")
-              .font(.system(size: 12))
-              .foregroundColor(.secondary)
-              .padding(.horizontal, 6)
-              .padding(.vertical, 2)
-              .background(Color.secondary.opacity(0.1))
-              .cornerRadius(3)
-
-            // Execute arrow
-            Image(systemName: "return")
-              .font(.system(size: 12))
-              .foregroundColor(.secondary)
-          }
-          .padding(.horizontal, 16)
-          .padding(.vertical, 8)
-          .contentShape(Rectangle())
-          .background(hoveredActionIndex == index ? Color.blue.opacity(0.1) : Color.clear)
-        }
-        .buttonStyle(PlainButtonStyle())
-        .onHover { isHovered in
-          if isHovered {
-            hoveredActionIndex = index
-          } else if hoveredActionIndex == index {
-            hoveredActionIndex = nil
+  // Setup keyboard shortcuts for custom actions
+  private func setupKeyboardShortcuts() {
+    NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+      if event.modifierFlags.contains(.command) {
+        if let key = event.charactersIgnoringModifiers {
+          if let action = customActionsStorage.actions.first(where: { $0.shortcutKey == key && $0.isEnabled }) {
+            selectAndSubmitAction(action)
+            return nil
           }
         }
-
-        if index < AIPromptAction.allActions.count - 1 {
-          Divider()
-            .padding(.leading, 48)
-        }
       }
+      return event
     }
-    .padding(.vertical, 8)
-    .background(
-      RoundedRectangle(cornerRadius: 8)
-        .fill(Color(.windowBackgroundColor))
-        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 8)
-        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-    )
   }
+
+
 
   // Navigate through actions with arrow keys
   private func navigateActions(direction: Int) {
-    guard !AIPromptAction.allActions.isEmpty else { return }
+    let enabledActions = customActionsStorage.actions.filter { $0.isEnabled }
+    guard !enabledActions.isEmpty else { return }
 
     if let currentIndex = hoveredActionIndex {
-      let newIndex = (currentIndex + direction) % AIPromptAction.allActions.count
-      hoveredActionIndex = newIndex < 0 ? AIPromptAction.allActions.count - 1 : newIndex
+      let newIndex = (currentIndex + direction) % enabledActions.count
+      hoveredActionIndex = newIndex < 0 ? enabledActions.count - 1 : newIndex
     } else {
-      hoveredActionIndex = direction > 0 ? 0 : AIPromptAction.allActions.count - 1
+      hoveredActionIndex = direction > 0 ? 0 : enabledActions.count - 1
     }
   }
 
   // Select and use an action
-  private func selectAndSubmitAction(_ action: AIPromptAction) {
-    selectedAction = action
+  private func selectAndSubmitAction(_ action: CustomAction) {
+    customActionsStorage.selectedActionId = action.id.uuidString
+    customActionsStorage.selectedAction = action
+    UserDefaults.standard.set(action.id.uuidString, forKey: "selectedActionId")
     showActionsList = false
-    submitPrompt()
+
   }
 
   // Function to validate and submit prompt
@@ -659,25 +513,11 @@ struct AIPromptField: View {
 
     searchQuery = searchQuery + (pastedContent ?? "")
 
-    switch selectedAction.id {
-    case "fix":
-      actionPrompt = "Fix spelling and grammar: \(searchQuery)"
-    case "translate":
-      actionPrompt = "Translate to English: \(searchQuery)"
-    case "improve":
-      actionPrompt = "Improve this writing: \(searchQuery)"
-    case "summarize":
-      actionPrompt = "Summarize this: \(searchQuery)"
-    case "makeShort":
-      actionPrompt = "Make this text shorter while preserving meaning: \(searchQuery)"
-    default:
-      // Default "ask" action uses the query as is
-      break
-    }
+    // if let action = selectedAction {
+    //   actionPrompt = "\(action.systemPrompt): \(searchQuery)"
+    // }
 
     showPasteCard = false
-
-
     pastedContent = nil
 
     // Submit the prompt with the action context
@@ -693,50 +533,48 @@ struct AIPromptField: View {
     }
   }
 
-   private func clearContent() {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            searchQuery = ""
-            pastedContent = nil
-            showPasteCard = false
-            hasError = false
-        }
+  private func clearContent() {
+    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+      searchQuery = ""
+      pastedContent = nil
+      showPasteCard = false
+      hasError = false
     }
+  }
 
-    // MARK: - Helper Functions
-    private func detectPasteOperation(oldValue: String, newValue: String) {
-        let lengthDifference = newValue.count - oldValue.count
-        
-        // Detect if this looks like a paste operation (large text addition)
-        if lengthDifference > pasteThreshold {
-            let pastedText = String(newValue.suffix(lengthDifference))
-            
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                pastedContent = newValue + "\n\n"
-                showPasteCard = true
-                searchQuery = ""
-            }
-            
-        }
+  // MARK: - Helper Functions
+  private func detectPasteOperation(oldValue: String, newValue: String) {
+    let lengthDifference = newValue.count - oldValue.count
+    
+    // Detect if this looks like a paste operation (large text addition)
+    if lengthDifference > pasteThreshold {
+      let pastedText = String(newValue.suffix(lengthDifference))
+      
+      withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+        pastedContent = newValue + "\n\n"
+        showPasteCard = true
+        searchQuery = ""
+      }
     }
+  }
 
-// Error message view
-    private var errorMessageView: some View {
-        HStack {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.red)
-            Text(errorMessage)
-                .font(.system(size: 12))
-                .foregroundColor(.red)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.red.opacity(0.1))
-        )
+  // Error message view
+  private var errorMessageView: some View {
+    HStack {
+      Image(systemName: "exclamationmark.triangle.fill")
+        .foregroundColor(.red)
+      Text(errorMessage)
+        .font(.system(size: 12))
+        .foregroundColor(.red)
+      Spacer()
     }
-
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
+    .background(
+      RoundedRectangle(cornerRadius: 8)
+        .fill(Color.red.opacity(0.1))
+    )
+  }
 
   // Start dictation with animation
   private func startDictation() {
@@ -790,7 +628,6 @@ extension View {
     alignment: Alignment = .leading,
     @ViewBuilder placeholder: () -> Content
   ) -> some View {
-
     ZStack(alignment: alignment) {
       placeholder().opacity(shouldShow ? 1 : 0)
       self
@@ -798,49 +635,38 @@ extension View {
   }
 }
 
-// MARK: - Keyboard Shortcut Extension
-extension View {
-  func keyboardShortcut(
-    _ key: KeyEquivalent, modifiers: EventModifiers = .command, action: @escaping () -> Void
-  ) -> some View {
-    self.onTapGesture {
-      // This is just a placeholder - the actual keyboard shortcut is handled by the system
+#Preview {
+  struct PreviewWrapper: View {
+    @State private var searchQuery = "Text"
+    @State private var isProcessing = false
+    @State private var selectedTab: AIPromptField.AIPromptTab = .blank
+    @State private var aiModel = "GPT-4"
+    @State private var focusedField: AIPromptField.FocusableField? = nil
+    
+    var body: some View {
+      VStack {
+        AIPromptField(
+          searchQuery: $searchQuery,
+          isProcessing: $isProcessing,
+          selectedTab: $selectedTab,
+          aiModel: $aiModel,
+          focusedField: $focusedField,
+          onSubmit: { _ in isProcessing.toggle() },
+          onCancel: { isProcessing = false }
+        )
+        .environmentObject(AppState())
+        .environmentObject(CustomActionsStorage())
+        
+        // Example of PasteContentCard
+        PasteContentCard(
+          content: "This is an example of pasted content that can be used in the prompt.",
+          onRemove: { },
+          onExpand: { }
+        )
+        .padding()
+      }
     }
   }
-}
-
-
-#Preview {
-    struct PreviewWrapper: View {
-        @State private var searchQuery = "Text"
-        @State private var isProcessing = false
-        @State private var selectedTab: AIPromptField.AIPromptTab = .blank
-        @State private var aiModel = "GPT-4"
-        @State private var focusedField: AIPromptField.FocusableField? = nil
-        
-        var body: some View {
-            VStack {
-                AIPromptField(
-                    searchQuery: $searchQuery,
-                    isProcessing: $isProcessing,
-                    selectedTab: $selectedTab,
-                    aiModel: $aiModel,
-                    focusedField: $focusedField,
-                    onSubmit: { _ in isProcessing.toggle() },
-                    onCancel: { isProcessing = false }
-                )
-                .environmentObject(AppState())
-                
-                // Example of PasteContentCard
-                PasteContentCard(
-                    content: "This is an example asdjfhksdfjkdsfjkdhfjdshfldshfkds sdj ksdjfkldj fsdj kldslfkjsd lkfjdskl fjdsfk jsdkfj dsfj dsfjdsfjds fdsk fkdsfj klasdjfklsdf s ks   dj fkdsjfkldsjfkldjsfkldjsf asdjf sdfkdsjfj of pasted content that can be used in the prompt.",
-                    onRemove: { },
-                    onExpand: { }
-                )
-                .padding()
-            }
-        }
-    }
-    
-    return PreviewWrapper()
+  
+  return PreviewWrapper()
 }

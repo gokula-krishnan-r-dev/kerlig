@@ -117,6 +117,70 @@ class AIService {
     }
   }
 
+
+  func aiEnhancePrompt(_ prompt: String) -> String {
+    let semaphore = DispatchSemaphore(value: 0)
+    var enhancedPrompt = ""
+    
+    let payload: [String: Any] = [
+      "messages": [
+        [
+          "content": "Transform the user's input into a well-crafted system prompt that enhances clarity, intent, and usefulness for AI responses.",
+          "role": "system"
+        ],
+        [
+          "content": prompt,
+          "role": "user"
+        ]
+      ],
+      "instruction": "Transform the user's input into a well-crafted system prompt that enhances clarity, intent, and usefulness for AI responses. while giveing response give me only sentance no need any here is a prompt like this way ",
+      "text": prompt,
+      "stream": false
+    ]
+
+    guard let url = URL(string: baseURL) else {
+      logger.log("Invalid URL for AI prompt enhancement", level: .error)
+      return prompt
+    }
+    
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+    
+    do {
+      request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+    } catch {
+      logger.log("Failed to serialize request: \(error.localizedDescription)", level: .error)
+      return prompt
+    }
+
+    URLSession.shared.dataTask(with: request) { data, response, error in
+      defer { semaphore.signal() }
+      
+      if let error = error {
+        self.logger.log("AI enhance prompt error: \(error.localizedDescription)", level: .error)
+        return
+      }
+      
+      guard let data = data else {
+        self.logger.log("No data received from AI enhance prompt request", level: .error)
+        return
+      }
+
+
+      //take value from data.response
+      let response = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
+      if let responseText = response?["response"] as? String {
+        enhancedPrompt = responseText
+      }
+    }.resume()
+    
+    // Wait for response with timeout
+    _ = semaphore.wait(timeout: .now() + 10)
+    
+    return enhancedPrompt.isEmpty ? prompt : enhancedPrompt
+  }
+
   // MARK: - Streaming Response Generation
   func generateStreamingResponse(
     prompt: String,
@@ -628,6 +692,7 @@ class AIService {
     // Ensure timer runs on main thread
     RunLoop.main.add(timer, forMode: .common)
   }
+
 
   // Helper to expand file paths (handle ~ and file:// URLs)
   private func expandFilePath(_ path: String) -> String {
