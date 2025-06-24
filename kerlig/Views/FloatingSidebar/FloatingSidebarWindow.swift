@@ -47,17 +47,16 @@ class FloatingSidebarWindow: NSWindow {
 class FloatingSidebarController {
     private var window: FloatingSidebarWindow?
     private var isVisible = false
+    private var isClosing = false
     private var windowWidth: CGFloat = 320
     
     // Store the window position for persistence
     private var lastPosition: NSPoint?
     
     func toggleSidebar() {
-        if let window = self.window {
-            window.close()
-            self.window = nil
-            isVisible = false
-        } else {
+        if isVisible && !isClosing {
+            hideSidebar()
+        } else if !isVisible && !isClosing {
             showSidebar()
         }
     }
@@ -112,22 +111,42 @@ class FloatingSidebarController {
         
         self.window = window
         isVisible = true
+        isClosing = false
     }
     
     func hideSidebar() {
-        guard let window = self.window else { return }
+        guard let window = self.window, !isClosing else { return }
+        
+        // Mark as closing to prevent multiple close attempts
+        isClosing = true
         
         // Store the current position before closing
         lastPosition = window.frame.origin
         
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            window.animator().alphaValue = 0
-        }) {
-            window.close()
-            self.window = nil
-            self.isVisible = false
+        // Create a weak reference to self to avoid retain cycles
+        weak var weakSelf = self
+        
+        // Store a local reference to the window
+        let windowToClose = window
+        
+        // Clear the reference before animation starts
+        self.window = nil
+        
+        DispatchQueue.main.async {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                windowToClose.animator().alphaValue = 0
+            }) {
+                // Only access properties through the weak reference
+                windowToClose.orderOut(nil)
+                
+                // Update state on main thread after animation completes
+                DispatchQueue.main.async {
+                    weakSelf?.isVisible = false
+                    weakSelf?.isClosing = false
+                }
+            }
         }
     }
     

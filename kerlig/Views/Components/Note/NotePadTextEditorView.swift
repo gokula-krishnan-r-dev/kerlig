@@ -4,6 +4,7 @@ struct NotePadTextEditorView: View {
     @ObservedObject var noteStore: NoteStore
     @State private var text: String = ""
     @State private var showColorPicker: Bool = false
+    @FocusState private var isFocused: Bool
     @State private var selectedColor: Color = .white
     @State private var fontSize: CGFloat = 14
     @State private var title: String = ""
@@ -36,14 +37,15 @@ struct NotePadTextEditorView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
-            .background(Color.black.opacity(0.05))
+            .background(Color.gray.opacity(0.1))
             
             // Text editor
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $text)
                     .font(.system(size: fontSize, weight: noteStore.textFormatting.isBold ? .bold : .regular, design: .default))
-                    .foregroundColor(Color(hex: noteStore.textFormatting.fontColor) ?? .black)
+                    .foregroundColor(Color.white)
                     .padding(10)
+                    .focused($isFocused)
                     .background(Color(NSColor.textBackgroundColor))
                     .cornerRadius(8)
                     .overlay(
@@ -85,6 +87,11 @@ struct NotePadTextEditorView: View {
         }
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(8)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.isFocused = true
+            }
+        }
     }
     
     // Date formatter for last edited date
@@ -115,19 +122,7 @@ struct FormatButton: View {
     }
 }
 
-//// Extension to apply text styles
-//extension View {
-//    func italic(_ isItalic: Bool) -> some View {
-//        if isItalic {
-//            return self.italic()
-//        }
-//        return self
-//    }
-//    
-//    func underlined(_ isUnderlined: Bool) -> some View {
-//        self.underline(isUnderlined)
-//    }
-//}
+
 
 // Extension to convert Color to hex string
 extension Color {

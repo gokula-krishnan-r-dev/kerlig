@@ -159,6 +159,11 @@ class NoteStore: ObservableObject {
         return notes.filter { !$0.isCompleted }
     }
 
+    //get a first note from pending notes
+    func getFirstPendingNote() -> Note? {
+        return getPendingNotes().first
+    }
+
     //getCompletedNotes
     func getCompletedNotes() -> [Note] {
         return notes.filter { $0.isCompleted }
