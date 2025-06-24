@@ -59,6 +59,12 @@ struct NoteBoardView: View {
                             notes: noteStore.getNotesForColumn(column),
                             noteStore: noteStore
                         )
+                        .onAppear {
+                            noteStore.loadNotes()
+                        }
+                        .onChange(of: noteStore.notes) { _, _ in
+                            noteStore.loadNotes()
+                        }
                     }
                     
                     // Add column button

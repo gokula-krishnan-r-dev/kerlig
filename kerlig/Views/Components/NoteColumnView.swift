@@ -137,8 +137,8 @@ struct NoteColumnView: View {
             // Notes list
             ScrollView {
                 LazyVStack(spacing: 1) {
-                    ForEach(notes) { note in
-                        DraggableNoteCard(note: note, columnId: column.id)
+                    ForEach(Array(zip(notes.indices, notes)), id: \.1.id) { index, note in
+                        DraggableNoteCard(note: note, columnId: column.id, index: index, noteStore: noteStore)
                     }
                 }
                 .padding(.vertical, 8)
@@ -162,6 +162,8 @@ struct NoteColumnView: View {
         .frame(width: 320)
         .onAppear {
             isFocused = true
+
+           
         }
         .dropDestination(for: String.self) { items, location in
             guard let droppedNoteId = items.first.flatMap({ UUID(uuidString: $0) }),
@@ -180,11 +182,13 @@ struct NoteColumnView: View {
     func createNewNote() {
          if !newNoteTitle.isEmpty {
                                 let newNote = Note(
+                                    id: UUID(),
                                     title: newNoteTitle,
                                     content: "",
                                     // estimatedTime: estimatedTime
                                 )
                                 noteStore.addNote(
+                                    id: UUID(),
                                     title: newNoteTitle,
                                     content: "",
                                     // estimatedTime: estimatedTime

@@ -8,17 +8,19 @@ struct Note: Identifiable, Codable, Hashable {
     var creationDate: Date
     var lastModified: Date
     var isFavorite: Bool
+    var actualTime: TimeInterval?
     var category: NoteCategory
     var color: String? // Hex color code for note customization
     var estimatedTime: String?
     var isCompleted: Bool
     
-    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false) {
+    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil) {
         self.id = id
         self.title = title
         self.content = content
         self.creationDate = creationDate
         self.lastModified = lastModified
+        self.actualTime = actualTime
         self.isFavorite = isFavorite
         self.category = category
         self.color = color
@@ -131,12 +133,58 @@ extension Color: Codable {
     }
 }
 
+// Define text formatting options
+struct TextFormatting: Codable, Hashable {
+    var isBold: Bool = false
+    var isItalic: Bool = false
+    var isUnderlined: Bool = false
+    var fontSize: Int = 14
+    var fontColor: String = "#000000"
+    var backgroundColor: String? = nil
+    
+    static func defaultFormatting() -> TextFormatting {
+        return TextFormatting()
+    }
+}
+
 class NoteStore: ObservableObject {
     @Published var notes: [Note] = []
     @Published var projects: [Project] = []
     @Published var columns: [NoteColumn] = []
+    @Published var currentNote: Note?
+    @Published var textFormatting: TextFormatting = TextFormatting.defaultFormatting()
+
+    //in notes showonly pending notes
+    func getPendingNotes() -> [Note] {
+        return notes.filter { !$0.isCompleted }
+    }
+
+    //getCompletedNotes
+    func getCompletedNotes() -> [Note] {
+        return notes.filter { $0.isCompleted }
+    }
+
+    //fetch all completed note and sum up the actual time
+    func getTotalTimeSpentOnCompletedNotes() -> String {
+        let totalSeconds = getCompletedNotes().reduce(0) { $0 + ($1.actualTime ?? 0) }
+        let hours = Int(totalSeconds) / 3600
+        let minutes = Int(totalSeconds) % 3600 / 60
+        let seconds = Int(totalSeconds) % 60
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "\(minutes)m \(seconds)s"
+        } else {
+            return "\(seconds)s"
+        }
+    }
+
+
+
+
     
-    private let notesKey = "savedNotes_v1"
+    private let notesKey = "savedNotes_v2"
     private let projectsKey = "savedProjects_v1"
     private let columnsKey = "savedColumns_v1"
     
@@ -144,10 +192,23 @@ class NoteStore: ObservableObject {
         loadNotes()
         loadProjects()
         loadColumns()
+        
+        // Set the first note as current if available
+        if !notes.isEmpty {
+            currentNote = notes[0]
+        }
     }
     
-    func addNote(title: String, content: String, category: NoteCategory = .uncategorized) {
-        let newNote = Note(title: title, content: content, category: category)
+    func setCurrentNote(_ note: Note) {
+        currentNote = note
+    }
+    
+    func setCurrentNoteById(_ noteId: UUID) {
+        currentNote = notes.first(where: { $0.id == noteId })
+    }
+    
+    func addNote(id: UUID, title: String, content: String, category: NoteCategory = .uncategorized) {
+        let newNote = Note(id: id, title: title, content: content, category: category)
         notes.append(newNote)
         saveNotes()
     }
@@ -159,19 +220,32 @@ class NoteStore: ObservableObject {
             notes[index] = updatedNote
             saveNotes()
             
+            // Update current note if it's the one being updated
+            if currentNote?.id == note.id {
+                currentNote = updatedNote
+            }
+            
             // Update any projects containing this note
             updateProjectsLastModified(noteId: note.id)
+
+            //reload the note
+            loadNotes()
         }
     }
     
-    func deleteNote(_ note: Note) {
-        notes.removeAll { $0.id == note.id }
+    func deleteNote(id: UUID) {
+        notes.removeAll { $0.id == id }
         saveNotes()
+        
+        // Clear current note if it's the one being deleted
+        if currentNote?.id == id {
+            currentNote = notes.first
+        }
         
         // Remove note from any projects
         for var project in projects {
-            if project.noteIds.contains(note.id) {
-                project.noteIds.removeAll { $0 == note.id }
+            if project.noteIds.contains(id) {
+                project.noteIds.removeAll { $0 == id }
                 project.lastModified = Date()
                 if let index = projects.firstIndex(where: { $0.id == project.id }) {
                     projects[index] = project
@@ -248,19 +322,25 @@ class NoteStore: ObservableObject {
         saveProjects()
     }
     
-    private func saveNotes() {
+    // Make saveNotes public so it can be called from outside the class
+    func saveNotes() {
         if let encoded = try? JSONEncoder().encode(notes) {
             UserDefaults.standard.set(encoded, forKey: notesKey)
         }
     }
     
-    private func loadNotes() {
+     func loadNotes() {
         if let savedNotes = UserDefaults.standard.data(forKey: notesKey) {
             if let decodedNotes = try? JSONDecoder().decode([Note].self, from: savedNotes) {
                 notes = decodedNotes
+                print("Notes loaded successfully")
+                print(notes)
                 return
             }
         }
+
+
+        print("No saved notes found")
         
         // Add sample notes if no saved notes found
         notes = [
@@ -375,5 +455,26 @@ class NoteStore: ObservableObject {
         }
         
         saveColumns()
+    }
+    
+    // MARK: - Text Formatting
+    func applyBold() {
+        textFormatting.isBold.toggle()
+    }
+    
+    func applyItalic() {
+        textFormatting.isItalic.toggle()
+    }
+    
+    func applyUnderline() {
+        textFormatting.isUnderlined.toggle()
+    }
+    
+    func changeFontSize(_ size: Int) {
+        textFormatting.fontSize = size
+    }
+    
+    func changeFontColor(_ hexColor: String) {
+        textFormatting.fontColor = hexColor
     }
 } 

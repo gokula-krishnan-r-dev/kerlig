@@ -5,7 +5,7 @@ class FocusCardWindow: NSWindow {
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .fullSizeContentView],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
@@ -41,9 +41,7 @@ class FocusCardController {
     
     func toggleFocusCard() {
         if let window = self.window {
-            window.close()
-            self.window = nil
-            isVisible = false
+            hideFocusCard()
         } else {
             showFocusCard()
         }
@@ -54,10 +52,10 @@ class FocusCardController {
         guard let screen = NSScreen.main else { return }
         
         // Calculate window position (top center of screen)
-        let windowWidth: CGFloat = 300
-        let windowHeight: CGFloat = 80
+        let windowWidth: CGFloat = 200
+        let windowHeight: CGFloat = 80  // Increased height to accommodate action buttons
         let xPosition = (screen.frame.width - windowWidth) / 2
-        let yPosition = screen.frame.height - windowHeight - 40 // 40px from top
+        let yPosition = screen.frame.height - windowHeight - 10 // 10px from top
         
         // Create and configure window
         let contentRect = NSRect(x: xPosition, y: yPosition, width: windowWidth, height: windowHeight)
@@ -72,7 +70,8 @@ class FocusCardController {
         window.makeKeyAndOrderFront(nil)
         
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             window.animator().alphaValue = 1
         }
         
@@ -84,7 +83,8 @@ class FocusCardController {
         guard let window = self.window else { return }
         
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.3
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             window.animator().alphaValue = 0
         }) {
             window.close()

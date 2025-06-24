@@ -24,6 +24,15 @@ class FloatingSidebarWindow: NSWindow {
         self.standardWindowButton(.closeButton)?.isHidden = true
         self.standardWindowButton(.miniaturizeButton)?.isHidden = true
         self.standardWindowButton(.zoomButton)?.isHidden = true
+        
+        // Apply corner radius to the window
+        self.contentView?.wantsLayer = true
+        self.contentView?.layer?.cornerRadius = 16
+        self.contentView?.layer?.masksToBounds = true
+        
+        // Add subtle border
+        self.contentView?.layer?.borderWidth = 0.5
+        self.contentView?.layer?.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
     }
     
     override var canBecomeKey: Bool {
@@ -38,6 +47,10 @@ class FloatingSidebarWindow: NSWindow {
 class FloatingSidebarController {
     private var window: FloatingSidebarWindow?
     private var isVisible = false
+    private var windowWidth: CGFloat = 320
+    
+    // Store the window position for persistence
+    private var lastPosition: NSPoint?
     
     func toggleSidebar() {
         if let window = self.window {
@@ -54,10 +67,19 @@ class FloatingSidebarController {
         guard let screen = NSScreen.main else { return }
         
         // Calculate window position (right side of screen)
-        let windowWidth: CGFloat = 320
-        let windowHeight = screen.frame.height * 0.8
-        let xPosition = screen.frame.maxX - windowWidth - 20
-        let yPosition = (screen.frame.height - windowHeight) / 2
+        let windowHeight = screen.frame.height * 0.75
+        
+        // Use last position if available, otherwise calculate default position
+        let xPosition: CGFloat
+        let yPosition: CGFloat
+        
+        if let lastPos = lastPosition {
+            xPosition = lastPos.x
+            yPosition = lastPos.y
+        } else {
+            xPosition = screen.frame.maxX - windowWidth - 20
+            yPosition = (screen.frame.height - windowHeight) / 2
+        }
         
         // Create and configure window
         let contentRect = NSRect(x: xPosition, y: yPosition, width: windowWidth, height: windowHeight)
@@ -67,20 +89,57 @@ class FloatingSidebarController {
         let contentView = FloatingSidebarView(
             controller: self,
             onClose: { [weak self] in
-//                self?.close()
+                self?.hideSidebar()
             }
         )
         window.contentView = NSHostingView(rootView: contentView)
         
-        // Show the window
+        // Add shadow effect
+        window.contentView?.layer?.shadowOpacity = 0.3
+        window.contentView?.layer?.shadowRadius = 15
+        window.contentView?.layer?.shadowOffset = CGSize(width: 0, height: 5)
+        window.contentView?.layer?.shadowColor = NSColor.black.cgColor
+        
+        // Show the window with animation
+        window.alphaValue = 0
         window.makeKeyAndOrderFront(nil)
+        
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.25
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().alphaValue = 1
+        }
+        
         self.window = window
         isVisible = true
     }
     
     func hideSidebar() {
-        window?.close()
-        window = nil
-        isVisible = false
+        guard let window = self.window else { return }
+        
+        // Store the current position before closing
+        lastPosition = window.frame.origin
+        
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            window.animator().alphaValue = 0
+        }) {
+            window.close()
+            self.window = nil
+            self.isVisible = false
+        }
+    }
+    
+    func resizeWindow(width: CGFloat? = nil) {
+        guard let window = self.window else { return }
+        
+        if let newWidth = width {
+            windowWidth = newWidth
+        }
+        
+        var frame = window.frame
+        frame.size.width = windowWidth
+        window.setFrame(frame, display: true, animate: true)
     }
 } 
