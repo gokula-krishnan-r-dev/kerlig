@@ -156,6 +156,8 @@ class NoteStore: ObservableObject {
 
     //in notes showonly pending notes
     func getPendingNotes() -> [Note] {
+
+        
         return notes.filter { !$0.isCompleted }
     }
 
@@ -189,7 +191,7 @@ class NoteStore: ObservableObject {
 
 
     
-    private let notesKey = "savedNotes_v2"
+    private let notesKey = "savedNotes_v3"
     private let projectsKey = "savedProjects_v1"
     private let columnsKey = "savedColumns_v1"
     
@@ -202,6 +204,12 @@ class NoteStore: ObservableObject {
         if !notes.isEmpty {
             currentNote = notes[0]
         }
+    }
+
+    //refreshNotes
+
+    func refreshNotes() {
+        loadNotes()
     }
     
     func setCurrentNote(_ note: Note) {

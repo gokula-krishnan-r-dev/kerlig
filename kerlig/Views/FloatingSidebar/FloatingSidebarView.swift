@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct FloatingSidebarView: View {
     // MARK: - Properties
@@ -11,6 +12,9 @@ struct FloatingSidebarView: View {
     @State private var isDraggingEdge = false
     @State private var firstNote: Note? = nil
     @State private var showCompletedTasks: Bool = true
+    @State private var isCompleted: Bool = false
+    @State private var completedTaskTime: TimeInterval = 0
+    @State private var dismissTimer: Timer?
     
     let controller: FloatingSidebarController
     let onClose: () -> Void
@@ -25,6 +29,10 @@ struct FloatingSidebarView: View {
                 addTaskView
             } else {
                 addTaskButton
+            }
+
+            if isCompleted {
+                completedTaskView
             }
             
             taskListView
@@ -215,8 +223,18 @@ struct FloatingSidebarView: View {
                         note: note,
                         firstNote: firstNote,
                         noteStore: noteStore,
-                        onDone: {
+                        onDone: { elapsedTime in
                             firstNote = findFirstNote()
+                            completedTaskTime = elapsedTime
+                            isCompleted = true
+                            
+                            // // Auto-dismiss after 10 seconds
+                            // dismissTimer?.invalidate()
+                            // dismissTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
+                            //     withAnimation(.easeOut(duration: 0.5)) {
+                            //         isCompleted = false
+                            //     }
+                            // }
                         }
                     )
                     .background(Color(hex: "#2C2C2E"))
@@ -228,6 +246,9 @@ struct FloatingSidebarView: View {
             .padding(.vertical, 8)
         }
         .background(Color(hex: "#1C1C1E"))
+        .onDisappear {
+            dismissTimer?.invalidate()
+        }
     }
     
     private var emptyStateView: some View {
@@ -367,6 +388,114 @@ struct FloatingSidebarView: View {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     
+    private func formatTimeShort(_ time: TimeInterval) -> String {
+        let hours = Int(time) / 3600
+        let minutes = Int(time) % 3600 / 60
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "\(minutes)min"
+        } else {
+            return "\(Int(time))s"
+        }
+    }
+
+     private var completedTaskView: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [Color(hex: "#1C1C1E"), Color(hex: "#2C2C2E")]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                )
+                
+                VStack(spacing: 6) {
+                    Text(getCongratulationMessage(for: completedTaskTime))
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.top, 20)
+                    
+                    GifImageView(gifURL: getRandomCelebrationGif(category: getCelebrationCategory(for: completedTaskTime)))
+                        .frame(width: 250, height: 250)
+                        .cornerRadius(12)
+                        .padding(.horizontal, 20)
+                    
+                    Text(getCompletionMessage(for: firstNote?.title ?? ""))
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                    
+                    VStack(spacing: 10) {
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isCompleted = false
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 14))
+                                Text("Next Task")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color(hex: "#4CAF50"), Color(hex: "#45A049")]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(20)
+                        }
+                        .buttonStyle(AnimatedButtonStyle())
+                        
+                        Button(action: {
+                            withAnimation {
+                                isCompleted = false
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "gamecontroller.fill")
+                                Text("Take a Break")
+                            }
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+                    
+                    HStack {
+                        Text("Est: \(firstNote?.estimatedTime ?? "None")")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                        
+                        Spacer()
+                        
+                        Text("Taken: \(formatTimeShort(completedTaskTime))")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hex: "#4CAF50"))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isCompleted)
+    }
+    
     private func createNewNote() {
         if !newNoteTitle.isEmpty {
             noteStore.addNote(
@@ -441,7 +570,7 @@ struct TaskRowView: View {
     var note: Note
     let firstNote: Note?
     @ObservedObject var noteStore: NoteStore
-    let onDone: () -> Void
+    let onDone: (TimeInterval) -> Void
 
     @State private var isNotes = false
     
@@ -461,7 +590,7 @@ struct TaskRowView: View {
                 if isBreak {
                     breakModeView
                 } else {
-                        normalTaskView
+                    normalTaskView
                 }
             }
 
@@ -480,21 +609,16 @@ struct TaskRowView: View {
         }
         .onAppear {
             editableTitle = note.title
-   timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            if !isBreak {
-                elapsedTime += 1
-
-                //save the timer to the note
-                var updatedNote = note
-                updatedNote.actualTime = elapsedTime
-                noteStore.updateNote(updatedNote)
-            }else{
-                breakTime += 1
+            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                if !isBreak {
+                    elapsedTime += 1
+                } else {
+                    breakTime += 1
+                }
             }
         }
-
-
-       
+        .onDisappear {
+            timer?.invalidate()
         }
     }
     
@@ -512,7 +636,7 @@ struct TaskRowView: View {
                         updatedNote.isCompleted = true
                         updatedNote.actualTime = elapsedTime
                         noteStore.updateNote(updatedNote)
-                        onDone()
+                        onDone(elapsedTime)
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "done" : nil
@@ -576,9 +700,7 @@ struct TaskRowView: View {
                     }
                 )
             } else {
-                
-                    breakModeView
-
+                breakModeView
             }
         }
         .padding(.horizontal, 16)
@@ -622,7 +744,6 @@ struct TaskRowView: View {
                 .fill(Color.black)
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
-
     }
     
     private var normalTaskView: some View {
@@ -693,10 +814,6 @@ struct TaskRowView: View {
         .cornerRadius(12)
     }
     
-   
-
-
-    
     private func formatTime(_ time: TimeInterval) -> String {
         let hours = Int(time) / 3600
         let minutes = Int(time) % 3600 / 60
@@ -750,6 +867,277 @@ struct TaskActionButton: View {
         .border(borderColor ?? Color.clear, width: borderColor != nil ? 1 : 0)
         .onHover { hovering in
             onHover(hovering)
+        }
+    }
+}
+
+// MARK: - GIF Image View
+struct GifImageView: View {
+    let gifURL: URL?
+    @State private var isLoading = true
+    @State private var loadError = false
+    @State private var gifImage: NSImage? = nil
+    
+    var body: some View {
+        ZStack {
+            if isLoading {
+                loadingView
+            } else if loadError || gifImage == nil {
+                fallbackView
+            } else {
+                GifNSImageView(image: gifImage)
+                    .transition(.opacity)
+            }
+        }
+        .onAppear(perform: loadGif)
+    }
+    
+    private var loadingView: some View {
+        VStack {
+            ProgressView()
+                .scaleEffect(1.5)
+                .padding()
+            Text("Loading celebration...")
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(hex: "#1C1C1E"))
+    }
+    
+    private var fallbackView: some View {
+        VStack {
+            Image(systemName: "party.popper.fill")
+                .font(.system(size: 50))
+                .foregroundColor(.yellow)
+                .padding()
+            Text("Congratulations!")
+                .font(.headline)
+                .foregroundColor(.white)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(hex: "#1C1C1E"))
+    }
+    
+    private func loadGif() {
+        guard let url = gifURL else {
+            isLoading = false
+            loadError = true
+            return
+        }
+        
+        // Check if the GIF is already in cache
+        if let cachedImage = GifCache.shared.getImage(for: url) {
+            self.gifImage = cachedImage
+            withAnimation {
+                self.isLoading = false
+            }
+            return
+        }
+        
+        // If not in cache, download it
+        DispatchQueue.global().async {
+            if let image = NSImage(contentsOf: url) {
+                // Store in cache
+                GifCache.shared.storeImage(image, for: url)
+                
+                DispatchQueue.main.async {
+                    self.gifImage = image
+                    withAnimation {
+                        self.isLoading = false
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    withAnimation {
+                        self.isLoading = false
+                        self.loadError = true
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct GifNSImageView: NSViewRepresentable {
+    let image: NSImage?
+    
+    func makeNSView(context: Context) -> NSImageView {
+        let imageView = NSImageView()
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.animates = true
+        imageView.image = image
+        return imageView
+    }
+    
+    func updateNSView(_ nsView: NSImageView, context: Context) {
+        nsView.image = image
+    }
+}
+
+extension FloatingSidebarView {
+    enum CelebrationCategory {
+        case success
+        case achievement
+        case random
+    }
+    
+    func getRandomCelebrationGif(category: CelebrationCategory = .random) -> URL? {
+        // Collection of celebration GIFs organized by category
+        let successGifs = [
+            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExazBxeGRkbzM5czV5bXQ4eW81Z2ZhZzZjaWIweHAyOHJ0aHNjZmZ0bCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cEODGfeOYMRxK/giphy.gif",
+            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNzN2OWI2cG9hZDhiZmVkMGp4dHF3ZnI4N2hpYWRpOGJqeWZlZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/artj92V8o75VPL7AeQ/giphy.gif",
+            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTJqMjV0ZWNhcGUzZnNhZGdtazZnMzRkMHN4ZzJlZTVjZGxzeSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l0MYt5jPR6QX5pnqM/giphy.gif"
+        ]
+        
+        let achievementGifs = [
+            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMHBtdDNwZmZqeGlxYnZicGdkOHd3NnRvbzBuNnpzMWs3YXRqOXhpZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7abIileRivlGr8Nq/giphy.gif",
+            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTdvNHFsOHRkZGc2ZHU5cG1zcXV6ZGZ4MjFxcjZtdGNmcGpzNGw2ZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/g9582DNuQppxC/giphy.gif",
+            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYmx6OTEyZXZ3YXNwOGZkYTRnNGdxbWxjMnI0Z2JjOXdtcTdkZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LSNqpYqGRqwrS/giphy.gif"
+        ]
+        
+        // Select the appropriate category of GIFs
+        var gifsToChooseFrom: [String]
+        
+        switch category {
+        case .success:
+            gifsToChooseFrom = successGifs
+        case .achievement:
+            gifsToChooseFrom = achievementGifs
+        case .random:
+            // Combine all categories for random selection
+            gifsToChooseFrom = successGifs + achievementGifs
+        }
+        
+        // Select a random GIF from the chosen category
+        let randomIndex = Int.random(in: 0..<gifsToChooseFrom.count)
+        return URL(string: gifsToChooseFrom[randomIndex])
+    }
+    
+    // Cache for storing already downloaded GIFs
+    private static var gifCache: [URL: NSImage] = [:]
+    
+    // Determine celebration category based on task completion time
+    func getCelebrationCategory(for completionTime: TimeInterval) -> CelebrationCategory {
+        // If there's an estimated time, check if completed faster than estimated
+        if let estimatedTimeStr = firstNote?.estimatedTime, !estimatedTimeStr.isEmpty {
+            // Parse estimated time (format: "HH:MM" or "MM:SS")
+            let components = estimatedTimeStr.components(separatedBy: ":")
+            if components.count == 2, 
+               let minutes = Int(components[0]), 
+               let seconds = Int(components[1]) {
+                
+                let estimatedSeconds = minutes * 60 + seconds
+                
+                // If completed in significantly less time than estimated
+                if completionTime < Double(estimatedSeconds) * 0.75 {
+                    return .achievement
+                }
+            }
+        }
+        
+        // For tasks that took less than 5 minutes
+        if completionTime < 300 {
+            return .success
+        }
+        // For longer tasks (achievement for completing something substantial)
+        else if completionTime > 1800 { // 30 minutes
+            return .achievement
+        }
+        
+        // Default to random for other cases
+        return .random
+    }
+    
+    // Generate a dynamic congratulatory message based on task completion
+    func getCongratulationMessage(for completionTime: TimeInterval) -> String {
+        let category = getCelebrationCategory(for: completionTime)
+        
+        let successMessages = [
+            "Well done! 💥",
+            "Great job! 🎉",
+            "Task complete! ✅",
+            "Success! 🚀",
+            "You did it! 👏"
+        ]
+        
+        let achievementMessages = [
+            "Outstanding! 🏆",
+            "Impressive work! 💪",
+            "Amazing effort! 🌟",
+            "Brilliant! 🔥",
+            "Exceptional! 🎯"
+        ]
+        
+        let randomIndex: Int
+        
+        switch category {
+        case .success:
+            randomIndex = Int.random(in: 0..<successMessages.count)
+            return successMessages[randomIndex]
+        case .achievement:
+            randomIndex = Int.random(in: 0..<achievementMessages.count)
+            return achievementMessages[randomIndex]
+        case .random:
+            // Combine all messages for random selection
+            let allMessages = successMessages + achievementMessages
+            randomIndex = Int.random(in: 0..<allMessages.count)
+            return allMessages[randomIndex]
+        }
+    }
+    
+    // Generate a dynamic completion message based on task title
+    func getCompletionMessage(for taskTitle: String) -> String {
+        if taskTitle.isEmpty {
+            return "You finished the task!"
+        }
+        
+        // Check if the task title is short enough to include
+        if taskTitle.count < 30 {
+            let messages = [
+                "'\(taskTitle)' completed!",
+                "You finished '\(taskTitle)'!",
+                "Task '\(taskTitle)' is done!"
+            ]
+            return messages.randomElement() ?? "You finished the task!"
+        } else {
+            // For longer titles, use generic messages
+            let messages = [
+                "Task completed successfully!",
+                "You finished the task!",
+                "One more task down!",
+                "Mission accomplished!"
+            ]
+            return messages.randomElement() ?? "You finished the task!"
+        }
+    }
+}
+
+// MARK: - GIF Cache
+class GifCache {
+    static let shared = GifCache()
+    private var cache: [URL: NSImage] = [:]
+    private let queue = DispatchQueue(label: "com.kerlig.gifcache", attributes: .concurrent)
+    
+    private init() {}
+    
+    func storeImage(_ image: NSImage, for url: URL) {
+        queue.async(flags: .barrier) {
+            self.cache[url] = image
+        }
+    }
+    
+    func getImage(for url: URL) -> NSImage? {
+        var result: NSImage?
+        queue.sync {
+            result = cache[url]
+        }
+        return result
+    }
+    
+    func clearCache() {
+        queue.async(flags: .barrier) {
+            self.cache.removeAll()
         }
     }
 }
