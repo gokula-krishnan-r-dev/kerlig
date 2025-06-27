@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 struct FloatingSidebarView: View {
     // MARK: - Properties
@@ -57,6 +58,22 @@ struct FloatingSidebarView: View {
         .onAppear {
             isFocused = true
             firstNote = findFirstNote()
+            
+            // Debug: Print tick sound file status
+            print("Tick sound file status: \n\(TickSoundService.shared.debugSoundFileStatus())")
+            
+            // Try to copy the tick.wav file to Documents directory if not found
+            if TickSoundService.shared.debugSoundFileStatus().contains("No sound file path set") ||
+               !TickSoundService.shared.debugSoundFileStatus().contains("Exists: Yes") {
+                print("Attempting to copy tick.wav file to Documents directory...")
+                let success = TickSoundService.shared.copyTickSoundToDocuments()
+                print("Copy result: \(success ? "Success" : "Failed")")
+            }
+            
+            // Test play the sound once
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                TickSoundService.shared.playTestSound()
+            }
         }
     }
     
@@ -432,6 +449,11 @@ struct FloatingSidebarView: View {
                     
                     VStack(spacing: 10) {
                         Button(action: {
+                            // Start tick sound for the next task
+                            if let nextNote = noteStore.getPendingNotes().first {
+                                TickSoundService.shared.startTicking(interval: 3.0)
+                            }
+                            
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 isCompleted = false
                             }
@@ -581,6 +603,7 @@ struct TaskRowView: View {
     @State private var timer: Timer?
     @State private var elapsedTime: TimeInterval = 0
     @State private var hoveredButton: String? = nil
+    @State private var tickCounter: Int = 0
     
     var body: some View {
         VStack {
@@ -609,16 +632,26 @@ struct TaskRowView: View {
         }
         .onAppear {
             editableTitle = note.title
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+
+            
+                        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
                 if !isBreak {
                     elapsedTime += 1
+                      // Start the tick sound service if this is the first note
                 } else {
                     breakTime += 1
                 }
             }
+            
+                // TickSoundService.shared.startTicking(interval: 300.0)
+          
         }
         .onDisappear {
             timer?.invalidate()
+            // Stop the tick sound if this is the first note
+            if firstNote?.id == note.id {
+                TickSoundService.shared.stopTicking()
+            }
         }
     }
     
@@ -636,6 +669,12 @@ struct TaskRowView: View {
                         updatedNote.isCompleted = true
                         updatedNote.actualTime = elapsedTime
                         noteStore.updateNote(updatedNote)
+                        
+                        // Stop the tick sound when marking a task as done
+                        if firstNote?.id == note.id {
+                            TickSoundService.shared.stopTicking()
+                        }
+                        
                         onDone(elapsedTime)
                     },
                     onHover: { isHovering in
@@ -666,6 +705,11 @@ struct TaskRowView: View {
                     action: {
                         isBreak = true
                         breakTime = elapsedTime
+                        
+                        // Stop the tick sound during break
+                        if firstNote?.id == note.id {
+                            TickSoundService.shared.stopTicking()
+                        }
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "break" : nil
@@ -730,6 +774,11 @@ struct TaskRowView: View {
                 action: {
                     isBreak = false
                     breakTime = 0
+                    
+                    // Resume the tick sound when returning from break
+                    if firstNote?.id == note.id {
+                        TickSoundService.shared.startTicking(interval: 3.0)
+                    }
                 },
                 onHover: { isHovering in
                     hoveredButton = isHovering ? "skip" : nil
