@@ -93,8 +93,3 @@ struct NoteDetailView: View {
         return formatter.string(from: date)
     }
 }
-
-#Preview {
-    let sampleNote = Note(title: "Sample Note", content: "This is a sample note content", category: .personal)
-    return NoteDetailView(note: sampleNote) { _ in }
-} 

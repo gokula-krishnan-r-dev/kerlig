@@ -45,6 +45,7 @@ struct FloatingSidebarView: View {
             }
             
             Divider()
+                .background(Color.white.opacity(0.08))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
             
@@ -54,7 +55,7 @@ struct FloatingSidebarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backgroundWithResizeHandle)
-        .cornerRadius(16)
+        .cornerRadius(20)
         .onAppear {
             isFocused = true
             firstNote = findFirstNote()
@@ -81,7 +82,7 @@ struct FloatingSidebarView: View {
     private var headerView: some View {
         HStack {
             Text("Today")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.white)
             
             Spacer()
@@ -95,26 +96,20 @@ struct FloatingSidebarView: View {
                     .foregroundColor(.white.opacity(0.7))
                     .font(.system(size: 16))
                     .padding(4)
+                    .contentShape(Circle())
+                    .hoverEffect(.highlight)
             }
             .buttonStyle(PlainButtonStyle())
-            .contentShape(Circle())
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [Color(hex: "#2C2C2E"), Color(hex: "#1C1C1E")]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .padding(.vertical, 14)
     }
     
     private var addTaskView: some View {
         VStack(spacing: 12) {
             HStack {
                 Text("CANCEL")
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.gray)
                     .onTapGesture {
                         isAddingNote = false
@@ -124,13 +119,13 @@ struct FloatingSidebarView: View {
                 Spacer()
                 
                 Text("Title")
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.gray)
                 
                 Spacer()
                 
                 Text("Est time")
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.gray)
             }
             .padding(.horizontal, 16)
@@ -143,8 +138,14 @@ struct FloatingSidebarView: View {
                     .font(.system(size: 14))
                     .foregroundColor(.white)
                     .padding(10)
-                    .background(Color(hex: "#2C2C2E"))
-                    .cornerRadius(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    )
                     .onSubmit {
                         createNewNote()
                     }
@@ -160,14 +161,20 @@ struct FloatingSidebarView: View {
                     .foregroundColor(.white)
                     .frame(width: 60)
                     .padding(10)
-                    .background(Color(hex: "#2C2C2E"))
-                    .cornerRadius(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    )
             }
             .padding(.horizontal, 16)
             
             HStack {
                 Text("Add a new task")
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.gray)
                 
                 Spacer()
@@ -184,6 +191,10 @@ struct FloatingSidebarView: View {
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
                         )
                         .cornerRadius(20)
                 }
@@ -194,11 +205,17 @@ struct FloatingSidebarView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
-        .background(Color(hex: "#1C1C1E"))
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(hex: "#1C1C1E"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+        )
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
     }
     
     private var addTaskButton: some View {
@@ -213,19 +230,34 @@ struct FloatingSidebarView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(Color(hex: "#4CAF50"))
                 
+                Spacer()
+                
                 Text("⌘ + T")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(Color(hex: "#4CAF50"))
-                    .padding(.leading, 4)
-                    .background(Color(hex: "#2C2C2E"))
-                    .cornerRadius(4)
+                    .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color(hex: "#4CAF50").opacity(0.2), lineWidth: 0.5)
+                            )
+                    )
             }
             .padding(.vertical, 12)
             .keyboardShortcut("t", modifiers: [.command])
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity)
-            .background(Color(hex: "#2C2C2E"))
-            .cornerRadius(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(hex: "#2C2C2E"))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                    )
+            )
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, 12)
@@ -234,7 +266,7 @@ struct FloatingSidebarView: View {
     
     private var taskListView: some View {
         ScrollView {
-            LazyVStack(spacing: 2) {
+            LazyVStack(spacing: 4) {
                 ForEach(noteStore.getPendingNotes()) { note in
                     TaskRowView(
                         note: note,
@@ -244,18 +276,16 @@ struct FloatingSidebarView: View {
                             firstNote = findFirstNote()
                             completedTaskTime = elapsedTime
                             isCompleted = true
-                            
-                            // // Auto-dismiss after 10 seconds
-                            // dismissTimer?.invalidate()
-                            // dismissTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
-                            //     withAnimation(.easeOut(duration: 0.5)) {
-                            //         isCompleted = false
-                            //     }
-                            // }
                         }
                     )
-                    .background(Color(hex: "#2C2C2E"))
-                    .cornerRadius(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                            )
+                    )
                     .padding(.horizontal, 12)
                     .padding(.vertical, 2)
                 }
@@ -273,9 +303,16 @@ struct FloatingSidebarView: View {
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 40))
                 .foregroundColor(.gray.opacity(0.3))
+                .padding(.bottom, 8)
+            
             Text("All Clear")
                 .font(.headline)
                 .foregroundColor(.gray.opacity(0.5))
+                
+            Text("Add a new task to get started")
+                .font(.subheadline)
+                .foregroundColor(.gray.opacity(0.4))
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -287,6 +324,7 @@ struct FloatingSidebarView: View {
                 HStack(spacing: 6) {
                     Text("\(noteStore.getCompletedNotes().count)")
                         .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
                     
                     Text("Done")
                         .font(.system(size: 12, weight: .medium))
@@ -340,25 +378,45 @@ struct FloatingSidebarView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hex: "#2C2C2E"))
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color(hex: "#2C2C2E"), Color(hex: "#262628")]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.05)]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 0.5
+                            )
                     )
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.bottom, 12)
+        .padding(.bottom, 14)
         .padding(.top, 8)
     }
     
     private var backgroundWithResizeHandle: some View {
         ZStack {
-            Color(hex: "#1C1C1E")
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "#1E1E20"),
+                    Color(hex: "#1A1A1C")
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
             
             // Left edge handle for resizing
             HStack {
@@ -422,14 +480,24 @@ struct FloatingSidebarView: View {
         VStack(spacing: 0) {
             ZStack {
                 LinearGradient(
-                    gradient: Gradient(colors: [Color(hex: "#1C1C1E"), Color(hex: "#2C2C2E")]),
+                    gradient: Gradient(colors: [
+                        Color(hex: "#1C1C1E"),
+                        Color(hex: "#2C2C2E")
+                    ]),
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .cornerRadius(16)
+                .cornerRadius(20)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.05)]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
                 )
                 
                 VStack(spacing: 6) {
@@ -440,14 +508,19 @@ struct FloatingSidebarView: View {
                     
                     GifImageView(gifURL: getRandomCelebrationGif(category: getCelebrationCategory(for: completedTaskTime)))
                         .frame(width: 250, height: 250)
-                        .cornerRadius(12)
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                        )
+                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
                         .padding(.horizontal, 20)
                     
                     Text(getCompletionMessage(for: firstNote?.title ?? ""))
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.white.opacity(0.9))
                     
-                    VStack(spacing: 10) {
+                    VStack(spacing: 12) {
                         Button(action: {
                             // Start tick sound for the next task
                             if let nextNote = noteStore.getPendingNotes().first {
@@ -473,10 +546,15 @@ struct FloatingSidebarView: View {
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
                             )
                             .cornerRadius(20)
                         }
                         .buttonStyle(AnimatedButtonStyle())
+                        .shadow(color: Color(hex: "#4CAF50").opacity(0.3), radius: 5, x: 0, y: 3)
                         
                         Button(action: {
                             withAnimation {
@@ -524,13 +602,21 @@ struct FloatingSidebarView: View {
                 id: UUID(),
                 title: newNoteTitle,
                 content: "",
-                category: .uncategorized
+                category: .today
             )
             isAddingNote = false
             newNoteTitle = ""
             estimatedTime = "00:00"
             focusOnNewNote()
             firstNote = findFirstNote()
+
+
+             if let newNoteId = noteStore.notes.last?.id,
+                let updatedColumn = noteStore.columns.first(where: { $0.title == "Today" }) {
+                var mutableColumn = updatedColumn
+                mutableColumn.noteIds.append(newNoteId)
+                noteStore.updateColumn(mutableColumn)
+            }
         }
     }
     
@@ -663,7 +749,7 @@ struct TaskRowView: View {
                     icon: "checkmark.circle.fill",
                     label: "Done",
                     isHovered: hoveredButton == "done",
-                    color: .green,
+                    color: Color(hex: "#4CAF50"),
                     action: {
                         var updatedNote = note
                         updatedNote.isCompleted = true
@@ -687,7 +773,7 @@ struct TaskRowView: View {
                     icon: "note.text",
                     label: "Notes",
                     isHovered: hoveredButton == "notes",
-                    color: .blue,
+                    color: Color(hex: "#3B82F6"),
                     action: {
                         isNotes.toggle()
                     },
@@ -701,7 +787,7 @@ struct TaskRowView: View {
                     icon: "timer",
                     label: "Break",
                     isHovered: hoveredButton == "break",
-                    color: .orange,
+                    color: Color(hex: "#F59E0B"),
                     action: {
                         isBreak = true
                         breakTime = elapsedTime
@@ -721,7 +807,7 @@ struct TaskRowView: View {
                     icon: "arrow.right.circle",
                     label: "Skip",
                     isHovered: hoveredButton == "skip",
-                    color: .purple,
+                    color: Color(hex: "#9333EA"),
                     action: {
                         print("Task skipped: \(note.title)")
                     },
@@ -735,7 +821,7 @@ struct TaskRowView: View {
                     icon: "trash",
                     label: "Delete",
                     isHovered: hoveredButton == "delete",
-                    color: .red,
+                    color: Color(hex: "#EF4444"),
                     action: {
                         noteStore.deleteNote(id: note.id)
                     },
@@ -750,8 +836,27 @@ struct TaskRowView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
-        .background(Color(hex: "#2C2C2E"))
-        .cornerRadius(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color(hex: "#2C2C2E"), Color(hex: "#262628")]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.white.opacity(0.1), Color.white.opacity(0.05)]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
+        )
     }
     
     private var breakModeView: some View {
@@ -768,9 +873,9 @@ struct TaskRowView: View {
             
             TaskActionButton(
                 icon: "arrow.right.circle",
-                label: "Skip",
+                label: "Resume",
                 isHovered: hoveredButton == "skip",
-                color: .purple,
+                color: Color(hex: "#4CAF50"),
                 action: {
                     isBreak = false
                     breakTime = 0
@@ -789,9 +894,25 @@ struct TaskRowView: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.black)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color(hex: "#1C1C1E"), Color(hex: "#2C2C2E")]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.05)]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
         )
     }
     
@@ -838,11 +959,33 @@ struct TaskRowView: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(hex: firstNote?.id == note.id ? "#2A332C" : "#2C2C2E"))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            firstNote?.id == note.id ? Color(hex: "#2A332C") : Color(hex: "#2C2C2E"),
+                            firstNote?.id == note.id ? Color(hex: "#263026") : Color(hex: "#262628")
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(firstNote?.id == note.id ? Color.green.opacity(0.3) : Color.clear, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            firstNote?.id == note.id ? 
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color(hex: "#4CAF50").opacity(0.3), Color(hex: "#45A049").opacity(0.2)]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ) : 
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(0.1), Color.white.opacity(0.05)]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                            lineWidth: 0.5
+                        )
                 )
         )
     }
@@ -851,16 +994,22 @@ struct TaskRowView: View {
         HStack(spacing: 4) {
             Image(systemName: "clock")
                 .font(.system(size: 14))
-                .foregroundColor(.green.opacity(0.8))
+                .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
             
             Text(formatTime(elapsedTime))
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.green.opacity(0.8))
+                .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.green.opacity(0.1))
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(hex: "#4CAF50").opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(hex: "#4CAF50").opacity(0.2), lineWidth: 0.5)
+                )
+        )
     }
     
     private func formatTime(_ time: TimeInterval) -> String {
@@ -907,13 +1056,31 @@ struct TaskActionButton: View {
             .padding(.horizontal, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isHovered ? Color(hex: "#3C3C3E") : Color.clear)
+                    .fill(
+                        isHovered ? 
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color(hex: "#3C3C3E"), Color(hex: "#343436")]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ) : 
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.clear, Color.clear]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                    )
+                    .overlay(
+                        isHovered ?
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(color.opacity(0.3), lineWidth: 0.5) :
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.clear, lineWidth: 0)
+                    )
             )
             .animation(.easeInOut(duration: 0.2), value: isHovered)
         }
         .buttonStyle(PlainButtonStyle())
-        .cornerRadius(55)
-        .border(borderColor ?? Color.clear, width: borderColor != nil ? 1 : 0)
+        .cornerRadius(8)
         .onHover { hovering in
             onHover(hovering)
         }

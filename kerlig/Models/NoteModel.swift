@@ -40,30 +40,33 @@ struct Note: Identifiable, Codable, Hashable {
 
 enum NoteCategory: String, Codable, CaseIterable, Identifiable {
     case uncategorized = "Uncategorized"
-    case personal = "Personal"
-    case work = "Work"
-    case project = "Project"
-    case ideas = "Ideas"
+    case backlog = "Backlog"
+    case thisWeek = "This Week"
+    case today = "Today"
+    case done = "Done"
+    case cancelled = "Cancelled"
     
     var id: String { self.rawValue }
     
     var iconName: String {
         switch self {
             case .uncategorized: return "tray"
-            case .personal: return "person"
-            case .work: return "briefcase"
-            case .project: return "folder"
-            case .ideas: return "lightbulb"
+            case .backlog: return "tray"
+            case .thisWeek: return "calendar"
+            case .today: return "calendar"
+            case .done: return "checkmark.circle"
+            case .cancelled: return "xmark.circle"
         }
     }
     
     var color: Color {
         switch self {
             case .uncategorized: return .gray
-            case .personal: return .blue
-            case .work: return .purple
-            case .project: return .green
-            case .ideas: return .orange
+            case .backlog: return .blue
+            case .thisWeek: return .purple
+            case .today: return .green
+            case .done: return .orange
+            case .cancelled: return .red
         }
     }
 }
@@ -358,8 +361,8 @@ class NoteStore: ObservableObject {
         // Add sample notes if no saved notes found
         notes = [
             Note(title: "Welcome to Notes", content: "This is a sample note to get you started. You can create new notes, edit them, and mark favorites.", category: .uncategorized),
-            Note(title: "Meeting Notes", content: "Discuss project timeline and deliverables", isFavorite: true, category: .work),
-            Note(title: "Shopping List", content: "- Milk\n- Eggs\n- Bread\n- Fruits", category: .personal)
+            Note(title: "Meeting Notes", content: "Discuss project timeline and deliverables", isFavorite: true, category: .backlog),
+            Note(title: "Shopping List", content: "- Milk\n- Eggs\n- Bread\n- Fruits", category: .today)
         ]
     }
     
@@ -452,8 +455,8 @@ class NoteStore: ObservableObject {
             NoteColumn(title: "Backlog", order: 0, color: .blue),
             NoteColumn(title: "This week", order: 1, color: .orange),
             NoteColumn(title: "Today", order: 2, color: .green),
-            NoteColumn(title: "Done", order: 3, color: .red),
-            NoteColumn(title: "Cancelled", order: 4, color: .gray)
+            NoteColumn(title: "Done", order: 3, color: .orange),
+            NoteColumn(title: "Cancelled", order: 4, color: .red)
         ]
         
         // Distribute existing notes among default columns

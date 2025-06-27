@@ -25,14 +25,65 @@ class FloatingSidebarWindow: NSWindow {
         self.standardWindowButton(.miniaturizeButton)?.isHidden = true
         self.standardWindowButton(.zoomButton)?.isHidden = true
         
-        // Apply corner radius to the window
-        self.contentView?.wantsLayer = true
-        self.contentView?.layer?.cornerRadius = 16
-        self.contentView?.layer?.masksToBounds = true
+        // Apply enhanced visual styling
+        setupVisualStyling()
+    }
+    
+    private func setupVisualStyling() {
+        guard let contentView = self.contentView else { return }
         
-        // Add subtle border
-        self.contentView?.layer?.borderWidth = 0.5
-        self.contentView?.layer?.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
+        // Enable layer for the content view
+        contentView.wantsLayer = true
+        
+        // Apply modern corner radius
+        contentView.layer?.cornerRadius = 20
+        contentView.layer?.masksToBounds = true
+        
+        // Add glass-like background effect
+        let visualEffect = NSVisualEffectView(frame: contentView.bounds)
+        visualEffect.material = .hudWindow
+        visualEffect.state = .active
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.wantsLayer = true
+        visualEffect.layer?.cornerRadius = 20
+        
+        // Add gradient border layer
+        let borderLayer = CAGradientLayer()
+        borderLayer.frame = CGRect(x: 0, y: 0, width: contentView.bounds.width, height: contentView.bounds.height)
+        borderLayer.cornerRadius = 20
+        
+        // Create gradient with modern colors
+        borderLayer.colors = [
+            NSColor(red: 0.4, green: 0.8, blue: 1.0, alpha: 0.6).cgColor,
+            NSColor(red: 0.6, green: 0.4, blue: 1.0, alpha: 0.6).cgColor,
+            NSColor(red: 1.0, green: 0.4, blue: 0.8, alpha: 0.6).cgColor
+        ]
+        
+        borderLayer.startPoint = CGPoint(x: 0, y: 0)
+        borderLayer.endPoint = CGPoint(x: 1, y: 1)
+        borderLayer.type = .conic
+        
+        // Create mask for border-only effect
+        let maskLayer = CAShapeLayer()
+        let path = CGMutablePath()
+        let inset: CGFloat = 1.0 // Border width
+        
+        path.addRect(contentView.bounds)
+        path.addRect(contentView.bounds.insetBy(dx: inset, dy: inset))
+        
+        maskLayer.path = path
+        maskLayer.fillRule = .evenOdd
+        
+        borderLayer.mask = maskLayer
+        
+        // Add layers to the view
+        contentView.layer?.addSublayer(borderLayer)
+        
+        // Enhanced shadow effect
+        contentView.layer?.shadowOpacity = 0.25
+        contentView.layer?.shadowRadius = 20
+        contentView.layer?.shadowOffset = CGSize(width: 0, height: 8)
+        contentView.layer?.shadowColor = NSColor.black.cgColor
     }
     
     override var canBecomeKey: Bool {
@@ -93,18 +144,12 @@ class FloatingSidebarController {
         )
         window.contentView = NSHostingView(rootView: contentView)
         
-        // Add shadow effect
-        window.contentView?.layer?.shadowOpacity = 0.3
-        window.contentView?.layer?.shadowRadius = 15
-        window.contentView?.layer?.shadowOffset = CGSize(width: 0, height: 5)
-        window.contentView?.layer?.shadowColor = NSColor.black.cgColor
-        
         // Show the window with animation
         window.alphaValue = 0
         window.makeKeyAndOrderFront(nil)
         
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
+            context.duration = 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             window.animator().alphaValue = 1
         }

@@ -84,111 +84,122 @@ struct DraggableNoteCard: View {
                         .buttonStyle(AnimatedButtonStyle())
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
 
-                        // Menu button
+                        //add button for delete 
                         Button(action: {
-                            isThreeDotPopoverPresented.toggle()
+                            noteStore.deleteNote(id: note.id)
                         }) {
-                            Image(systemName: "ellipsis")
+                            Image(systemName: "trash")
                                 .foregroundColor(.white)
                                 .font(.system(size: 12))
-                                .padding(6)
-                                .background(Color(hex: "#1C1C1E"))
-                                .cornerRadius(12)
                         }
                         .buttonStyle(AnimatedButtonStyle())
-                        .popover(isPresented: $isThreeDotPopoverPresented) {
-                            VStack(spacing: 0) {
-                                Button(action: {
-                                    // Schedule the note
-                                }) {
-                                    HStack {
-                                        Image(systemName: "calendar")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.white.opacity(0.7))
-                                            .frame(width: 24)
-                                        
-                                        Text("Schedule")
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                Divider()
-                                    .background(Color.gray.opacity(0.3))
-                                
-                                Button(action: {
-                                    // Change list action
-                                }) {
-                                    HStack {
-                                        Image(systemName: "arrow.right.doc.on.clipboard")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.white.opacity(0.7))
-                                            .frame(width: 24)
-                                        
-                                        Text("Change list")
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                Divider()
-                                    .background(Color.gray.opacity(0.3))
-                                
-                                Button(action: {
-                                    // Duplicate action
-                                }) {
-                                    HStack {
-                                        Image(systemName: "plus.square.on.square")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.white.opacity(0.7))
-                                            .frame(width: 24)
-                                        
-                                        Text("Duplicate")
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                Divider()
-                                    .background(Color.gray.opacity(0.3))
-                                
-                                Button(action: {
-                                    // Delete the note
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        noteStore.deleteNote(id: note.id)
-                                    }
-                                }) {
-                                    HStack {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.red.opacity(0.8))
-                                            .frame(width: 24)
-                                        
-                                        Text("Delete")
-                                            .foregroundColor(.red)
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                            .background(Color(hex: "#2C2C2E"))
-                            .cornerRadius(12)
-                            .frame(width: 180)
-                            .padding(4)
-                            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
-                        }
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
+
+                        // // Menu button
+                        // Button(action: {
+                        //     isThreeDotPopoverPresented.toggle()
+                        // }) {
+                        //     Image(systemName: "ellipsis")
+                        //         .foregroundColor(.white)
+                        //         .font(.system(size: 12))
+                        //         .padding(6)
+                        //         .background(Color(hex: "#1C1C1E"))
+                        //         .cornerRadius(12)
+                        // }
+                        // .buttonStyle(AnimatedButtonStyle())
+                        // .popover(isPresented: $isThreeDotPopoverPresented) {
+                        //     VStack(spacing: 0) {
+                        //         Button(action: {
+                        //             // Schedule the note
+                        //         }) {
+                        //             HStack {
+                        //                 Image(systemName: "calendar")
+                        //                     .font(.system(size: 14))
+                        //                     .foregroundColor(.white.opacity(0.7))
+                        //                     .frame(width: 24)
+                                        
+                        //                 Text("Schedule")
+                        //                     .foregroundColor(.white)
+                        //                 Spacer()
+                        //             }
+                        //             .padding(.vertical, 12)
+                        //             .padding(.horizontal, 16)
+                        //         }
+                        //         .buttonStyle(PlainButtonStyle())
+                                
+                        //         Divider()
+                        //             .background(Color.gray.opacity(0.3))
+                                
+                        //         Button(action: {
+                        //             // Change list action
+                        //         }) {
+                        //             HStack {
+                        //                 Image(systemName: "arrow.right.doc.on.clipboard")
+                        //                     .font(.system(size: 14))
+                        //                     .foregroundColor(.white.opacity(0.7))
+                        //                     .frame(width: 24)
+                                        
+                        //                 Text("Change list")
+                        //                     .foregroundColor(.white)
+                        //                 Spacer()
+                        //             }
+                        //             .padding(.vertical, 12)
+                        //             .padding(.horizontal, 16)
+                        //         }
+                        //         .buttonStyle(PlainButtonStyle())
+                                
+                        //         Divider()
+                        //             .background(Color.gray.opacity(0.3))
+                                
+                        //         Button(action: {
+                        //             // Duplicate action
+                        //         }) {
+                        //             HStack {
+                        //                 Image(systemName: "plus.square.on.square")
+                        //                     .font(.system(size: 14))
+                        //                     .foregroundColor(.white.opacity(0.7))
+                        //                     .frame(width: 24)
+                                        
+                        //                 Text("Duplicate")
+                        //                     .foregroundColor(.white)
+                        //                 Spacer()
+                        //             }
+                        //             .padding(.vertical, 12)
+                        //             .padding(.horizontal, 16)
+                        //         }
+                        //         .buttonStyle(PlainButtonStyle())
+                                
+                        //         Divider()
+                        //             .background(Color.gray.opacity(0.3))
+                                
+                        //         Button(action: {
+                        //             // Delete the note
+                        //             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        //                 noteStore.deleteNote(id: note.id)
+                        //             }
+                        //         }) {
+                        //             HStack {
+                        //                 Image(systemName: "trash")
+                        //                     .font(.system(size: 14))
+                        //                     .foregroundColor(.red.opacity(0.8))
+                        //                     .frame(width: 24)
+                                        
+                        //                 Text("Delete")
+                        //                     .foregroundColor(.red)
+                        //                 Spacer()
+                        //             }
+                        //             .padding(.vertical, 12)
+                        //             .padding(.horizontal, 16)
+                        //         }
+                        //         .buttonStyle(PlainButtonStyle())
+                        //     }
+                        //     .background(Color(hex: "#2C2C2E"))
+                        //     .cornerRadius(12)
+                        //     .frame(width: 180)
+                        //     .padding(4)
+                        //     .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+                        // }
+                        // .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }
 
