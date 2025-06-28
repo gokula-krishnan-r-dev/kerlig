@@ -493,4 +493,41 @@ class NoteStore: ObservableObject {
     func changeFontColor(_ hexColor: String) {
         textFormatting.fontColor = hexColor
     }
+    
+    // MARK: - Task Management
+    func moveNoteToEnd(_ note: Note) {
+        // First, check if the note exists in the array
+        guard let index = notes.firstIndex(where: { $0.id == note.id }) else { return }
+        
+        // Create a mutable copy of the note
+        var updatedNote = note
+        updatedNote.lastModified = Date() // Update the modification date
+        
+        // Remove the note from its current position
+        notes.remove(at: index)
+        
+        // Find the position to insert - after the last pending note
+        let pendingNotes = notes.filter { !$0.isCompleted }
+        if let lastPendingIndex = notes.lastIndex(where: { !$0.isCompleted }) {
+            // Insert after the last pending note
+            notes.insert(updatedNote, at: lastPendingIndex + 1)
+        } else {
+            // If no pending notes, insert at the beginning
+            notes.insert(updatedNote, at: 0)
+        }
+        
+        // Update any columns containing this note to maintain the same order
+        for (columnIndex, column) in columns.enumerated() {
+            if column.noteIds.contains(note.id) {
+                var updatedColumn = column
+                updatedColumn.noteIds.removeAll { $0 == note.id }
+                updatedColumn.noteIds.append(note.id) // Add to the end
+                columns[columnIndex] = updatedColumn
+            }
+        }
+        
+        // Save changes
+        saveNotes()
+        saveColumns()
+    }
 } 

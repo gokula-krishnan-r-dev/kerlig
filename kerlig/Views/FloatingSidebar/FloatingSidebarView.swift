@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import AVFoundation
+import UserNotifications
 
 struct FloatingSidebarView: View {
     // MARK: - Properties
@@ -16,6 +17,7 @@ struct FloatingSidebarView: View {
     @State private var isCompleted: Bool = false
     @State private var completedTaskTime: TimeInterval = 0
     @State private var dismissTimer: Timer?
+    @State private var recentlySkippedNoteId: UUID? = nil
     
     let controller: FloatingSidebarController
     let onClose: () -> Void
@@ -276,18 +278,74 @@ struct FloatingSidebarView: View {
                             firstNote = findFirstNote()
                             completedTaskTime = elapsedTime
                             isCompleted = true
+                        },
+                        onSkip: { skippedNote in
+                            // Set the recently skipped note ID
+                            recentlySkippedNoteId = skippedNote.id
+                            
+                            // Show a notification using UNUserNotificationCenter
+                            let content = UNMutableNotificationContent()
+                            content.title = "Task Moved"
+                            content.body = "'\(skippedNote.title)' moved to the end of the list"
+                            content.sound = UNNotificationSound.default
+                            
+                            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+                            UNUserNotificationCenter.current().add(request) { error in
+                                if let error = error {
+                                    print("Error showing notification: \(error.localizedDescription)")
+                                }
+                            }
+                            
+                            // Clear the highlight after a delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                withAnimation {
+                                    recentlySkippedNoteId = nil
+                                }
+                            }
                         }
                     )
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(hex: "#2C2C2E"))
+                            .fill(note.id == recentlySkippedNoteId ? 
+                                  Color(hex: "#9333EA").opacity(0.2) :
+                                  Color(hex: "#2C2C2E"))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                                    .stroke(note.id == recentlySkippedNoteId ?
+                                            Color(hex: "#9333EA").opacity(0.5) :
+                                            Color.white.opacity(0.08), 
+                                            lineWidth: 0.5)
                             )
                     )
                     .padding(.horizontal, 12)
                     .padding(.vertical, 2)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.8)),
+                        removal: .opacity.combined(with: .scale(scale: 0.8))
+                    ))
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: recentlySkippedNoteId == note.id)
+                    .overlay(
+                        Group {
+                            if note.id == recentlySkippedNoteId {
+                                HStack {
+                                    Spacer()
+                                    Text("Moved to end")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(Color(hex: "#9333EA"))
+                                        )
+                                }
+                                .padding(.trailing, 16)
+                                .padding(.bottom, 4)
+                                .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        , alignment: .bottomTrailing
+                    )
                 }
             }
             .padding(.vertical, 8)
@@ -676,11 +734,13 @@ struct CompletedTaskRow: View {
 // MARK: - Task Row View
 struct TaskRowView: View {
     var note: Note
-    let firstNote: Note?
+    var firstNote: Note?
     @ObservedObject var noteStore: NoteStore
     let onDone: (TimeInterval) -> Void
+    let onSkip: (Note) -> Void
 
     @State private var isNotes = false
+    @State private var isSkipping = false
     
     @State private var isBreak = false
     @State private var breakTime: TimeInterval = 0
@@ -739,6 +799,9 @@ struct TaskRowView: View {
                 TickSoundService.shared.stopTicking()
             }
         }
+        .offset(x: isSkipping ? -NSScreen.main!.frame.width : 0)
+        .opacity(isSkipping ? 0 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSkipping)
     }
     
     private var actionButtonsView: some View {
@@ -810,6 +873,32 @@ struct TaskRowView: View {
                     color: Color(hex: "#9333EA"),
                     action: {
                         print("Task skipped: \(note.title)")
+                        
+                        // Move the task to the end of the list
+                        if let firstNote = firstNote, note.id == firstNote.id {
+                            // Trigger skip animation
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isSkipping = true
+                            }
+ 
+                            // Delay the actual reordering to allow animation to complete
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                noteStore.moveNoteToEnd(note)
+                                // Stop ticking for current task and start for the new first task
+                                TickSoundService.shared.stopTicking()
+                                if let newFirstNote = noteStore.getPendingNotes().first {
+                                    TickSoundService.shared.startTicking(interval: 3.0)
+                                }
+                                
+                                // Reset the animation state
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    isSkipping = false
+                                }
+                            }
+                            
+                            // Call onSkip with the skipped note
+                            onSkip(note)
+                        }
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "skip" : nil
