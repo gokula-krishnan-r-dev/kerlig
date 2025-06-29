@@ -71,21 +71,92 @@ enum NoteCategory: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+struct Release: Identifiable, Codable, Hashable {
+    var id: UUID
+    var version: String
+    var name: String
+    var description: String
+    var creationDate: Date
+    var lastModified: Date
+    var targetDate: Date?
+    var status: ReleaseStatus
+    var projectId: UUID
+    var columnIds: [UUID] // Each release has its own set of columns
+    
+    init(id: UUID = UUID(), version: String, name: String, description: String = "", creationDate: Date = Date(), lastModified: Date = Date(), targetDate: Date? = nil, status: ReleaseStatus = .planning, projectId: UUID, columnIds: [UUID] = []) {
+        self.id = id
+        self.version = version
+        self.name = name
+        self.description = description
+        self.creationDate = creationDate
+        self.lastModified = lastModified
+        self.targetDate = targetDate
+        self.status = status
+        self.projectId = projectId
+        self.columnIds = columnIds
+    }
+    
+    // Hashable conformance
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: Release, rhs: Release) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+enum ReleaseStatus: String, Codable, CaseIterable {
+    case planning = "Planning"
+    case inProgress = "In Progress"
+    case testing = "Testing"
+    case released = "Released"
+    case cancelled = "Cancelled"
+    
+    var color: Color {
+        switch self {
+        case .planning: return .blue
+        case .inProgress: return .orange
+        case .testing: return .purple
+        case .released: return .green
+        case .cancelled: return .red
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .planning: return "lightbulb"
+        case .inProgress: return "hammer"
+        case .testing: return "checkmark.shield"
+        case .released: return "checkmark.circle"
+        case .cancelled: return "xmark.circle"
+        }
+    }
+}
+
 struct Project: Identifiable, Codable, Hashable {
     var id: UUID
     var title: String
     var description: String
     var creationDate: Date
     var lastModified: Date
-    var noteIds: [UUID]
+    var releaseIds: [UUID] // Projects now contain releases instead of notes directly
+    var color: Color?
+    var isArchived: Bool
+    var logoImageData: Data? // Store the project logo image as Data
+    var pageIds: [UUID] = [] // IDs of pages associated with this project
     
-    init(id: UUID = UUID(), title: String, description: String, creationDate: Date = Date(), lastModified: Date = Date(), noteIds: [UUID] = []) {
+    init(id: UUID = UUID(), title: String, description: String, creationDate: Date = Date(), lastModified: Date = Date(), releaseIds: [UUID] = [], color: Color? = nil, isArchived: Bool = false, logoImageData: Data? = nil, pageIds: [UUID] = []) {
         self.id = id
         self.title = title
         self.description = description
         self.creationDate = creationDate
         self.lastModified = lastModified
-        self.noteIds = noteIds
+        self.releaseIds = releaseIds
+        self.color = color
+        self.isArchived = isArchived
+        self.logoImageData = logoImageData
+        self.pageIds = pageIds
     }
     
     // Hashable conformance
@@ -150,12 +221,48 @@ struct TextFormatting: Codable, Hashable {
     }
 }
 
+// New model for project pages
+struct ProjectPage: Identifiable, Codable, Hashable {
+    var id: UUID
+    var title: String
+    var content: String // Rich text content stored as attributed string data
+    var creationDate: Date
+    var lastModified: Date
+    var projectId: UUID
+    var associatedTaskIds: [UUID] = [] // IDs of tasks associated with this page
+    var tags: [String] = []
+    var isPinned: Bool = false
+    
+    init(id: UUID = UUID(), title: String, content: String = "", creationDate: Date = Date(), lastModified: Date = Date(), projectId: UUID, associatedTaskIds: [UUID] = [], tags: [String] = [], isPinned: Bool = false) {
+        self.id = id
+        self.title = title
+        self.content = content
+        self.creationDate = creationDate
+        self.lastModified = lastModified
+        self.projectId = projectId
+        self.associatedTaskIds = associatedTaskIds
+        self.tags = tags
+        self.isPinned = isPinned
+    }
+    
+    // Hashable conformance
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: ProjectPage, rhs: ProjectPage) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 class NoteStore: ObservableObject {
     @Published var notes: [Note] = []
     @Published var projects: [Project] = []
+    @Published var releases: [Release] = []
     @Published var columns: [NoteColumn] = []
     @Published var currentNote: Note?
     @Published var textFormatting: TextFormatting = TextFormatting.defaultFormatting()
+    @Published var pages: [ProjectPage] = [] // Store for project pages
 
     //in notes showonly pending notes
     func getPendingNotes() -> [Note] {
@@ -195,13 +302,17 @@ class NoteStore: ObservableObject {
 
     
     private let notesKey = "savedNotes_v3"
-    private let projectsKey = "savedProjects_v1"
+    private let projectsKey = "savedProjects_v2"
+    private let releasesKey = "savedReleases_v1"
     private let columnsKey = "savedColumns_v1"
+    private let pagesKey = "savedPages_v1" // New key for pages
     
     init() {
         loadNotes()
         loadProjects()
+        loadReleases()
         loadColumns()
+        loadPages()
         
         // Set the first note as current if available
         if !notes.isEmpty {
@@ -260,8 +371,8 @@ class NoteStore: ObservableObject {
         
         // Remove note from any projects
         for var project in projects {
-            if project.noteIds.contains(id) {
-                project.noteIds.removeAll { $0 == id }
+            if project.releaseIds.contains(id) {
+                project.releaseIds.removeAll { $0 == id }
                 project.lastModified = Date()
                 if let index = projects.firstIndex(where: { $0.id == project.id }) {
                     projects[index] = project
@@ -304,8 +415,8 @@ class NoteStore: ObservableObject {
     func addNoteToProject(noteId: UUID, projectId: UUID) {
         if let index = projects.firstIndex(where: { $0.id == projectId }) {
             var project = projects[index]
-            if !project.noteIds.contains(noteId) {
-                project.noteIds.append(noteId)
+            if !project.releaseIds.contains(noteId) {
+                project.releaseIds.append(noteId)
                 project.lastModified = Date()
                 projects[index] = project
                 saveProjects()
@@ -316,26 +427,165 @@ class NoteStore: ObservableObject {
     func removeNoteFromProject(noteId: UUID, projectId: UUID) {
         if let index = projects.firstIndex(where: { $0.id == projectId }) {
             var project = projects[index]
-            project.noteIds.removeAll { $0 == noteId }
+            project.releaseIds.removeAll { $0 == noteId }
             project.lastModified = Date()
             projects[index] = project
             saveProjects()
         }
     }
     
+    func getReleasesForProject(_ project: Project) -> [Release] {
+        return releases.filter { project.releaseIds.contains($0.id) }
+    }
+    
     func getNotesForProject(_ project: Project) -> [Note] {
-        return notes.filter { project.noteIds.contains($0.id) }
+        // Get all notes from all releases in this project
+        let projectReleases = getReleasesForProject(project)
+        var allNotes: [Note] = []
+        
+        for release in projectReleases {
+            let releaseColumns = columns.filter { release.columnIds.contains($0.id) }
+            for column in releaseColumns {
+                let columnNotes = notes.filter { column.noteIds.contains($0.id) }
+                allNotes.append(contentsOf: columnNotes)
+            }
+        }
+        
+        return allNotes
     }
     
     private func updateProjectsLastModified(noteId: UUID) {
         for (index, project) in projects.enumerated() {
-            if project.noteIds.contains(noteId) {
+            if project.releaseIds.contains(noteId) {
                 var updatedProject = project
                 updatedProject.lastModified = Date()
                 projects[index] = updatedProject
             }
         }
         saveProjects()
+    }
+    
+    // MARK: - Release Management
+    func addRelease(projectId: UUID, version: String, name: String, description: String = "", targetDate: Date? = nil) {
+        let newRelease = Release(version: version, name: name, description: description, targetDate: targetDate, projectId: projectId)
+        releases.append(newRelease)
+        
+        // Add release to project
+        if let projectIndex = projects.firstIndex(where: { $0.id == projectId }) {
+            var project = projects[projectIndex]
+            project.releaseIds.append(newRelease.id)
+            project.lastModified = Date()
+            projects[projectIndex] = project
+        }
+        
+        // Create default columns for this release
+        createDefaultColumnsForRelease(newRelease.id)
+        
+        saveReleases()
+        saveProjects()
+    }
+    
+    func updateRelease(_ release: Release) {
+        if let index = releases.firstIndex(where: { $0.id == release.id }) {
+            var updatedRelease = release
+            updatedRelease.lastModified = Date()
+            releases[index] = updatedRelease
+            saveReleases()
+            
+            // Update project last modified
+            if let projectIndex = projects.firstIndex(where: { $0.releaseIds.contains(release.id) }) {
+                var project = projects[projectIndex]
+                project.lastModified = Date()
+                projects[projectIndex] = project
+                saveProjects()
+            }
+        }
+    }
+    
+    func deleteRelease(_ release: Release) {
+        // Remove release from project
+        if let projectIndex = projects.firstIndex(where: { $0.releaseIds.contains(release.id) }) {
+            var project = projects[projectIndex]
+            project.releaseIds.removeAll { $0 == release.id }
+            project.lastModified = Date()
+            projects[projectIndex] = project
+        }
+        
+        // Delete all columns and notes associated with this release
+        let releaseColumns = columns.filter { release.columnIds.contains($0.id) }
+        for column in releaseColumns {
+            let columnNotes = notes.filter { column.noteIds.contains($0.id) }
+            for note in columnNotes {
+                notes.removeAll { $0.id == note.id }
+            }
+            columns.removeAll { $0.id == column.id }
+        }
+        
+        // Remove release
+        releases.removeAll { $0.id == release.id }
+        
+        saveReleases()
+        saveProjects()
+        saveColumns()
+        saveNotes()
+    }
+    
+    func getColumnsForRelease(_ release: Release) -> [NoteColumn] {
+        return columns.filter { release.columnIds.contains($0.id) }.sorted(by: { $0.order < $1.order })
+    }
+    
+    func getNotesForRelease(_ release: Release) -> [UUID: [Note]] {
+        var result = [UUID: [Note]]()
+        let releaseColumns = getColumnsForRelease(release)
+        
+        for column in releaseColumns {
+            let columnNotes = notes.filter { column.noteIds.contains($0.id) }
+            result[column.id] = columnNotes
+        }
+        
+        return result
+    }
+    
+    private func createDefaultColumnsForRelease(_ releaseId: UUID) {
+        let defaultColumnTitles = ["Backlog", "In Progress", "Review", "Done"]
+        let defaultColors: [Color] = [.blue, .orange, .purple, .green]
+        
+        var newColumnIds: [UUID] = []
+        
+        for (index, title) in defaultColumnTitles.enumerated() {
+            let newColumn = NoteColumn(
+                title: title,
+                order: index,
+                color: defaultColors[index]
+            )
+            columns.append(newColumn)
+            newColumnIds.append(newColumn.id)
+        }
+        
+        // Update release with column IDs
+        if let releaseIndex = releases.firstIndex(where: { $0.id == releaseId }) {
+            var release = releases[releaseIndex]
+            release.columnIds = newColumnIds
+            releases[releaseIndex] = release
+        }
+    }
+    
+    private func saveReleases() {
+        if let encoded = try? JSONEncoder().encode(releases) {
+            UserDefaults.standard.set(encoded, forKey: releasesKey)
+        }
+    }
+    
+    private func loadReleases() {
+        if let savedReleases = UserDefaults.standard.data(forKey: releasesKey) {
+            if let decodedReleases = try? JSONDecoder().decode([Release].self, from: savedReleases) {
+                releases = decodedReleases
+                return
+            }
+        }
+        
+        // Initialize with empty releases array
+        releases = []
     }
     
     // Make saveNotes public so it can be called from outside the class
@@ -381,15 +631,11 @@ class NoteStore: ObservableObject {
         }
         
         // Add sample project if no saved projects found
-        var sampleProject = Project(
+        let sampleProject = Project(
             title: "My First Project",
-            description: "A collection of important notes"
+            description: "A collection of important tasks and releases",
+            color: .blue
         )
-        
-        if !notes.isEmpty {
-            // Add first two notes to sample project
-            sampleProject.noteIds = [notes[0].id, notes[1].id]
-        }
         
         projects = [sampleProject]
     }
@@ -529,5 +775,156 @@ class NoteStore: ObservableObject {
         // Save changes
         saveNotes()
         saveColumns()
+    }
+
+    // MARK: - Page Management
+    
+    func addPage(title: String, content: String = "", projectId: UUID, isPinned: Bool = false) -> ProjectPage {
+        let newPage = ProjectPage(
+            title: title,
+            content: content,
+            projectId: projectId,
+            isPinned: isPinned
+        )
+        
+        pages.append(newPage)
+        
+        // Add page to project
+        if let projectIndex = projects.firstIndex(where: { $0.id == projectId }) {
+            var project = projects[projectIndex]
+            project.pageIds.append(newPage.id)
+            project.lastModified = Date()
+            projects[projectIndex] = project
+        }
+        
+        savePages()
+        saveProjects()
+        
+        return newPage
+    }
+    
+    func updatePage(_ page: ProjectPage) {
+        if let index = pages.firstIndex(where: { $0.id == page.id }) {
+            var updatedPage = page
+            updatedPage.lastModified = Date()
+            pages[index] = updatedPage
+            savePages()
+            
+            // Update project last modified
+            if let projectIndex = projects.firstIndex(where: { $0.id == page.projectId }) {
+                var project = projects[projectIndex]
+                project.lastModified = Date()
+                projects[projectIndex] = project
+                saveProjects()
+            }
+        }
+    }
+    
+    func deletePage(_ page: ProjectPage) {
+        // Remove page from project
+        if let projectIndex = projects.firstIndex(where: { $0.id == page.projectId }) {
+            var project = projects[projectIndex]
+            project.pageIds.removeAll { $0 == page.id }
+            project.lastModified = Date()
+            projects[projectIndex] = project
+            saveProjects()
+        }
+        
+        // Remove page
+        pages.removeAll { $0.id == page.id }
+        savePages()
+    }
+    
+    func getPagesForProject(_ project: Project) -> [ProjectPage] {
+        return pages.filter { project.pageIds.contains($0.id) }
+            .sorted(by: { 
+                // Sort by pinned status first, then by last modified date
+                if $0.isPinned && !$1.isPinned {
+                    return true
+                } else if !$0.isPinned && $1.isPinned {
+                    return false
+                } else {
+                    return $0.lastModified > $1.lastModified
+                }
+            })
+    }
+    
+    func createDefaultPageForProject(_ project: Project) -> ProjectPage {
+        let defaultContent = """
+        # \(project.title) Documentation
+        
+        ## Overview
+        This page contains documentation and notes related to the project "\(project.title)".
+        
+        ## Project Details
+        **Description:** \(project.description)
+        **Created:** \(formatDate(project.creationDate))
+        
+        ## Tasks
+        - [ ] Review project requirements
+        - [ ] Set up initial project structure
+        - [ ] Schedule kickoff meeting
+        
+        ## Notes
+        Add your project notes here...
+        """
+        
+        return addPage(
+            title: "Project Overview",
+            content: defaultContent,
+            projectId: project.id,
+            isPinned: true
+        )
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+    
+    func associateTaskWithPage(taskId: UUID, pageId: UUID) {
+        if let pageIndex = pages.firstIndex(where: { $0.id == pageId }) {
+            var page = pages[pageIndex]
+            if !page.associatedTaskIds.contains(taskId) {
+                page.associatedTaskIds.append(taskId)
+                page.lastModified = Date()
+                pages[pageIndex] = page
+                savePages()
+            }
+        }
+    }
+    
+    func removeTaskFromPage(taskId: UUID, pageId: UUID) {
+        if let pageIndex = pages.firstIndex(where: { $0.id == pageId }) {
+            var page = pages[pageIndex]
+            page.associatedTaskIds.removeAll { $0 == taskId }
+            page.lastModified = Date()
+            pages[pageIndex] = page
+            savePages()
+        }
+    }
+    
+    func getTasksForPage(_ page: ProjectPage) -> [Note] {
+        return notes.filter { page.associatedTaskIds.contains($0.id) }
+    }
+    
+    private func savePages() {
+        if let encoded = try? JSONEncoder().encode(pages) {
+            UserDefaults.standard.set(encoded, forKey: pagesKey)
+        }
+    }
+    
+    private func loadPages() {
+        if let savedPages = UserDefaults.standard.data(forKey: pagesKey) {
+            if let decodedPages = try? JSONDecoder().decode([ProjectPage].self, from: savedPages) {
+                pages = decodedPages
+                return
+            }
+        }
+        
+        // Initialize with empty pages array
+        pages = []
     }
 } 

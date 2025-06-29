@@ -10,7 +10,25 @@ import AppKit
 import Combine
 import OSLog
 
-
+enum SidebarItem: String, Identifiable, CaseIterable {
+    case dashboard = "Dashboard"
+    case taskManagement = "Task Management"
+    case noteboard = "Note Board"
+    case clipboardHistory = "Clipboard History"
+    case history = "History"
+    
+    var id: String { self.rawValue }
+    
+    var icon: String {
+        switch self {
+        case .dashboard: return "square.grid.2x2"
+        case .taskManagement: return "checklist"
+        case .noteboard: return "note.text"
+        case .clipboardHistory: return "doc.on.clipboard"
+        case .history: return "clock"
+        }
+    }
+}
 
 struct ContentView: View {
     @EnvironmentObject var appState: kerlig.AppState
@@ -18,7 +36,7 @@ struct ContentView: View {
     @State private var isFirstLaunch: Bool = false
     @State private var showPermissionsNeeded: Bool = false
     @State private var permissionGranted: Bool = false
-    @State private var selectedSidebarItem: SidebarItem = .dashboard
+    @State private var selectedSidebarItem: SidebarItem = .taskManagement
     @State private var showClipboardPermissionAlert = false
     @State private var clipboardPollingTimer: Timer?
     @State private var sidebarWidth: CGFloat = 240
@@ -40,30 +58,25 @@ struct ContentView: View {
     private let projectsPanel = ProjectsPanelController()
 //    private var clipboardShortcutMonitor: ClipboardShortcutMonitor?
     
-    // Add ClipboardHistory to the sidebar items
-    enum SidebarItem: String, CaseIterable {
-        case dashboard = "Dashboard"
-        case textCapture = "Text Capture"
-        case clipboardHistory = "Clipboard History"
-        case history = "History"
-        case settings = "Settings"
-        
-        var icon: String {
-            switch self {
-            case .dashboard: return "house"
-            case .textCapture: return "text.cursor"
-            case .clipboardHistory: return "clipboard"
-            case .history: return "clock"
-            case .settings: return "gear"
-            }
-        }
-    }
-    
     var body: some View {
-        VStack {
-
-            NoteBoardView()
-
+        NavigationSplitView {
+            List(SidebarItem.allCases, selection: $selectedSidebarItem) { item in
+                Label(item.rawValue, systemImage: item.icon)
+            }
+            .listStyle(.sidebar)
+        } detail: {
+            switch selectedSidebarItem {
+            case .dashboard:
+                DashboardView()
+            case .taskManagement:
+                TaskManagementView()
+            case .noteboard:
+                NoteBoardView()
+            case .clipboardHistory:
+                ClipboardHistoryView()
+            case .history:
+                HistoryView()
+            }
         }
         .environmentObject(customActionsStorage)
         .onAppear {
@@ -357,6 +370,65 @@ struct ContentView: View {
         withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
             animatePulse.toggle()
         }
+    }
+}
+
+// MARK: - Placeholder Views for Navigation
+
+struct DashboardView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "square.grid.2x2")
+                .font(.system(size: 64))
+                .foregroundColor(.blue)
+            
+            Text("Dashboard")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("Dashboard functionality - Coming Soon!")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.textBackgroundColor))
+    }
+}
+
+struct ClipboardHistoryView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.system(size: 64))
+                .foregroundColor(.green)
+            
+            Text("Clipboard History")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("Clipboard history functionality - Coming Soon!")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.textBackgroundColor))
+    }
+}
+
+struct HistoryView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "clock")
+                .font(.system(size: 64))
+                .foregroundColor(.purple)
+            
+            Text("History")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("History functionality - Coming Soon!")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.textBackgroundColor))
     }
 }
 

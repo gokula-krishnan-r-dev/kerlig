@@ -765,11 +765,7 @@ enum ViewMode {
     case board, list
 }
 
-enum FilterOption: String {
-    case all = "All Tasks"
-    case completed = "Completed"
-    case incomplete = "Incomplete"
-}
+
 
 #Preview {
     NoteBoardView()
