@@ -35,6 +35,11 @@ struct TaskManagementView: View {
     @State private var releaseToDelete: Release? = nil
     @State private var showDeleteReleaseConfirm = false
     
+    // New state for better UI responsiveness
+    @State private var isLoadingColumns = false
+    @State private var taskColumns: [NoteColumn] = []
+    @State private var taskColumnNotes: [UUID: [Note]] = [:]
+    
     // Color palette
     private let primaryBgColor = Color(hex: "#0A0A0B")
     private let secondaryBgColor = Color(hex: "#1C1C1E")
@@ -84,11 +89,12 @@ struct TaskManagementView: View {
     var filteredTasks: [UUID: [Note]] {
         guard let selectedRelease = selectedRelease else { return [:] }
         
-        let allTasks = noteStore.getNotesForRelease(selectedRelease)
         var result = [UUID: [Note]]()
         
-        for (columnId, notes) in allTasks {
-            let filteredNotes = notes.filter { note in
+        // Use the local taskColumns state for better performance
+        for column in taskColumns {
+            let columnNotes = taskColumnNotes[column.id] ?? []
+            let filteredNotes = columnNotes.filter { note in
                 let matchesSearch = searchText.isEmpty ||
                     note.title.lowercased().contains(searchText.lowercased()) ||
                     note.content.lowercased().contains(searchText.lowercased())
@@ -108,7 +114,7 @@ struct TaskManagementView: View {
                 return matchesSearch && matchesFilter && matchesCompleted
             }
             
-            result[columnId] = filteredNotes
+            result[column.id] = filteredNotes
         }
         
         return result
@@ -121,6 +127,8 @@ struct TaskManagementView: View {
             
             // Main content area with task columns or pages
             VStack(spacing: 0) {
+
+                headerView
                 // Tab selector
                 tabSelector
                 
@@ -138,32 +146,182 @@ struct TaskManagementView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(primaryBgColor)
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.easeInOut(duration: 0.6)) {
-                    animateIn = true
-                }
-            }
-            
-            if noteStore.projects.isEmpty {
-                // Auto-select first project if available
-                selectedProject = noteStore.projects.first
-            } else {
-                selectedProject = filteredProjects.first
-            }
+            setupInitialState()
         }
         .onChange(of: selectedProject) { _, newProject in
-            if let project = newProject {
-                let releases = noteStore.getReleasesForProject(project)
-                selectedRelease = releases.first
-            } else {
-                selectedRelease = nil
-            }
+            handleProjectSelection(newProject)
+        }
+        .onChange(of: selectedRelease) { _, newRelease in
+            handleReleaseSelection(newRelease)
         }
         .sheet(isPresented: $isAddingProject) {
             addProjectSheet
         }
         .sheet(isPresented: $isAddingRelease) {
             addReleaseSheet
+        }
+    }
+    
+    // MARK: - Setup and Data Management
+    
+    private func setupInitialState() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeInOut(duration: 0.6)) {
+                animateIn = true
+            }
+        }
+        
+        // Auto-select first project if available
+        if selectedProject == nil {
+            selectedProject = filteredProjects.first
+        }
+    }
+    
+    private func handleProjectSelection(_ project: Project?) {
+        guard let project = project else {
+            selectedRelease = nil
+            clearTaskData()
+            return
+        }
+        
+        let releases = noteStore.getReleasesForProject(project)
+        selectedRelease = releases.first
+    }
+    
+    private func handleReleaseSelection(_ release: Release?) {
+        guard let release = release else {
+            clearTaskData()
+            return
+        }
+        
+        loadTaskDataForRelease(release)
+    }
+    
+    private func loadTaskDataForRelease(_ release: Release) {
+        isLoadingColumns = true
+        
+        DispatchQueue.main.async {
+            // Get columns for the release
+            self.taskColumns = self.noteStore.getColumnsForRelease(release)
+            
+            // If no columns exist, create default ones
+            if self.taskColumns.isEmpty {
+                self.createDefaultColumnsForRelease(release)
+                self.taskColumns = self.noteStore.getColumnsForRelease(release)
+            }
+            
+            // Load notes for each column
+            self.taskColumnNotes.removeAll()
+            for column in self.taskColumns {
+                let columnNotes = self.noteStore.getNotesForColumn(column)
+                self.taskColumnNotes[column.id] = columnNotes
+            }
+            
+            self.isLoadingColumns = false
+        }
+    }
+    
+    private func clearTaskData() {
+        taskColumns.removeAll()
+        taskColumnNotes.removeAll()
+    }
+
+
+    private var headerView: some View {
+
+    
+    func showFloatingSidebar() {
+
+
+        //before toggle close already existing window close
+        if let existingWindow = NSApp.windows.first(where: { $0.isVisible }) {
+            existingWindow.close()
+        }
+        floatingSidebarController.toggleSidebar()
+    }
+        
+    let floatingSidebarController = FloatingSidebarController()
+        return VStack(spacing: 0) {
+        HStack {
+            // Title and subtitle
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Task Management")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                
+                if let project = selectedProject {
+                    Text(project.title)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                } else {
+                    Text("Select a project to get started")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            Spacer()
+            
+            // Action buttons
+            HStack(spacing: 12) {
+
+                // Add task button
+                Button(action: {showFloatingSidebar()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Mac Write")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(accentColor)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(selectedRelease == nil)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
+        .background(primaryBgColor)
+        
+        // Divider
+        Rectangle()
+            .fill(Color.gray.opacity(0.2))
+            .frame(height: 1)
+    }
+    }
+    private func createDefaultColumnsForRelease(_ release: Release) {
+        let defaultColumnTitles = ["Backlog", "In Progress", "Today", "Review", "Done", "Cancelled"]
+        let defaultColors: [Color] = [.blue, .orange, .purple, .green, .red, .gray]
+        
+        var newColumnIds: [UUID] = []
+        
+        for (index, title) in defaultColumnTitles.enumerated() {
+            let newColumn = NoteColumn(
+                title: title,
+                order: index,
+                color: defaultColors[index]
+            )
+            noteStore.columns.append(newColumn)
+            newColumnIds.append(newColumn.id)
+        }
+        
+        // Update release with column IDs
+        if let releaseIndex = noteStore.releases.firstIndex(where: { $0.id == release.id }) {
+            var updatedRelease = release
+            updatedRelease.columnIds = newColumnIds
+            noteStore.releases[releaseIndex] = updatedRelease
+            noteStore.updateRelease(updatedRelease)
+        }
+        
+        // Save columns
+        for column in noteStore.columns {
+            noteStore.updateColumn(column)
         }
     }
     
@@ -419,14 +577,19 @@ struct TaskManagementView: View {
                         
                         Spacer()
                         
-                        let columnCount = noteStore.getColumnsForRelease(release).count
-                        Text("\(columnCount)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.gray.opacity(0.2))
-                            .cornerRadius(8)
+                        if isLoadingColumns {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .progressViewStyle(CircularProgressViewStyle(tint: .gray))
+                        } else {
+                            Text("\(taskColumns.count)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.gray.opacity(0.2))
+                                .cornerRadius(8)
+                        }
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -436,24 +599,55 @@ struct TaskManagementView: View {
             .background(Color.gray.opacity(0.05))
             
             if isColumnsListExpanded {
-                let columns = noteStore.getColumnsForRelease(release)
-                if !columns.isEmpty {
+                if isLoadingColumns {
+                    HStack {
+                        Spacer()
+                        ProgressView("Loading columns...")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        Spacer()
+                    }
+                    .padding()
+                } else if !taskColumns.isEmpty {
                     ScrollView {
                         LazyVStack(spacing: 4) {
-                            ForEach(columns.sorted(by: { $0.order < $1.order })) { column in
-                                ColumnRowView(column: column)
-                                    .padding(.horizontal, 8)
+                            ForEach(taskColumns.sorted(by: { $0.order < $1.order })) { column in
+                                EnhancedColumnRowView(
+                                    column: column,
+                                    taskCount: taskColumnNotes[column.id]?.count ?? 0
+                                )
+                                .padding(.horizontal, 8)
                             }
                         }
                         .padding(.vertical, 4)
                     }
-                    .frame(maxHeight: 150)
+                    .frame(maxHeight: 200)
                 } else {
-                    Text("No columns available")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
+                    VStack(spacing: 12) {
+                        Image(systemName: "rectangle.3.group")
+                            .font(.system(size: 24))
+                            .foregroundColor(.gray.opacity(0.5))
+                        
+                        Text("No columns available")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        
+                        Button(action: {
+                            createDefaultColumnsForRelease(release)
+                            loadTaskDataForRelease(release)
+                        }) {
+                            Text("Create Default Columns")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(accentColor)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(AnimatedButtonStyle())
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
                 }
             }
         }
@@ -537,28 +731,45 @@ struct TaskManagementView: View {
                                 .frame(width: 32, height: 32)
                         }
                         
-                        Text(project.title)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                    }
-                    
-                    if let release = selectedRelease {
-                        HStack(spacing: 8) {
-                            Image(systemName: release.status.iconName)
-                                .foregroundColor(release.status.color)
-                                .font(.system(size: 14))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(project.title)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
                             
-                            Text("Release v\(release.version)")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.gray)
-                            
-                            Text("•")
-                                .foregroundColor(.gray)
-                            
-                            Text(release.name)
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
+                            if let release = selectedRelease {
+                                HStack(spacing: 8) {
+                                    Image(systemName: release.status.iconName)
+                                        .foregroundColor(release.status.color)
+                                        .font(.system(size: 12))
+                                    
+                                    Text("v\(release.version)")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(release.status.color)
+                                    
+                                    Text("•")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 10))
+                                    
+                                    Text(release.name)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                    
+                                    if !taskColumns.isEmpty {
+                                        Text("•")
+                                            .foregroundColor(.gray)
+                                            .font(.system(size: 10))
+                                        
+                                        Text("\(taskColumns.count) columns")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            } else {
+                                Text("No release selected")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
                         }
                     }
                 } else {
@@ -571,8 +782,42 @@ struct TaskManagementView: View {
             
             Spacer()
             
-            // Filter controls
+            // Action buttons and controls
             HStack(spacing: 12) {
+                // Quick add task button
+                if selectedRelease != nil && !taskColumns.isEmpty {
+                    Button(action: {
+                        addQuickTask()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 14))
+                            Text("Quick Task")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(accentGradient)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(AnimatedButtonStyle())
+                }
+                
+                // Refresh button
+                Button(action: {
+                    refreshTaskData()
+                }) {
+                    Image(systemName: isLoadingColumns ? "arrow.clockwise" : "arrow.clockwise")
+                        .foregroundColor(.gray)
+                        .padding(8)
+                        .background(cardBgColor)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("Refresh task data")
+                .disabled(isLoadingColumns)
+                
                 // Filter menu
                 Menu {
                     Button(action: { selectedFilter = .all }) {
@@ -664,27 +909,186 @@ struct TaskManagementView: View {
         .animation(.easeOut(duration: 0.6).delay(0.2), value: animateIn)
     }
     
+    private func addQuickTask() {
+        guard let release = selectedRelease,
+              let firstColumn = taskColumns.first else { return }
+        
+        let newNote = Note(
+            title: "New Task",
+            content: "Task description",
+            category: .today
+        )
+        
+        // Add note to store
+        noteStore.notes.append(newNote)
+        
+        // Add note to first column
+        if let columnIndex = noteStore.columns.firstIndex(where: { $0.id == firstColumn.id }) {
+            var updatedColumn = noteStore.columns[columnIndex]
+            updatedColumn.noteIds.append(newNote.id)
+            noteStore.columns[columnIndex] = updatedColumn
+            noteStore.updateColumn(updatedColumn)
+        }
+        
+        noteStore.saveNotes()
+        
+        // Refresh task data
+        loadTaskDataForRelease(release)
+    }
+    
+    private func refreshTaskData() {
+        guard let release = selectedRelease else { return }
+        loadTaskDataForRelease(release)
+    }
+    
     private var taskBoard: some View {
+        Group {
+            if isLoadingColumns {
+                loadingView
+            } else if taskColumns.isEmpty {
+                emptyColumnsView
+            } else {
+                taskColumnsView
+            }
+        }
+    }
+    
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.2)
+                .progressViewStyle(CircularProgressViewStyle(tint: accentColor))
+            
+            Text("Loading task columns...")
+                .font(.system(size: 16))
+                .foregroundColor(.gray)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(primaryBgColor)
+    }
+    
+    private var emptyColumnsView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "rectangle.3.group")
+                .font(.system(size: 48))
+                .foregroundColor(.gray.opacity(0.3))
+            
+            VStack(spacing: 8) {
+                Text("No Task Columns")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                
+                Text("Create your first release to start organizing tasks")
+                    .font(.system(size: 16))
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+            }
+            
+            if selectedProject != nil && selectedRelease == nil {
+                Button(action: {
+                    isAddingRelease = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Create First Release")
+                    }
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(accentGradient)
+                    .cornerRadius(24)
+                    .shadow(color: accentColor.opacity(0.3), radius: 5, x: 0, y: 2)
+                }
+                .buttonStyle(AnimatedButtonStyle())
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .opacity(animateIn ? 1 : 0)
+        .animation(.easeOut(duration: 0.6).delay(0.4), value: animateIn)
+    }
+    
+    private var taskColumnsView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: isCompactMode ? 8 : 16) {
-                if let release = selectedRelease {
-                    let columns = noteStore.getColumnsForRelease(release)
-                    
-                    ForEach(Array(zip(columns.indices, columns)), id: \.1.id) { index, column in
-                        NoteColumnView(
-                            column: column,
-                            notes: filteredTasks[column.id] ?? [],
-                            noteStore: noteStore
-                        )
-                        .frame(width: isCompactMode ? 280 : 320)
-                        .opacity(animateIn ? 1 : 0)
-                        .offset(y: animateIn ? 0 : 50)
-                        .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.3 + Double(index) * 0.1), value: animateIn)
-                    }
+                ForEach(Array(zip(taskColumns.indices, taskColumns)), id: \.1.id) { index, column in
+                    NoteColumnView(
+                        column: column,
+                        notes: filteredTasks[column.id] ?? [],
+                        noteStore: noteStore
+                    )
+                    .frame(width: isCompactMode ? 280 : 320)
+                    .opacity(animateIn ? 1 : 0)
+                    .offset(y: animateIn ? 0 : 50)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.3 + Double(index) * 0.1), value: animateIn)
                 }
+                
+                // Add column button
+                addColumnButton
             }
             .padding()
         }
+        .refreshable {
+            // Refresh task data when user pulls to refresh
+            if let release = selectedRelease {
+                loadTaskDataForRelease(release)
+            }
+        }
+    }
+    
+    private var addColumnButton: some View {
+        VStack(spacing: 16) {
+            Button(action: {
+                addNewColumn()
+            }) {
+                VStack(spacing: 12) {
+                    Image(systemName: "plus.circle.dashed")
+                        .font(.system(size: 32))
+                        .foregroundColor(.gray.opacity(0.6))
+                    
+                    Text("Add Column")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.gray.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity, minHeight: 200)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.clear)
+                        .stroke(Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .frame(width: isCompactMode ? 280 : 320)
+        .opacity(animateIn ? 0.6 : 0)
+        .animation(.easeOut(duration: 0.6).delay(0.8), value: animateIn)
+    }
+    
+    private func addNewColumn() {
+        guard let release = selectedRelease else { return }
+        
+        let newColumnTitle = "New Column"
+        let newColumn = NoteColumn(
+            title: newColumnTitle,
+            order: taskColumns.count,
+            color: availableColors.randomElement() ?? .blue
+        )
+        
+        // Add to noteStore
+        noteStore.columns.append(newColumn)
+        noteStore.updateColumn(newColumn)
+        
+        // Update release with new column ID
+        if let releaseIndex = noteStore.releases.firstIndex(where: { $0.id == release.id }) {
+            var updatedRelease = release
+            updatedRelease.columnIds.append(newColumn.id)
+            noteStore.releases[releaseIndex] = updatedRelease
+            noteStore.updateRelease(updatedRelease)
+        }
+        
+        // Refresh local data
+        loadTaskDataForRelease(release)
     }
     
     private var emptyStateView: some View {
@@ -799,11 +1203,25 @@ struct TaskManagementView: View {
                         
                         if newProjectLogoImage != nil {
                             Button(action: {
-                                newProjectLogoImage = nil
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    newProjectLogoImage = nil
+                                }
                             }) {
-                                Text("Remove Logo")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.red.opacity(0.8))
+                                HStack(spacing: 4) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 10))
+                                    Text("Remove Logo")
+                                        .font(.system(size: 12, weight: .medium))
+                                }
+                                .foregroundColor(.red.opacity(0.8))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                                )
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
@@ -1068,7 +1486,10 @@ struct TaskManagementView: View {
             
             // Auto-select the new release
             let newReleases = noteStore.getReleasesForProject(selectedProject)
-            selectedRelease = newReleases.first { $0.version == newReleaseVersion }
+            if let newRelease = newReleases.first(where: { $0.version == newReleaseVersion }) {
+                selectedRelease = newRelease
+                // This will trigger handleReleaseSelection and load task data
+            }
             
             isAddingRelease = false
             resetReleaseForm()
@@ -1486,6 +1907,71 @@ struct ColumnRowView: View {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(isHovered ? Color(hex: "#1C1C1E") : Color.clear)
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+struct EnhancedColumnRowView: View {
+    let column: NoteColumn
+    let taskCount: Int
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Column color indicator
+            RoundedRectangle(cornerRadius: 3)
+                .fill(column.color ?? .gray)
+                .frame(width: 6, height: 24)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(column.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                
+                Text("Order: \(column.order + 1)")
+                    .font(.system(size: 11))
+                    .foregroundColor(.gray.opacity(0.7))
+            }
+            
+            Spacer()
+            
+            // Task count with progress indicator
+            HStack(spacing: 6) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 11))
+                    .foregroundColor(.gray.opacity(0.8))
+                
+                Text("\(taskCount)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(taskCount > 0 ? (column.color ?? .gray).opacity(0.2) : Color.gray.opacity(0.1))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(taskCount > 0 ? (column.color ?? .gray).opacity(0.4) : Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? Color(hex: "#1C1C1E") : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isHovered ? (column.color ?? .gray).opacity(0.3) : Color.clear, lineWidth: 1)
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {

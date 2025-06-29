@@ -547,8 +547,8 @@ class NoteStore: ObservableObject {
     }
     
     private func createDefaultColumnsForRelease(_ releaseId: UUID) {
-        let defaultColumnTitles = ["Backlog", "In Progress", "Review", "Done"]
-        let defaultColors: [Color] = [.blue, .orange, .purple, .green]
+        let defaultColumnTitles = ["Backlog", "In Progress", "Today", "Review", "Done", "Cancelled"]
+        let defaultColors: [Color] = [.blue, .orange, .purple, .green, .red, .gray]
         
         var newColumnIds: [UUID] = []
         
@@ -608,12 +608,6 @@ class NoteStore: ObservableObject {
 
         print("No saved notes found")
         
-        // Add sample notes if no saved notes found
-        notes = [
-            Note(title: "Welcome to Notes", content: "This is a sample note to get you started. You can create new notes, edit them, and mark favorites.", category: .uncategorized),
-            Note(title: "Meeting Notes", content: "Discuss project timeline and deliverables", isFavorite: true, category: .backlog),
-            Note(title: "Shopping List", content: "- Milk\n- Eggs\n- Bread\n- Fruits", category: .today)
-        ]
     }
     
     private func saveProjects() {

@@ -1169,7 +1169,7 @@ struct TaskActionButton: View {
             .animation(.easeInOut(duration: 0.2), value: isHovered)
         }
         .buttonStyle(PlainButtonStyle())
-        .cornerRadius(8)
+        .cornerRadius(55)
         .onHover { hovering in
             onHover(hovering)
         }
