@@ -14,7 +14,17 @@ struct Note: Identifiable, Codable, Hashable {
     var estimatedTime: String?
     var isCompleted: Bool
     
-    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil) {
+    // Scheduled task properties
+    var isScheduled: Bool
+    var scheduledDate: Date?
+    var scheduledTime: Date?
+    var priority: TaskPriority
+    var imageData: Data? // Store task image as Data
+    var description: String? // Additional description for scheduled tasks
+    var reminderMinutes: Int? // Minutes before scheduled time to show reminder
+    var hasBeenNotified: Bool // Track if notification has been shown
+    
+    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil, isScheduled: Bool = false, scheduledDate: Date? = nil, scheduledTime: Date? = nil, priority: TaskPriority = .medium, imageData: Data? = nil, description: String? = nil, reminderMinutes: Int? = nil, hasBeenNotified: Bool = false) {
         self.id = id
         self.title = title
         self.content = content
@@ -26,6 +36,14 @@ struct Note: Identifiable, Codable, Hashable {
         self.color = color
         self.estimatedTime = estimatedTime
         self.isCompleted = isCompleted
+        self.isScheduled = isScheduled
+        self.scheduledDate = scheduledDate
+        self.scheduledTime = scheduledTime
+        self.priority = priority
+        self.imageData = imageData
+        self.description = description
+        self.reminderMinutes = reminderMinutes
+        self.hasBeenNotified = hasBeenNotified
     }
     
     // Hashable conformance
@@ -35,6 +53,33 @@ struct Note: Identifiable, Codable, Hashable {
     
     static func == (lhs: Note, rhs: Note) -> Bool {
         lhs.id == rhs.id
+    }
+}
+
+enum TaskPriority: String, Codable, CaseIterable, Identifiable {
+    case low = "Low"
+    case medium = "Medium"
+    case high = "High"
+    case urgent = "Urgent"
+    
+    var id: String { self.rawValue }
+    
+    var color: Color {
+        switch self {
+        case .low: return .blue
+        case .medium: return .green
+        case .high: return .orange
+        case .urgent: return .red
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .low: return "arrow.down.circle"
+        case .medium: return "minus.circle"
+        case .high: return "arrow.up.circle"
+        case .urgent: return "exclamationmark.triangle.fill"
+        }
     }
 }
 
@@ -338,6 +383,102 @@ class NoteStore: ObservableObject {
         let newNote = Note(id: id, title: title, content: content, category: category)
         notes.append(newNote)
         saveNotes()
+    }
+    
+    // MARK: - Scheduled Task Methods
+    func addScheduledNote(
+        id: UUID = UUID(),
+        title: String,
+        content: String = "",
+        description: String? = nil,
+        scheduledDate: Date,
+        scheduledTime: Date,
+        priority: TaskPriority,
+        estimatedTime: String? = nil,
+        reminderMinutes: Int? = 15,
+        imageData: Data? = nil,
+        category: NoteCategory = .today
+    ) {
+        let scheduledNote = Note(
+            id: id,
+            title: title,
+            content: content,
+            category: category,
+            estimatedTime: estimatedTime,
+            isScheduled: true,
+            scheduledDate: scheduledDate,
+            scheduledTime: scheduledTime,
+            priority: priority,
+            imageData: imageData,
+            description: description,
+            reminderMinutes: reminderMinutes
+        )
+        notes.append(scheduledNote)
+        saveNotes()
+    }
+    
+    func getScheduledNotes() -> [Note] {
+        return notes.filter { $0.isScheduled && !$0.isCompleted }
+            .sorted { note1, note2 in
+                guard let date1 = note1.scheduledDate,
+                      let time1 = note1.scheduledTime,
+                      let date2 = note2.scheduledDate,
+                      let time2 = note2.scheduledTime else {
+                    return false
+                }
+                
+                let combined1 = Calendar.current.date(
+                    bySettingHour: Calendar.current.component(.hour, from: time1),
+                    minute: Calendar.current.component(.minute, from: time1),
+                    second: 0,
+                    of: date1
+                ) ?? date1
+                
+                let combined2 = Calendar.current.date(
+                    bySettingHour: Calendar.current.component(.hour, from: time2),
+                    minute: Calendar.current.component(.minute, from: time2),
+                    second: 0,
+                    of: date2
+                ) ?? date2
+                
+                return combined1 < combined2
+            }
+    }
+    
+    func getOverdueScheduledNotes() -> [Note] {
+        let now = Date()
+        return getScheduledNotes().filter { note in
+            guard let scheduledDate = note.scheduledDate,
+                  let scheduledTime = note.scheduledTime else { return false }
+            
+            let combinedDateTime = Calendar.current.date(
+                bySettingHour: Calendar.current.component(.hour, from: scheduledTime),
+                minute: Calendar.current.component(.minute, from: scheduledTime),
+                second: 0,
+                of: scheduledDate
+            ) ?? scheduledDate
+            
+            return combinedDateTime < now
+        }
+    }
+    
+    func getUpcomingScheduledNotes(within minutes: Int = 15) -> [Note] {
+        let now = Date()
+        let futureTime = Calendar.current.date(byAdding: .minute, value: minutes, to: now) ?? now
+        
+        return getScheduledNotes().filter { note in
+            guard let scheduledDate = note.scheduledDate,
+                  let scheduledTime = note.scheduledTime else { return false }
+            
+            let combinedDateTime = Calendar.current.date(
+                bySettingHour: Calendar.current.component(.hour, from: scheduledTime),
+                minute: Calendar.current.component(.minute, from: scheduledTime),
+                second: 0,
+                of: scheduledDate
+            ) ?? scheduledDate
+            
+            return combinedDateTime > now && combinedDateTime <= futureTime && !note.hasBeenNotified
+        }
     }
     
     func updateNote(_ note: Note) {

@@ -19,9 +19,33 @@ struct FloatingSidebarView: View {
     @State private var dismissTimer: Timer?
     @State private var recentlySkippedNoteId: UUID? = nil
     
+    // Scheduled Task Properties
+    @State private var selectedTaskTab: TaskTab = .regular
+    @State private var scheduledDate = Date()
+    @State private var scheduledTime = Date()
+    @State private var taskPriority: TaskPriority = .medium
+    @State private var taskDescription = ""
+    @State private var reminderMinutes = 15
+    @State private var selectedImage: NSImage?
+    @State private var showingImagePicker = false
+    
+    @StateObject private var notificationService = ScheduledTaskNotificationService.shared
+    
     let controller: FloatingSidebarController
     let onClose: () -> Void
     let focusCardController = FocusCardController()
+    
+    enum TaskTab: String, CaseIterable {
+        case regular = "Regular"
+        case scheduled = "Scheduled"
+        
+        var iconName: String {
+            switch self {
+            case .regular: return "plus.circle"
+            case .scheduled: return "calendar.badge.clock"
+            }
+        }
+    }
     
     // MARK: - Body
     var body: some View {
@@ -62,6 +86,9 @@ struct FloatingSidebarView: View {
             isFocused = true
             firstNote = findFirstNote()
             
+            // Initialize notification service
+            notificationService.setNoteStore(noteStore)
+            
             // Debug: Print tick sound file status
             print("Tick sound file status: \n\(TickSoundService.shared.debugSoundFileStatus())")
             
@@ -76,6 +103,29 @@ struct FloatingSidebarView: View {
             // Test play the sound once
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 TickSoundService.shared.playTestSound()
+            }
+        }
+        .sheet(isPresented: $notificationService.showingScheduledAlert) {
+            if let task = notificationService.currentScheduledTask {
+                ScheduledTaskAlertView(
+                    task: task,
+                    onDismiss: {
+                        notificationService.dismissAlert()
+                    },
+                    onStartTask: {
+                        notificationService.dismissAlert()
+                        // Move task to top of list and start it
+                        firstNote = task
+                    },
+                    onSnooze: { minutes in
+                        // Implement snooze functionality
+                        var updatedTask = task
+                        updatedTask.scheduledTime = Calendar.current.date(byAdding: .minute, value: minutes, to: updatedTask.scheduledTime ?? Date()) ?? Date()
+                        updatedTask.hasBeenNotified = false
+                        noteStore.updateNote(updatedTask)
+                        notificationService.dismissAlert()
+                    }
+                )
             }
         }
     }
@@ -109,30 +159,106 @@ struct FloatingSidebarView: View {
     
     private var addTaskView: some View {
         VStack(spacing: 12) {
-            HStack {
-                Text("CANCEL")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray)
-                    .onTapGesture {
-                        isAddingNote = false
+            // Header with tabs
+            VStack(spacing: 12) {
+                HStack {
+                    Text("CANCEL")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
+                        .onTapGesture {
+                            resetTaskForm()
+                            isAddingNote = false
+                        }
+                        .keyboardShortcut(.escape)
+                    
+                    Spacer()
+                    
+                    Text("Create Task")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button(action: selectedTaskTab == .regular ? createNewNote : createScheduledTask) {
+                        Text("Confirm")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color(hex: "#4CAF50"), Color(hex: "#45A049")]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
+                            )
+                            .cornerRadius(20)
                     }
-                    .keyboardShortcut(.escape)
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(newNoteTitle.isEmpty)
+                    .opacity(newNoteTitle.isEmpty ? 0.5 : 1.0)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
                 
-                Spacer()
-                
-                Text("Title")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray)
-                
-                Spacer()
-                
-                Text("Est time")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray)
+                // Tab Selector
+                HStack(spacing: 0) {
+                    ForEach(TaskTab.allCases, id: \.self) { tab in
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedTaskTab = tab
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: tab.iconName)
+                                    .font(.system(size: 12))
+                                Text(tab.rawValue)
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundColor(selectedTaskTab == tab ? .white : .gray)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(selectedTaskTab == tab ? Color(hex: "#4CAF50").opacity(0.2) : Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(selectedTaskTab == tab ? Color(hex: "#4CAF50").opacity(0.4) : Color.clear, lineWidth: 0.5)
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
             
+            // Task Form Content
+            if selectedTaskTab == .regular {
+                regularTaskForm
+            } else {
+                scheduledTaskForm
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(hex: "#1C1C1E"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
+    }
+    
+    private var regularTaskForm: some View {
+        VStack(spacing: 12) {
             HStack {
                 TextField("Enter task title*", text: $newNoteTitle)
                     .textFieldStyle(PlainTextFieldStyle())
@@ -175,49 +301,276 @@ struct FloatingSidebarView: View {
             .padding(.horizontal, 16)
             
             HStack {
-                Text("Add a new task")
+                Text("Add a regular task")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.gray)
                 
                 Spacer()
-                
-                Button(action: createNewNote) {
-                    Text("Confirm")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [Color(hex: "#4CAF50"), Color(hex: "#45A049")]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                            )
-                        )
-                        .cornerRadius(20)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .disabled(newNoteTitle.isEmpty)
-                .opacity(newNoteTitle.isEmpty ? 0.5 : 1.0)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(hex: "#1C1C1E"))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                )
-        )
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
+    }
+    
+    private var scheduledTaskForm: some View {
+        VStack(spacing: 16) {
+            // Title and Description
+            VStack(spacing: 8) {
+                TextField("Enter task title*", text: $newNoteTitle)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .focused($isFocused)
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    )
+                
+                TextField("Description (optional)", text: $taskDescription, axis: .vertical)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .font(.system(size: 12))
+                    .foregroundColor(.white)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    )
+                    .frame(minHeight: 40)
+            }
+            .padding(.horizontal, 16)
+            
+            // Date and Time Selection
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Schedule")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+                
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Date")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        DatePicker("", selection: $scheduledDate, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .colorScheme(.dark)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Time")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        DatePicker("", selection: $scheduledTime, displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.compact)
+                            .colorScheme(.dark)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Est. Time")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        TextField("00:00", text: $estimatedTime)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .font(.system(size: 12))
+                            .foregroundColor(.white)
+                            .frame(width: 50)
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color(hex: "#2C2C2E"))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                    )
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            
+            // Priority and Reminder
+            VStack(spacing: 8) {
+                HStack {
+                    // Priority Selector
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Priority")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        
+                        Menu {
+                            ForEach(TaskPriority.allCases) { priority in
+                                Button(action: { taskPriority = priority }) {
+                                    HStack {
+                                        Image(systemName: priority.iconName)
+                                        Text(priority.rawValue)
+                                        if taskPriority == priority {
+                                            Spacer()
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                    .foregroundColor(priority.color)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: taskPriority.iconName)
+                                    .font(.system(size: 12))
+                                Text(taskPriority.rawValue)
+                                    .font(.system(size: 12))
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundColor(taskPriority.color)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color(hex: "#2C2C2E"))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    
+                    Spacer()
+                    
+                    // Reminder Selector
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Remind me")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        
+                        Menu {
+                            Button("5 minutes before") { reminderMinutes = 5 }
+                            Button("15 minutes before") { reminderMinutes = 15 }
+                            Button("30 minutes before") { reminderMinutes = 30 }
+                            Button("1 hour before") { reminderMinutes = 60 }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "bell")
+                                    .font(.system(size: 12))
+                                Text("\(reminderMinutes)m before")
+                                    .font(.system(size: 12))
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color(hex: "#2C2C2E"))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            
+            // Image Upload Section
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Attach Image (optional)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+                
+                if let selectedImage = selectedImage {
+                    HStack {
+                        Image(nsImage: selectedImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 60, height: 60)
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                        
+                        VStack(alignment: .leading) {
+                            Text("Image attached")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white)
+                            Text("Tap to change")
+                                .font(.system(size: 10))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: { self.selectedImage = nil }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    )
+                    .onTapGesture {
+                        showImagePicker()
+                    }
+                } else {
+                    Button(action: showImagePicker) {
+                        HStack {
+                            Image(systemName: "photo")
+                                .font(.system(size: 16))
+                            Text("Add Image")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(hex: "#2C2C2E"))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding(.horizontal, 16)
+            
+            HStack {
+                Text("Create a scheduled task")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.gray)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+        }
     }
     
     private var addTaskButton: some View {
@@ -269,7 +622,8 @@ struct FloatingSidebarView: View {
     private var taskListView: some View {
         ScrollView {
             LazyVStack(spacing: 4) {
-                ForEach(noteStore.getPendingNotes()) { note in
+                // Regular tasks
+                ForEach(noteStore.getPendingNotes().filter { !$0.isScheduled }) { note in
                     TaskRowView(
                         note: note,
                         firstNote: firstNote,
@@ -280,43 +634,10 @@ struct FloatingSidebarView: View {
                             isCompleted = true
                         },
                         onSkip: { skippedNote in
-                            // Set the recently skipped note ID
-                            recentlySkippedNoteId = skippedNote.id
-                            
-                            // Show a notification using UNUserNotificationCenter
-                            let content = UNMutableNotificationContent()
-                            content.title = "Task Moved"
-                            content.body = "'\(skippedNote.title)' moved to the end of the list"
-                            content.sound = UNNotificationSound.default
-                            
-                            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-                            UNUserNotificationCenter.current().add(request) { error in
-                                if let error = error {
-                                    print("Error showing notification: \(error.localizedDescription)")
-                                }
-                            }
-                            
-                            // Clear the highlight after a delay
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                                withAnimation {
-                                    recentlySkippedNoteId = nil
-                                }
-                            }
+                            handleTaskSkip(skippedNote)
                         }
                     )
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(note.id == recentlySkippedNoteId ? 
-                                  Color(hex: "#9333EA").opacity(0.2) :
-                                  Color(hex: "#2C2C2E"))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(note.id == recentlySkippedNoteId ?
-                                            Color(hex: "#9333EA").opacity(0.5) :
-                                            Color.white.opacity(0.08), 
-                                            lineWidth: 0.5)
-                            )
-                    )
+                    .background(taskRowBackground(for: note))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 2)
                     .transition(.asymmetric(
@@ -324,28 +645,13 @@ struct FloatingSidebarView: View {
                         removal: .opacity.combined(with: .scale(scale: 0.8))
                     ))
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: recentlySkippedNoteId == note.id)
-                    .overlay(
-                        Group {
-                            if note.id == recentlySkippedNoteId {
-                                HStack {
-                                    Spacer()
-                                    Text("Moved to end")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 4)
-                                                .fill(Color(hex: "#9333EA"))
-                                        )
-                                }
-                                .padding(.trailing, 16)
-                                .padding(.bottom, 4)
-                                .transition(.scale.combined(with: .opacity))
-                            }
-                        }
-                        , alignment: .bottomTrailing
-                    )
+                    .overlay(taskRowOverlay(for: note), alignment: .bottomTrailing)
+                }
+                
+                // Scheduled tasks section
+                let scheduledTasks = noteStore.getScheduledNotes()
+                if !scheduledTasks.isEmpty {
+                    scheduledTasksSection(scheduledTasks)
                 }
             }
             .padding(.vertical, 8)
@@ -353,6 +659,124 @@ struct FloatingSidebarView: View {
         .background(Color(hex: "#1C1C1E"))
         .onDisappear {
             dismissTimer?.invalidate()
+        }
+    }
+    
+    private func handleTaskSkip(_ skippedNote: Note) {
+        // Set the recently skipped note ID
+        recentlySkippedNoteId = skippedNote.id
+        
+        // Show a notification using UNUserNotificationCenter
+        let content = UNMutableNotificationContent()
+        content.title = "Task Moved"
+        content.body = "'\(skippedNote.title)' moved to the end of the list"
+        content.sound = UNNotificationSound.default
+        
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error showing notification: \(error.localizedDescription)")
+            }
+        }
+        
+        // Clear the highlight after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation {
+                recentlySkippedNoteId = nil
+            }
+        }
+    }
+    
+    private func taskRowBackground(for note: Note) -> some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(note.id == recentlySkippedNoteId ? 
+                  Color(hex: "#9333EA").opacity(0.2) :
+                  (note.isScheduled ? Color(hex: "#4CAF50").opacity(0.1) : Color(hex: "#2C2C2E")))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(note.id == recentlySkippedNoteId ?
+                            Color(hex: "#9333EA").opacity(0.5) :
+                            (note.isScheduled ? Color(hex: "#4CAF50").opacity(0.3) : Color.white.opacity(0.08)), 
+                            lineWidth: 0.5)
+            )
+    }
+    
+    private func taskRowOverlay(for note: Note) -> some View {
+        Group {
+            if note.id == recentlySkippedNoteId {
+                HStack {
+                    Spacer()
+                    Text("Moved to end")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(hex: "#9333EA"))
+                        )
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 4)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+    }
+    
+    private func scheduledTasksSection(_ scheduledTasks: [Note]) -> some View {
+        VStack(spacing: 8) {
+            // Section header
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: "#4CAF50"))
+                    
+                    Text("Scheduled Tasks")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(hex: "#4CAF50"))
+                }
+                
+                Spacer()
+                
+                Text("\(scheduledTasks.count)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(hex: "#4CAF50").opacity(0.2))
+                    )
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            
+            // Scheduled tasks list
+            ForEach(scheduledTasks) { note in
+                ScheduledTaskRowView(
+                    note: note,
+                    firstNote: firstNote,
+                    noteStore: noteStore,
+                    onDone: { elapsedTime in
+                        firstNote = findFirstNote()
+                        completedTaskTime = elapsedTime
+                        isCompleted = true
+                    },
+                    onSkip: { skippedNote in
+                        handleTaskSkip(skippedNote)
+                    }
+                )
+                .background(taskRowBackground(for: note))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 2)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.8)),
+                    removal: .opacity.combined(with: .scale(scale: 0.8))
+                ))
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: recentlySkippedNoteId == note.id)
+                .overlay(taskRowOverlay(for: note), alignment: .bottomTrailing)
+            }
         }
     }
     
@@ -662,18 +1086,65 @@ struct FloatingSidebarView: View {
                 content: "",
                 category: .today
             )
+            resetTaskForm()
             isAddingNote = false
-            newNoteTitle = ""
-            estimatedTime = "00:00"
             focusOnNewNote()
             firstNote = findFirstNote()
-
 
              if let newNoteId = noteStore.notes.last?.id,
                 let updatedColumn = noteStore.columns.first(where: { $0.title == "Today" }) {
                 var mutableColumn = updatedColumn
                 mutableColumn.noteIds.append(newNoteId)
                 noteStore.updateColumn(mutableColumn)
+            }
+        }
+    }
+    
+    private func createScheduledTask() {
+        if !newNoteTitle.isEmpty {
+            let imageData = selectedImage?.tiffRepresentation
+            
+            noteStore.addScheduledNote(
+                title: newNoteTitle,
+                description: taskDescription.isEmpty ? nil : taskDescription,
+                scheduledDate: scheduledDate,
+                scheduledTime: scheduledTime,
+                priority: taskPriority,
+                estimatedTime: estimatedTime.isEmpty ? nil : estimatedTime,
+                reminderMinutes: reminderMinutes,
+                imageData: imageData,
+                category: .today
+            )
+            
+            resetTaskForm()
+            isAddingNote = false
+            firstNote = findFirstNote()
+        }
+    }
+    
+    private func resetTaskForm() {
+        newNoteTitle = ""
+        estimatedTime = "00:00"
+        taskDescription = ""
+        scheduledDate = Date()
+        scheduledTime = Date()
+        taskPriority = .medium
+        reminderMinutes = 15
+        selectedImage = nil
+        selectedTaskTab = .regular
+    }
+    
+    private func showImagePicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        
+        if panel.runModal() == .OK {
+            if let url = panel.url,
+               let image = NSImage(contentsOf: url) {
+                selectedImage = image
             }
         }
     }
@@ -1414,6 +1885,407 @@ extension FloatingSidebarView {
                 "Mission accomplished!"
             ]
             return messages.randomElement() ?? "You finished the task!"
+        }
+    }
+}
+
+// MARK: - Scheduled Task Row View
+struct ScheduledTaskRowView: View {
+    var note: Note
+    var firstNote: Note?
+    @ObservedObject var noteStore: NoteStore
+    let onDone: (TimeInterval) -> Void
+    let onSkip: (Note) -> Void
+
+    @State private var isNotes = false
+    @State private var isSkipping = false
+    @State private var isBreak = false
+    @State private var breakTime: TimeInterval = 0
+    @State private var isHovered = false
+    @State private var editableTitle: String = ""
+    @State private var timer: Timer?
+    @State private var elapsedTime: TimeInterval = 0
+    @State private var hoveredButton: String? = nil
+    
+    var body: some View {
+        VStack {
+            if !isNotes && isHovered && firstNote?.id == note.id {
+                actionButtonsView
+            } else {
+                if isBreak {
+                    breakModeView
+                } else {
+                    scheduledTaskView
+                }
+            }
+
+            if isNotes {
+                NotePadTextEditorView(noteStore: noteStore, isNoteIcon: $isNotes)
+            }
+        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+                if !hovering {
+                    hoveredButton = nil
+                }
+            }
+        }
+        .onAppear {
+            editableTitle = note.title
+            
+            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                if !isBreak {
+                    elapsedTime += 1
+                } else {
+                    breakTime += 1
+                }
+            }
+        }
+        .onDisappear {
+            timer?.invalidate()
+        }
+        .offset(x: isSkipping ? -NSScreen.main!.frame.width : 0)
+        .opacity(isSkipping ? 0 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSkipping)
+    }
+    
+    private var actionButtonsView: some View {
+        HStack(spacing: 8) {
+            if !isBreak {
+                // Done button
+                TaskActionButton(
+                    icon: "checkmark.circle.fill",
+                    label: "Done",
+                    isHovered: hoveredButton == "done",
+                    color: Color(hex: "#4CAF50"),
+                    action: {
+                        var updatedNote = note
+                        updatedNote.isCompleted = true
+                        updatedNote.actualTime = elapsedTime
+                        noteStore.updateNote(updatedNote)
+                        onDone(elapsedTime)
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "done" : nil
+                    }
+                )
+                
+                // Notes button
+                TaskActionButton(
+                    icon: "note.text",
+                    label: "Notes",
+                    isHovered: hoveredButton == "notes",
+                    color: Color(hex: "#3B82F6"),
+                    action: {
+                        isNotes.toggle()
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "notes" : nil
+                    }
+                )
+                
+                // Break button
+                TaskActionButton(
+                    icon: "timer",
+                    label: "Break",
+                    isHovered: hoveredButton == "break",
+                    color: Color(hex: "#F59E0B"),
+                    action: {
+                        isBreak = true
+                        breakTime = elapsedTime
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "break" : nil
+                    }
+                )
+                
+                // Skip button
+                TaskActionButton(
+                    icon: "arrow.right.circle",
+                    label: "Skip",
+                    isHovered: hoveredButton == "skip",
+                    color: Color(hex: "#9333EA"),
+                    action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isSkipping = true
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            noteStore.moveNoteToEnd(note)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                isSkipping = false
+                            }
+                        }
+                        
+                        onSkip(note)
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "skip" : nil
+                    }
+                )
+                
+                // Delete button
+                TaskActionButton(
+                    icon: "trash",
+                    label: "Delete",
+                    isHovered: hoveredButton == "delete",
+                    color: Color(hex: "#EF4444"),
+                    action: {
+                        noteStore.deleteNote(id: note.id)
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "delete" : nil
+                    }
+                )
+            } else {
+                breakModeView
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color(hex: "#2C2C2E"), Color(hex: "#262628")]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.white.opacity(0.1), Color.white.opacity(0.05)]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
+        )
+    }
+    
+    private var breakModeView: some View {
+        HStack {
+            Text("Break")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            Text(formatTime(breakTime))
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(.white)
+            
+            TaskActionButton(
+                icon: "arrow.right.circle",
+                label: "Resume",
+                isHovered: hoveredButton == "resume",
+                color: Color(hex: "#4CAF50"),
+                action: {
+                    isBreak = false
+                    breakTime = 0
+                },
+                onHover: { isHovering in
+                    hoveredButton = isHovering ? "resume" : nil
+                }
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color(hex: "#1C1C1E"), Color(hex: "#2C2C2E")]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.05)]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
+        )
+    }
+    
+    private var scheduledTaskView: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                // Priority indicator
+                VStack {
+                    Image(systemName: note.priority.iconName)
+                        .font(.system(size: 14))
+                        .foregroundColor(note.priority.color)
+                    
+                    Text(note.priority.rawValue)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(note.priority.color)
+                }
+                .frame(width: 40)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("", text: Binding(
+                        get: { editableTitle },
+                        set: { 
+                            editableTitle = $0
+                            saveTitle()
+                        }
+                    ), onCommit: {
+                        saveTitle()
+                    })
+                    .font(.system(size: 14, weight: note.isCompleted ? .regular : .medium))
+                    .foregroundColor(note.isCompleted ? .gray : .white)
+                    .strikethrough(note.isCompleted)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .lineLimit(1)
+                    
+                    if let description = note.description, !description.isEmpty {
+                        Text(description)
+                            .font(.system(size: 11))
+                            .foregroundColor(.gray)
+                            .lineLimit(2)
+                    }
+                    
+                    HStack(spacing: 8) {
+                        if let scheduledDate = note.scheduledDate,
+                           let scheduledTime = note.scheduledTime {
+                            Label(formatScheduledDateTime(date: scheduledDate, time: scheduledTime), systemImage: "calendar")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                        
+                        if let estimatedTime = note.estimatedTime, !estimatedTime.isEmpty {
+                            Label("Est: \(estimatedTime)", systemImage: "clock")
+                                .font(.system(size: 10))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+                
+                Spacer(minLength: 4)
+                
+                VStack(spacing: 4) {
+                    if firstNote?.id == note.id {
+                        timerView
+                    }
+                    
+                    // Task image thumbnail
+                    if let imageData = note.imageData, let nsImage = NSImage(data: imageData) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 40, height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            firstNote?.id == note.id ? Color(hex: "#2A4A2D") : Color(hex: "#2C2C2E"),
+                            firstNote?.id == note.id ? Color(hex: "#263026") : Color(hex: "#262628")
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            firstNote?.id == note.id ? 
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color(hex: "#4CAF50").opacity(0.4), Color(hex: "#45A049").opacity(0.3)]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ) : 
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color(hex: "#4CAF50").opacity(0.2), Color(hex: "#45A049").opacity(0.1)]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                            lineWidth: 0.5
+                        )
+                )
+        )
+    }
+    
+    private var timerView: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .font(.system(size: 14))
+                .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
+            
+            Text(formatTime(elapsedTime))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(hex: "#4CAF50").opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(hex: "#4CAF50").opacity(0.2), lineWidth: 0.5)
+                )
+        )
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let hours = Int(time) / 3600
+        let minutes = Int(time) % 3600 / 60
+        let seconds = Int(time) % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+    
+    private func formatScheduledDateTime(date: Date, time: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        let dateFormatter = DateFormatter()
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeStyle = .short
+        
+        if calendar.isDateInToday(date) {
+            return "Today \(timeFormatter.string(from: time))"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow \(timeFormatter.string(from: time))"
+        } else if calendar.dateInterval(of: .weekOfYear, for: now)?.contains(date) == true {
+            dateFormatter.dateFormat = "EEE"
+            return "\(dateFormatter.string(from: date)) \(timeFormatter.string(from: time))"
+        } else {
+            dateFormatter.dateStyle = .short
+            return "\(dateFormatter.string(from: date)) \(timeFormatter.string(from: time))"
+        }
+    }
+    
+    private func saveTitle() {
+        if editableTitle != note.title {
+            var updatedNote = note
+            updatedNote.title = editableTitle
+            noteStore.updateNote(updatedNote)
         }
     }
 }
