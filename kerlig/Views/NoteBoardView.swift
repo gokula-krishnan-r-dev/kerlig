@@ -342,7 +342,10 @@ struct NoteBoardView: View {
                     NoteColumnView(
                         column: column,
                         notes: filteredNotes[column.id] ?? [],
-                        noteStore: noteStore
+                        noteStore: noteStore,
+                        refresh: {
+                            noteStore.loadNotes()
+                        }
                     )
                     .onAppear {
                         noteStore.loadNotes()

@@ -12,6 +12,7 @@ struct NoteColumnView: View {
     @State private var isHovering = false
     @State private var notesVisible = false
     
+    let refresh: (() -> Void)?
     // Define a consistent color palette
     private let primaryBgColor = Color(hex: "#1A1A1C")
     private let secondaryBgColor = Color(hex: "#242426") 
@@ -315,6 +316,8 @@ struct NoteColumnView: View {
             }
             
             resetForm()
+
+            refresh?()
         }
     }
     
