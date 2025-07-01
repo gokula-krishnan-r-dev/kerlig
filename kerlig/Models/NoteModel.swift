@@ -464,14 +464,55 @@ class NoteStore: ObservableObject {
 
     //in notes showonly pending notes
     func getPendingNotes() -> [Note] {
-
-        
         return notes.filter { !$0.isCompleted }
     }
 
     //get a first note from pending notes
-    func getFirstPendingNote() -> Note? {
-        return getPendingNotes().first
+    func getFirstPendingNote(selectedProject: Project?, selectedRelease: Release?) -> Note? {
+        return getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).first
+    }
+    
+    // Get pending notes filtered by project and release
+    func getFilteredPendingNotes(selectedProject: Project?, selectedRelease: Release?) -> [Note] {
+        // If no project/release selected, return all pending notes
+        guard let selectedProject = selectedProject, let selectedRelease = selectedRelease else {
+            return getPendingNotes()
+        }
+        
+        // Get columns for the selected release
+        let releaseColumns = getColumnsForRelease(selectedRelease)
+        
+        // Filter notes that are in the release's columns and not completed
+        return notes.filter { note in
+            let isInReleaseColumn = releaseColumns.contains { column in
+                column.noteIds.contains(note.id)
+            }
+            return isInReleaseColumn && !note.isCompleted
+        }
+    }
+    
+    // Get scheduled notes filtered by project and release
+    func getFilteredScheduledNotes(selectedProject: Project?, selectedRelease: Release?) -> [Note] {
+        return getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).filter { $0.isScheduled }
+    }
+    
+    // Get completed notes filtered by project and release
+    func getFilteredCompletedNotes(selectedProject: Project?, selectedRelease: Release?) -> [Note] {
+        // If no project/release selected, return all completed notes
+        guard let selectedProject = selectedProject, let selectedRelease = selectedRelease else {
+            return getCompletedNotes()
+        }
+        
+        // Get columns for the selected release
+        let releaseColumns = getColumnsForRelease(selectedRelease)
+        
+        // Filter notes that are in the release's columns and completed
+        return notes.filter { note in
+            let isInReleaseColumn = releaseColumns.contains { column in
+                column.noteIds.contains(note.id)
+            }
+            return isInReleaseColumn && note.isCompleted
+        }
     }
 
     //getCompletedNotes
@@ -482,6 +523,22 @@ class NoteStore: ObservableObject {
     //fetch all completed note and sum up the actual time
     func getTotalTimeSpentOnCompletedNotes() -> String {
         let totalSeconds = getCompletedNotes().reduce(0) { $0 + ($1.actualTime ?? 0) }
+        let hours = Int(totalSeconds) / 3600
+        let minutes = Int(totalSeconds) % 3600 / 60
+        let seconds = Int(totalSeconds) % 60
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "\(minutes)m \(seconds)s"
+        } else {
+            return "\(seconds)s"
+        }
+    }
+    
+    // Get total time spent on filtered completed notes
+    func getTotalTimeSpentOnFilteredCompletedNotes(selectedProject: Project?, selectedRelease: Release?) -> String {
+        let totalSeconds = getFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).reduce(0) { $0 + ($1.actualTime ?? 0) }
         let hours = Int(totalSeconds) / 3600
         let minutes = Int(totalSeconds) % 3600 / 60
         let seconds = Int(totalSeconds) % 60

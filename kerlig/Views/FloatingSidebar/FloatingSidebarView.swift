@@ -19,6 +19,12 @@ struct FloatingSidebarView: View {
     @State private var dismissTimer: Timer?
     @State private var recentlySkippedNoteId: UUID? = nil
     
+    // Project and Release Selection
+    @State private var selectedProject: Project?
+    @State private var selectedRelease: Release?
+    @State private var showingProjectSelector = false
+    @State private var showingReleaseSelector = false
+    
     // Scheduled Task Properties
     @State private var selectedTaskTab: TaskTab = .regular
     @State private var scheduledDate = Date()
@@ -52,6 +58,9 @@ struct FloatingSidebarView: View {
         VStack(spacing: 0) {
             headerView
             
+            // Project and Release Selection
+            projectReleaseSelector
+            
             if isAddingNote {
                 addTaskView
             } else {
@@ -64,7 +73,7 @@ struct FloatingSidebarView: View {
             
             taskListView
             
-            if noteStore.getPendingNotes().count == 0 {
+            if noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).count == 0 {
                 Spacer()
                 emptyStateView
                 Spacer()
@@ -84,6 +93,7 @@ struct FloatingSidebarView: View {
         .cornerRadius(20)
         .onAppear {
             isFocused = true
+            setupInitialProjectSelection()
             firstNote = findFirstNote()
             
             // Initialize notification service
@@ -133,7 +143,7 @@ struct FloatingSidebarView: View {
     // MARK: - UI Components
     private var headerView: some View {
         HStack {
-            Text("Today")
+            Text("Tasks")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.white)
             
@@ -155,6 +165,221 @@ struct FloatingSidebarView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+    }
+
+
+
+
+
+
+
+
+
+
+    
+    // MARK: - Project and Release Selector
+    private var projectReleaseSelector: some View {
+        VStack(spacing: 8) {
+            // Project Selector
+            HStack {
+                Text("PROJECT")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.gray)
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            
+            Menu {
+                Button("All Projects") {
+                    selectedProject = nil
+                    selectedRelease = nil
+                    updateTaskData()
+                }
+                
+                ForEach(noteStore.projects.filter { !$0.isArchived }) { project in
+                    Button(action: {
+                        selectedProject = project
+                        // Auto-select first release of the project
+                        let releases = noteStore.getReleasesForProject(project)
+                        selectedRelease = releases.first
+                        updateTaskData()
+
+                          firstNote = findFirstNote()
+                    }) {
+                        HStack {
+                            if let logoData = project.logoImageData,
+                               let nsImage = NSImage(data: logoData) {
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .frame(width: 16, height: 16)
+                                    .clipShape(Circle())
+                                    .overlay(
+                                        Circle()
+                                            .stroke(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [
+                                                        Color.white.opacity(0.3),
+                                                        Color.white.opacity(0.1)
+                                                    ]),
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                ),
+                                                lineWidth: 1
+                                            )
+                                    )
+                                    .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                            }
+                            
+                            Text(project.title)
+                            
+                            if selectedProject?.id == project.id {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    if let project = selectedProject {
+                        if let logoData = project.logoImageData,
+                           let nsImage = NSImage(data: logoData) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .frame(width: 20, height: 20)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(project.color ?? .blue)
+                        }
+                        
+                        Text(project.title)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.blue)
+                        
+                        Text("All Projects")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(hex: "#2C2C2E"))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                        )
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(.horizontal, 8)
+            
+            // Release Selector (only show if project is selected)
+            if let selectedProject = selectedProject {
+                HStack {
+                    Text("RELEASE")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                
+                Menu {
+                    let releases = noteStore.getReleasesForProject(selectedProject)
+                    ForEach(releases) { release in
+                        Button(action: {
+                            selectedRelease = release
+                            updateTaskData()
+                              firstNote = findFirstNote()
+                        }) {
+                            HStack {
+                                Image(systemName: release.status.iconName)
+                                    .foregroundColor(release.status.color)
+                                
+                                VStack(alignment: .leading) {
+                                    Text("v\(release.version)")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text(release.name)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.gray)
+                                }
+                                
+                                if selectedRelease?.id == release.id {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        if let release = selectedRelease {
+                            Image(systemName: release.status.iconName)
+                                .font(.system(size: 16))
+                                .foregroundColor(release.status.color)
+                            
+                            VStack(alignment: .leading) {
+                                Text("v\(release.version)")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white)
+                                Text(release.name)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                        } else {
+                            Image(systemName: "shippingbox.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(.orange)
+                            
+                            Text("Select Release")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(hex: "#2C2C2E"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.horizontal, 8)
+            }
+        }
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(hex: "#1C1C1E"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+        )
+        .padding(.horizontal, 4)
     }
     
     private var addTaskView: some View {
@@ -623,7 +848,7 @@ struct FloatingSidebarView: View {
         ScrollView {
             LazyVStack(spacing: 4) {
                 // Regular tasks
-                ForEach(noteStore.getPendingNotes().filter { !$0.isScheduled }) { note in
+                ForEach(noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).filter { !$0.isScheduled }) { note in
                     TaskRowView(
                         note: note,
                         firstNote: firstNote,
@@ -649,7 +874,7 @@ struct FloatingSidebarView: View {
                 }
                 
                 // Scheduled tasks section
-                let scheduledTasks = noteStore.getScheduledNotes()
+                let scheduledTasks = noteStore.getFilteredScheduledNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)
                 if !scheduledTasks.isEmpty {
                     scheduledTasksSection(scheduledTasks)
                 }
@@ -804,7 +1029,7 @@ struct FloatingSidebarView: View {
         VStack(spacing: 8) {
             HStack {
                 HStack(spacing: 6) {
-                    Text("\(noteStore.getCompletedNotes().count)")
+                    Text("\(noteStore.getFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).count)")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                     
@@ -820,7 +1045,7 @@ struct FloatingSidebarView: View {
                         .font(.system(size: 10))
                         .foregroundColor(.white.opacity(0.6))
                     
-                    Text(noteStore.getTotalTimeSpentOnCompletedNotes())
+                        Text(noteStore.getTotalTimeSpentOnFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.8))
                 }
@@ -837,7 +1062,7 @@ struct FloatingSidebarView: View {
     private var completedTasksList: some View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 4) {
-                ForEach(noteStore.getCompletedNotes()) { note in
+                ForEach(noteStore.getFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)) { note in
                     CompletedTaskRow(note: note)
                 }
             }
@@ -934,8 +1159,58 @@ struct FloatingSidebarView: View {
     }
     
     // MARK: - Helper Methods
+    
+    // Project and Release Management
+    private func setupInitialProjectSelection() {
+        // Auto-select first project if available
+        if let firstProject = noteStore.projects.first(where: { !$0.isArchived }) {
+            selectedProject = firstProject
+            let releases = noteStore.getReleasesForProject(firstProject)
+            selectedRelease = releases.first
+            updateTaskData()
+        }
+    }
+    
+    private func updateTaskData() {
+        // This method is now simplified since filtering logic is handled by NoteStore
+        // Just refresh the first note when selection changes
+        firstNote = findFirstNote()
+    }
+    
+
+    
     private func findFirstNote() -> Note? {
-        return noteStore.getPendingNotes().first
+        return noteStore.getFirstPendingNote(selectedProject: selectedProject, selectedRelease: selectedRelease)
+    }
+    
+
+    
+    private func addTaskToAppropriateColumn(taskId: UUID) {
+        // If no project/release is selected, add to default "Today" column
+        if selectedProject == nil || selectedRelease == nil {
+            if let todayColumn = noteStore.columns.first(where: { $0.title == "Today" }) {
+                var mutableColumn = todayColumn
+                mutableColumn.noteIds.append(taskId)
+                noteStore.updateColumn(mutableColumn)
+            }
+            return
+        }
+        
+        // Get columns for the selected release
+        guard let selectedRelease = selectedRelease else { return }
+        let releaseColumns = noteStore.getColumnsForRelease(selectedRelease)
+        
+        // Add to "Today" column of the selected release if available
+        if let todayColumn = releaseColumns.first(where: { $0.title == "Today" }) {
+            var mutableColumn = todayColumn
+            mutableColumn.noteIds.append(taskId)
+            noteStore.updateColumn(mutableColumn)
+        } else if let firstColumn = releaseColumns.first {
+            // If no "Today" column, add to first available column
+            var mutableColumn = firstColumn
+            mutableColumn.noteIds.append(taskId)
+            noteStore.updateColumn(mutableColumn)
+        }
     }
     
     private func formatTime(_ time: TimeInterval) -> String {
@@ -1005,7 +1280,7 @@ struct FloatingSidebarView: View {
                     VStack(spacing: 12) {
                         Button(action: {
                             // Start tick sound for the next task
-                            if let nextNote = noteStore.getPendingNotes().first {
+                            if let nextNote = noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).first {
                                 TickSoundService.shared.startTicking(interval: 3.0)
                             }
                             
@@ -1080,31 +1355,32 @@ struct FloatingSidebarView: View {
     
     private func createNewNote() {
         if !newNoteTitle.isEmpty {
+            let newId = UUID()
             noteStore.addNote(
-                id: UUID(),
+                id: newId,
                 title: newNoteTitle,
                 content: "",
                 category: .today
             )
+            
+            // Add task to appropriate column based on selected project/release
+            addTaskToAppropriateColumn(taskId: newId)
+            
             resetTaskForm()
             isAddingNote = false
             focusOnNewNote()
+            updateTaskData() // Refresh task data
             firstNote = findFirstNote()
-
-             if let newNoteId = noteStore.notes.last?.id,
-                let updatedColumn = noteStore.columns.first(where: { $0.title == "Today" }) {
-                var mutableColumn = updatedColumn
-                mutableColumn.noteIds.append(newNoteId)
-                noteStore.updateColumn(mutableColumn)
-            }
         }
     }
     
     private func createScheduledTask() {
         if !newNoteTitle.isEmpty {
             let imageData = selectedImage?.tiffRepresentation
+            let newId = UUID()
             
             noteStore.addScheduledNote(
+                id: newId,
                 title: newNoteTitle,
                 description: taskDescription.isEmpty ? nil : taskDescription,
                 scheduledDate: scheduledDate,
@@ -1116,8 +1392,12 @@ struct FloatingSidebarView: View {
                 category: .today
             )
             
+            // Add task to appropriate column based on selected project/release
+            addTaskToAppropriateColumn(taskId: newId)
+            
             resetTaskForm()
             isAddingNote = false
+            updateTaskData() // Refresh task data
             firstNote = findFirstNote()
         }
     }
@@ -1355,11 +1635,6 @@ struct TaskRowView: View {
                             // Delay the actual reordering to allow animation to complete
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                 noteStore.moveNoteToEnd(note)
-                                // Stop ticking for current task and start for the new first task
-                                TickSoundService.shared.stopTicking()
-                                if let newFirstNote = noteStore.getPendingNotes().first {
-                                    TickSoundService.shared.startTicking(interval: 3.0)
-                                }
                                 
                                 // Reset the animation state
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
