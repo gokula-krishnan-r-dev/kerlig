@@ -117,7 +117,7 @@ class FloatingSidebarController {
         guard let screen = NSScreen.main else { return }
         
         // Calculate window position (right side of screen)
-        let windowHeight = screen.frame.height * 0.75
+        let windowHeight = screen.frame.height * 0.87
         
         // Use last position if available, otherwise calculate default position
         let xPosition: CGFloat

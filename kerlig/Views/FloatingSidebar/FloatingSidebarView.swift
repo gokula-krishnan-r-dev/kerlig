@@ -13,7 +13,10 @@ struct FloatingSidebarView: View {
     @State private var sidebarWidth: CGFloat = 320
     @State private var isDraggingEdge = false
     @State private var firstNote: Note? = nil
-    @State private var showCompletedTasks: Bool = true
+    @State private var showCompletedTasks: Bool = false
+    @State private var isCompletedSectionExpanded: Bool = false
+    @State private var isFullScreenButtonHovered: Bool = false
+    @State private var isFullScreenButtonPressed: Bool = false
     @State private var isCompleted: Bool = false
     @State private var completedTaskTime: TimeInterval = 0
     @State private var dismissTimer: Timer?
@@ -64,7 +67,9 @@ struct FloatingSidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             headerView
-            
+             if isCompleted {
+                completedTaskView
+            }else{
             // Project and Release Selection
             projectReleaseSelector
             
@@ -77,18 +82,16 @@ struct FloatingSidebarView: View {
             // Task Progress Summary
             taskProgressSummary
 
-            if isCompleted {
-                completedTaskView
             }
             
             taskListView
-            
+            if !isCompleted {
             if noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).count == 0 {
                 Spacer()
                 emptyStateView
                 Spacer()
             }
-            
+            }            
             Divider()
                 .background(Color.white.opacity(0.08))
                 .padding(.horizontal, 12)
@@ -154,6 +157,83 @@ struct FloatingSidebarView: View {
     }
     
     // MARK: - UI Components
+    private var fullScreenModeButton: some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                isFullScreenButtonPressed = true
+            }
+            
+            // Reset pressed state after animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isFullScreenButtonPressed = false
+                }
+            }
+            
+            // Open main application window with enhanced functionality
+            openMainApplicationWindow()
+        }) {
+            ZStack {
+                // Background with dynamic effects
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                isFullScreenButtonHovered ? Color(hex: "#4CAF50").opacity(0.2) : Color(hex: "#2C2C2E").opacity(0.8),
+                                isFullScreenButtonHovered ? Color(hex: "#45A049").opacity(0.3) : Color(hex: "#262628").opacity(0.6)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        isFullScreenButtonHovered ? Color(hex: "#4CAF50").opacity(0.4) : Color.white.opacity(0.1),
+                                        isFullScreenButtonHovered ? Color(hex: "#45A049").opacity(0.2) : Color.white.opacity(0.05)
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: isFullScreenButtonHovered ? 1.5 : 0.5
+                            )
+                    )
+                    .frame(width: 32, height: 32)
+                    .scaleEffect(
+                        isFullScreenButtonPressed ? 0.85 : 
+                        (isFullScreenButtonHovered ? 1.1 : 1.0)
+                    )
+                    .shadow(
+                        color: isFullScreenButtonHovered ? Color(hex: "#4CAF50").opacity(0.3) : Color.black.opacity(0.2),
+                        radius: isFullScreenButtonHovered ? 8 : 4,
+                        x: 0,
+                        y: isFullScreenButtonHovered ? 4 : 2
+                    )
+                
+                // Icon with dynamic rotation and scaling
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(
+                        isFullScreenButtonHovered ? Color(hex: "#4CAF50") : .white.opacity(0.9)
+                    )
+                    .scaleEffect(
+                        isFullScreenButtonPressed ? 0.8 : 
+                        (isFullScreenButtonHovered ? 1.2 : 1.0)
+                    )
+                    .rotationEffect(.degrees(isFullScreenButtonHovered ? 5 : 0))
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isFullScreenButtonHovered = hovering
+            }
+        }
+        .help("Open Full Application") // Tooltip
+    }
+    
     private var headerView: some View {
         HStack {
             Text("Tasks")
@@ -162,23 +242,8 @@ struct FloatingSidebarView: View {
             
             Spacer()
 
-            //add a button for Full screen mode
-            Button(action: {
-                // Open the main application window
-                if let mainWindow = NSApp.windows.first(where: { $0.title == "kerlig" || $0.title.isEmpty == false }) {
-                    mainWindow.setIsVisible(true)
-                    mainWindow.makeKey()
-                    mainWindow.orderFront(nil)
-                }
-            }) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .foregroundColor(.white)
-                    .font(.system(size: 16))
-                    .padding(4)
-                    .contentShape(Circle())
-                    .hoverEffect(.highlight)
-            }
-            .buttonStyle(PlainButtonStyle())
+            // Dynamic Full Screen Mode Button
+            fullScreenModeButton
 
 
         }
@@ -205,6 +270,11 @@ struct FloatingSidebarView: View {
                         insertion: .move(edge: .top).combined(with: .opacity),
                                             removal: .move(edge: .top).combined(with: .opacity)
                 ))
+            }
+        }
+        .onTapGesture {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                isProjectSelectorExpanded.toggle()
             }
         }
         .background(selectorContainerBackground)
@@ -1200,6 +1270,8 @@ struct FloatingSidebarView: View {
     
     private var taskListView: some View {
         ScrollView {
+
+ 
             LazyVStack(spacing: 4) {
                 // Regular tasks
                 ForEach(noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).filter { !$0.isScheduled }) { note in
@@ -1214,6 +1286,12 @@ struct FloatingSidebarView: View {
                         },
                         onSkip: { skippedNote in
                             handleTaskSkip(skippedNote)
+                             //after 2s call focusOnNewNote()
+                               focusOnNewNote()
+            updateTaskData() // Refresh task data
+                              firstNote = findFirstNote()
+
+                              
                         }
                     )
                     .background(taskRowBackground(for: note))
@@ -1379,51 +1457,237 @@ struct FloatingSidebarView: View {
         .padding()
     }
     
+    // MARK: - Completed Tasks Section
     private var completedTasksSection: some View {
-        VStack(spacing: 8) {
-            HStack {
-                HStack(spacing: 6) {
-                    Text("\(noteStore.getFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).count)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
+        let completedTasks = noteStore.getFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)
+        let totalTimeSpent = noteStore.getTotalTimeSpentOnFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)
+        
+        return VStack(spacing: 0) {
+            // Professional header with toggle
+            completedTasksHeader(count: completedTasks.count, totalTime: totalTimeSpent)
+            
+            // Expandable content with smooth animation
+            if isCompletedSectionExpanded {
+                completedTasksContent(tasks: completedTasks)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.95, anchor: .top)),
+                        removal: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.95, anchor: .top))
+                    ))
+            }
+        }
+        .background(completedSectionBackground)
+        .cornerRadius(12)
+        .padding(.horizontal, 4)
+        .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isCompletedSectionExpanded)
+    }
+    
+    private func completedTasksHeader(count: Int, totalTime: String) -> some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                isCompletedSectionExpanded.toggle()
+            }
+        }) {
+            HStack(spacing: 12) {
+                // Section icon and title
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(.green.opacity(0.9))
                     
-                    Text("Done")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
+                    Text("Completed Tasks")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.white)
                 }
                 
                 Spacer()
                 
-                HStack(spacing: 4) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.6))
-                    
-                        Text(noteStore.getTotalTimeSpentOnFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
+                // Summary stats (when collapsed)
+                if !isCompletedSectionExpanded {
+                    HStack(spacing: 8) {
+                        // Task count badge
+                        HStack(spacing: 4) {
+                            Text("\(count)")
+                                .font(.system(size: 6, weight: .bold))
+                                .foregroundColor(.green)
+                            
+                            Text("done")
+                                .font(.system(size: 6))
+                                .foregroundColor(.green.opacity(0.8))
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.green.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.green.opacity(0.2), lineWidth: 0.5)
+                                )
+                        )
+                        
+                        // Time spent badge
+                        if !totalTime.isEmpty && totalTime != "0m" {
+                            HStack(spacing: 3) {
+                                Image(systemName: "clock.fill")
+                                    .font(.system(size: 6))
+                                    .foregroundColor(.blue.opacity(0.8))
+                                
+                                Text(totalTime)
+                                    .font(.system(size: 6, weight: .medium))
+                                    .foregroundColor(.blue.opacity(0.9))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.blue.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.blue.opacity(0.2), lineWidth: 0.5)
+                                    )
+                            )
+                        }
+                    }
                 }
+                
+                // Toggle chevron
+                Image(systemName: isCompletedSectionExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
+                    .rotationEffect(.degrees(isCompletedSectionExpanded ? 0 : 0))
+                    .scaleEffect(isCompletedSectionExpanded ? 1.1 : 1.0)
+                    .animation(.easeInOut(duration: 0.2), value: isCompletedSectionExpanded)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 4)
-            
-            if showCompletedTasks {
-                completedTasksList
-            }
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        isCompletedSectionExpanded ? 
+                        Color(hex: "#2C2C2E").opacity(0.8) : 
+                        Color(hex: "#1C1C1E").opacity(0.6)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                isCompletedSectionExpanded ?
+                                Color.white.opacity(0.08) :
+                                Color.white.opacity(0.04),
+                                lineWidth: 0.5
+                            )
+                    )
+            )
+            .scaleEffect(isCompletedSectionExpanded ? 1.02 : 1.0)
         }
+        .buttonStyle(PlainButtonStyle())
+        .animation(.easeInOut(duration: 0.2), value: isCompletedSectionExpanded)
     }
     
-    private var completedTasksList: some View {
+    private func completedTasksContent(tasks: [Note]) -> some View {
+        VStack(spacing: 8) {
+            // Expanded header stats
+            expandedStatsHeader(tasks: tasks)
+            
+            // Tasks list
+            if tasks.isEmpty {
+                emptyCompletedState
+            } else {
+                modernCompletedTasksList(tasks: tasks)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
+    }
+    
+    private func expandedStatsHeader(tasks: [Note]) -> some View {
+        HStack(spacing: 4) {
+            // Total completed
+            VStack(alignment: .leading, spacing: 2) {
+                Text("TOTAL COMPLETED")
+                    .font(.system(size: 6, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.7))
+                
+                Text("\(tasks.count)")
+                    .font(.system(size: 6, weight: .bold))
+                    .foregroundColor(.green)
+            }
+            
+            Spacer()
+            
+            // Time spent
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("TIME SPENT")
+                    .font(.system(size: 6, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.7))
+                
+                Text(noteStore.getTotalTimeSpentOnFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease))
+                    .font(.system(size: 6, weight: .bold))
+                    .foregroundColor(.blue.opacity(0.9))
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(hex: "#2C2C2E").opacity(0.4))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
+                )
+        )
+    }
+    
+    private var emptyCompletedState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.dotted")
+                .font(.system(size: 32))
+                .foregroundColor(.gray.opacity(0.3))
+            
+            Text("No completed tasks yet")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.gray.opacity(0.6))
+            
+            Text("Complete your first task to see it here")
+                .font(.system(size: 11))
+                .foregroundColor(.gray.opacity(0.4))
+        }
+        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity)
+    }
+    
+    private func modernCompletedTasksList(tasks: [Note]) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 4) {
-                ForEach(noteStore.getFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)) { note in
-                    CompletedTaskRow(note: note)
+            LazyVStack(spacing: 6) {
+                ForEach(tasks) { note in
+                    ModernCompletedTaskRow(note: note)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
                 }
             }
             .padding(.vertical, 4)
         }
-        .frame(maxHeight: 200)
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        .frame(maxHeight: 180)
+    }
+    
+    private var completedSectionBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color(hex: "#1C1C1E"))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(0.06),
+                                Color.white.opacity(0.02)
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
     }
     
     private var focusModeButton: some View {
@@ -1513,6 +1777,47 @@ struct FloatingSidebarView: View {
     }
     
     // MARK: - Helper Methods
+    // Enhanced Main Application Window Management
+    private func openMainApplicationWindow() {
+        
+        controller.toggleSidebar()
+        
+        
+        
+        // Simulate Command+N shortcut to create new note
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 45, keyDown: true) // 45 is 'n' key
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 45, keyDown: false)
+        
+        keyDown?.flags = .maskCommand
+        keyUp?.flags = .maskCommand
+        
+        keyDown?.post(tap: .cghidEventTap)
+        keyUp?.post(tap: .cghidEventTap)
+
+
+    }
+    
+    private func createNewMainWindow() {
+        // Create a new main window if none exists
+        let newWindow = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        
+        newWindow.title = "kerlig"
+        newWindow.center()
+        newWindow.setFrameAutosaveName("MainWindow")
+        newWindow.isReleasedWhenClosed = false
+        
+        // Set up window content - you might need to adjust this based on your app structure
+        // newWindow.contentView = NSHostingView(rootView: YourMainContentView())
+        
+        newWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
     
     // Project and Release Management
     private func setupInitialProjectSelection() {
@@ -1790,46 +2095,188 @@ struct FloatingSidebarView: View {
     }
 }
 
-// MARK: - Completed Task Row
+// MARK: - Modern Completed Task Row
+struct ModernCompletedTaskRow: View {
+    let note: Note
+    @State private var isHovered: Bool = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Completion status indicator
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.green.opacity(isHovered ? 1.0 : 0.8))
+                    .scaleEffect(isHovered ? 1.1 : 1.0)
+                
+                // Task content
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(note.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(isHovered ? 0.9 : 0.7))
+                        .lineLimit(2)
+                        .strikethrough(true, color: .green.opacity(0.6))
+                    
+
+                }
+            }
+            
+            Spacer()
+            
+            // Time and media indicators
+            HStack(spacing: 6) {
+                // Media indicator
+                if note.mediaContent.hasContent {
+                    mediaIndicator
+                } else if note.imageData != nil {
+                    // Backward compatibility
+                    Image(systemName: "photo.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.blue.opacity(0.6))
+                        .padding(3)
+                        .background(
+                            Circle()
+                                .fill(Color.blue.opacity(0.1))
+                        )
+                }
+                
+                // Time badge
+                if let actualTime = note.actualTime {
+                    modernTimeLabel(actualTime)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(modernRowBackground)
+        .cornerRadius(8)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+    }
+    
+    private var mediaIndicator: some View {
+        Group {
+            switch note.mediaContent.type {
+            case .image:
+                Image(systemName: "photo.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(.blue.opacity(0.6))
+            case .emoji:
+                if let emoji = note.mediaContent.emoji {
+                    Text(emoji)
+                        .font(.system(size: 10))
+                }
+            case .none:
+                EmptyView()
+            }
+        }
+        .padding(3)
+        .background(
+            Circle()
+                .fill(Color.blue.opacity(0.1))
+        )
+    }
+    
+    private var modernRowBackground: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(
+                isHovered ?
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(hex: "#2C2C2E").opacity(0.8),
+                        Color(hex: "#262628").opacity(0.8)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                ) :
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(hex: "#232325").opacity(0.6),
+                        Color(hex: "#1E1E20").opacity(0.6)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        isHovered ?
+                        Color.green.opacity(0.2) :
+                        Color.white.opacity(0.03),
+                        lineWidth: 0.5
+                    )
+            )
+    }
+    
+    private func modernTimeLabel(_ actualTime: TimeInterval) -> some View {
+        let seconds = Int(actualTime)
+        let minutes = seconds / 60
+        let hours = minutes / 60
+        
+        let displayText: String
+        if hours > 0 {
+            displayText = "\(hours)h \(minutes % 60)m"
+        } else if minutes > 0 {
+            displayText = "\(minutes)m"
+        } else {
+            displayText = "\(seconds)s"
+        }
+        
+        return HStack(spacing: 3) {
+            Image(systemName: "stopwatch.fill")
+                .font(.system(size: 8))
+                .foregroundColor(.blue.opacity(0.7))
+            
+            Text(displayText)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.blue.opacity(0.8))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.blue.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.blue.opacity(0.15), lineWidth: 0.5)
+                )
+        )
+    }
+    
+    private func formatCompletedDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        if calendar.isDateInToday(date) {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return "Today \(formatter.string(from: date))"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else if calendar.dateInterval(of: .weekOfYear, for: now)?.contains(date) == true {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEE"
+            return formatter.string(from: date)
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            return formatter.string(from: date)
+        }
+    }
+}
+
+// MARK: - Legacy Completed Task Row (for backward compatibility)
 struct CompletedTaskRow: View {
     let note: Note
     
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 14))
-                .foregroundColor(.green)
-            
-            Text(note.title)
-                .font(.system(size: 13))
-                .foregroundColor(.white.opacity(0.7))
-                .lineLimit(1)
-            
-            Spacer()
-            
-            if let actualTime = note.actualTime {
-                timeLabel(actualTime)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(hex: "#232325"))
-        .cornerRadius(6)
-        .padding(.horizontal, 12)
-    }
-    
-    private func timeLabel(_ actualTime: TimeInterval) -> some View {
-        let seconds = Int(actualTime)
-        let minutes = seconds / 60
-        let displayText = minutes > 0 ? "\(minutes)m" : "\(seconds)s"
-        
-        return Text(displayText)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.white.opacity(0.6))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color(hex: "#2C2C2E"))
-            .cornerRadius(4)
+        ModernCompletedTaskRow(note: note)
     }
 }
 
@@ -1986,16 +2433,36 @@ struct TaskRowView: View {
                             // Delay the actual reordering to allow animation to complete
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                 noteStore.moveNoteToEnd(note)
-                                
+
                                 // Reset the animation state
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                     isSkipping = false
                                 }
                             }
+
+
+                             
                             
                             // Call onSkip with the skipped note
                             onSkip(note)
+                            
                         }
+                        
+                        print("Task skipped: \(note.title)")
+                           DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        // Move the task to the end of the list
+                        if let firstNote = firstNote, note.id == firstNote.id {
+                         
+ 
+                                noteStore.moveNoteToEnd(note)
+
+                            
+                            // Call onSkip with the skipped note after 2 seconds
+                                onSkip(note)
+
+                            
+                        }
+                           }
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "skip" : nil
@@ -2010,6 +2477,8 @@ struct TaskRowView: View {
                     color: Color(hex: "#EF4444"),
                     action: {
                         noteStore.deleteNote(id: note.id)
+
+                        onSkip(note)
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "delete" : nil
