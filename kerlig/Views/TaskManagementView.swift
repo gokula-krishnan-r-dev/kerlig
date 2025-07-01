@@ -40,6 +40,11 @@ struct TaskManagementView: View {
     @State private var taskColumns: [NoteColumn] = []
     @State private var taskColumnNotes: [UUID: [Note]] = [:]
     
+    // Animation states for background effects
+    @State private var backgroundAnimationPhase: CGFloat = 0
+    @State private var patternOpacity: CGFloat = 0.15
+    @State private var patternScale: CGFloat = 1.0
+    
     // Color palette
     private let primaryBgColor = Color(hex: "#0A0A0B")
     private let secondaryBgColor = Color(hex: "#1C1C1E")
@@ -127,7 +132,6 @@ struct TaskManagementView: View {
             
             // Main content area with task columns or pages
             VStack(spacing: 0) {
-
                 headerView
                 // Tab selector
                 tabSelector
@@ -142,11 +146,24 @@ struct TaskManagementView: View {
                     )
                 }
             }
+            .background(
+                ZStack {
+                    // Base background
+                    Color(hex: "#0F1014")
+                    
+                    // Dynamic pattern overlay
+                    PatternBackground(phase: backgroundAnimationPhase, scale: patternScale)
+                        .opacity(patternOpacity)
+                        .blendMode(.overlay)
+                }
+            )
+            .background(.ultraThinMaterial)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(primaryBgColor)
         .onAppear {
             setupInitialState()
+            startBackgroundAnimation()
         }
         .onChange(of: selectedProject) { _, newProject in
             handleProjectSelection(newProject)
@@ -174,6 +191,22 @@ struct TaskManagementView: View {
         }
         .sheet(isPresented: $isAddingRelease) {
             addReleaseSheet
+        }
+    }
+    
+    // MARK: - Background Animation
+    
+    private func startBackgroundAnimation() {
+        withAnimation(.linear(duration: 20).repeatForever(autoreverses: true)) {
+            backgroundAnimationPhase = 1.0
+        }
+        
+        withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
+            patternScale = 1.1
+        }
+        
+        withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
+            patternOpacity = 0.25
         }
     }
     
@@ -245,8 +278,6 @@ struct TaskManagementView: View {
 
     
     func showFloatingSidebar() {
-
-
         //before toggle close already existing window close
         if let existingWindow = NSApp.windows.first(where: { $0.isVisible }) {
             existingWindow.close()
@@ -301,7 +332,7 @@ struct TaskManagementView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
-        .background(primaryBgColor)
+        .background(.ultraThinMaterial)
         
         // Divider
         Rectangle()
@@ -358,7 +389,18 @@ struct TaskManagementView: View {
             }
         }
         .frame(width: 350)
-        .background(secondaryBgColor)
+        .background(
+            ZStack {
+                // Base background
+                Color(hex: "#18191E")
+                
+                // Dynamic pattern overlay
+                PatternBackground(phase: backgroundAnimationPhase, scale: patternScale * 0.8)
+                    .opacity(patternOpacity * 1.2)
+                    .blendMode(.overlay)
+            }
+        )
+        .background(.ultraThinMaterial)
         .overlay(
             Rectangle()
                 .frame(width: 1)
@@ -386,33 +428,53 @@ struct TaskManagementView: View {
             Button(action: {
                 isAddingProject = true
             }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white)
                     
                     Text("New Project")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(accentColor)
-                        .shadow(color: accentColor.opacity(0.3), radius: 4, x: 0, y: 2)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(hex: "#4A90E2").opacity(0.8),
+                                    Color(hex: "#357ABD").opacity(0.9)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color.white.opacity(0.3),
+                                            Color.white.opacity(0.1)
+                                        ]),
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                        .shadow(color: Color(hex: "#4A90E2").opacity(0.3), radius: 8, x: 0, y: 4)
                 )
             }
-            .buttonStyle(AnimatedButtonStyle())
+            .buttonStyle(PlainButtonStyle())
             .scaleEffect(animateIn ? 1 : 0.8)
             .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.3), value: animateIn)
+            .hoverEffect(.lift)
         }
         .padding()
-        .background(Color(hex: "#1C1C1E"))
+        .background(.thinMaterial)
         .opacity(animateIn ? 1 : 0)
         .offset(y: animateIn ? 0 : -20)
         .animation(.easeOut(duration: 0.6).delay(0.1), value: animateIn)
@@ -441,7 +503,18 @@ struct TaskManagementView: View {
             }
         }
         .padding(10)
-        .background(cardBgColor)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.2))
+                .background(
+                    .ultraThinMaterial,
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
         .cornerRadius(8)
         .padding(.horizontal)
         .padding(.bottom, 8)
@@ -929,7 +1002,18 @@ struct TaskManagementView: View {
             }
         }
         .padding()
-        .background(secondaryBgColor)
+        .background(
+            ZStack {
+                // Base background
+                Color(hex: "#1A1B21")
+                
+                // Dynamic pattern overlay
+                PatternBackground(phase: backgroundAnimationPhase, scale: patternScale * 0.5)
+                    .opacity(patternOpacity * 0.8)
+                    .blendMode(.overlay)
+            }
+        )
+        .background(.ultraThinMaterial)
         .overlay(
             Rectangle()
                 .frame(height: 1)
@@ -1053,6 +1137,19 @@ struct TaskManagementView: View {
                         refresh: refreshTaskData,
                     )
                     .frame(width: isCompactMode ? 280 : 320)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.black.opacity(0.15))
+                            .background(
+                                .ultraThinMaterial,
+                                in: RoundedRectangle(cornerRadius: 12)
+                            )
+                            .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
                     .opacity(animateIn ? 1 : 0)
                     .offset(y: animateIn ? 0 : 50)
                     .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.3 + Double(index) * 0.1), value: animateIn)
@@ -1088,7 +1185,14 @@ struct TaskManagementView: View {
                 .frame(maxWidth: .infinity, minHeight: 200)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.clear)
+                        .fill(Color.black.opacity(0.1))
+                        .background(
+                            .ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
                 )
             }
@@ -1390,7 +1494,7 @@ struct TaskManagementView: View {
             
             Spacer()
         }
-        .background(secondaryBgColor)
+        .background(.ultraThinMaterial)
         .overlay(
             Rectangle()
                 .frame(height: 1)
@@ -1537,11 +1641,61 @@ struct TaskManagementView: View {
     }
 }
 
-
-
-
-
-
+// MARK: - Pattern Background
+struct PatternBackground: View {
+    var phase: CGFloat
+    var scale: CGFloat
+    
+    var body: some View {
+        ZStack {
+            // First pattern layer
+            GeometryReader { geometry in
+                Path { path in
+                    let width = geometry.size.width
+                    let height = geometry.size.height
+                    let spacing: CGFloat = 60 * scale
+                    
+                    for x in stride(from: 0, through: width, by: spacing) {
+                        for y in stride(from: 0, through: height, by: spacing) {
+                            let offsetX = sin(phase * .pi + y/50) * 15
+                            path.addEllipse(in: CGRect(x: x + offsetX, y: y, width: 4, height: 4))
+                        }
+                    }
+                }
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.blue.opacity(0.7), Color.purple.opacity(0.7)]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            }
+            
+            // Second pattern layer
+            GeometryReader { geometry in
+                Path { path in
+                    let width = geometry.size.width
+                    let height = geometry.size.height
+                    let spacing: CGFloat = 80 * scale
+                    
+                    for x in stride(from: 0, through: width, by: spacing) {
+                        for y in stride(from: 0, through: height, by: spacing) {
+                            let offsetX = cos(phase * .pi + x/50) * 20
+                            path.addEllipse(in: CGRect(x: x, y: y + offsetX, width: 3, height: 3))
+                        }
+                    }
+                }
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.cyan.opacity(0.6), Color.blue.opacity(0.6)]),
+                        startPoint: .topTrailing,
+                        endPoint: .bottomLeading
+                    )
+                )
+            }
+        }
+    }
+}
 
 #Preview {
     TaskManagementView()

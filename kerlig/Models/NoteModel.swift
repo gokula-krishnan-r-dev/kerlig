@@ -1,5 +1,33 @@
 import Foundation
 import SwiftUI
+import Combine
+
+// MARK: - Timer State Management
+enum TimerState: String, Codable {
+    case stopped = "stopped"
+    case running = "running"
+    case paused = "paused"
+    case `break` = "break"
+}
+
+struct TimerSession: Identifiable, Codable {
+    let id = UUID()
+    let startTime: Date
+    var endTime: Date?
+    var duration: TimeInterval
+    var type: SessionType
+    
+    enum SessionType: String, Codable {
+        case work = "work"
+        case `break` = "break"
+    }
+    
+    init(startTime: Date = Date(), type: SessionType = .work) {
+        self.startTime = startTime
+        self.type = type
+        self.duration = 0
+    }
+}
 
 struct Note: Identifiable, Codable, Hashable {
     var id: UUID
@@ -14,6 +42,17 @@ struct Note: Identifiable, Codable, Hashable {
     var estimatedTime: String?
     var isCompleted: Bool
     
+    // Enhanced Timer Properties
+    var timerState: TimerState
+    var currentSessionStartTime: Date?
+    var totalWorkTime: TimeInterval
+    var totalBreakTime: TimeInterval
+    var sessions: [TimerSession]
+    var isActiveTimer: Bool // Indicates if this is the currently active timed task
+    var lastPauseTime: Date?
+    var breakStartTime: Date?
+    var targetWorkDuration: TimeInterval? // For focused work sessions
+    
     // Scheduled task properties
     var isScheduled: Bool
     var scheduledDate: Date?
@@ -24,7 +63,7 @@ struct Note: Identifiable, Codable, Hashable {
     var reminderMinutes: Int? // Minutes before scheduled time to show reminder
     var hasBeenNotified: Bool // Track if notification has been shown
     
-    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil, isScheduled: Bool = false, scheduledDate: Date? = nil, scheduledTime: Date? = nil, priority: TaskPriority = .medium, imageData: Data? = nil, description: String? = nil, reminderMinutes: Int? = nil, hasBeenNotified: Bool = false) {
+    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil, isScheduled: Bool = false, scheduledDate: Date? = nil, scheduledTime: Date? = nil, priority: TaskPriority = .medium, imageData: Data? = nil, description: String? = nil, reminderMinutes: Int? = nil, hasBeenNotified: Bool = false, timerState: TimerState = .stopped, totalWorkTime: TimeInterval = 0, totalBreakTime: TimeInterval = 0, sessions: [TimerSession] = [], isActiveTimer: Bool = false, targetWorkDuration: TimeInterval? = nil) {
         self.id = id
         self.title = title
         self.content = content
@@ -44,6 +83,114 @@ struct Note: Identifiable, Codable, Hashable {
         self.description = description
         self.reminderMinutes = reminderMinutes
         self.hasBeenNotified = hasBeenNotified
+        self.timerState = timerState
+        self.totalWorkTime = totalWorkTime
+        self.totalBreakTime = totalBreakTime
+        self.sessions = sessions
+        self.isActiveTimer = isActiveTimer
+        self.targetWorkDuration = targetWorkDuration
+    }
+    
+    // Timer helper methods
+    mutating func startTimer() {
+        timerState = .running
+        currentSessionStartTime = Date()
+        isActiveTimer = true
+        
+        // Create new work session
+        let newSession = TimerSession(startTime: Date(), type: .work)
+        sessions.append(newSession)
+    }
+    
+    mutating func pauseTimer() {
+        guard timerState == .running else { return }
+        timerState = .paused
+        lastPauseTime = Date()
+        updateCurrentSession()
+    }
+    
+    mutating func resumeTimer() {
+        guard timerState == .paused else { return }
+        timerState = .running
+        currentSessionStartTime = Date()
+        lastPauseTime = nil
+    }
+    
+    mutating func stopTimer() {
+        updateCurrentSession()
+        timerState = .stopped
+        currentSessionStartTime = nil
+        isActiveTimer = false
+        lastPauseTime = nil
+        breakStartTime = nil
+    }
+    
+    mutating func startBreak() {
+        updateCurrentSession()
+        timerState = .break
+        breakStartTime = Date()
+        
+        // Create new break session
+        let breakSession = TimerSession(startTime: Date(), type: .break)
+        sessions.append(breakSession)
+    }
+    
+    mutating func endBreak() {
+        guard timerState == .break else { return }
+        updateCurrentBreakSession()
+        timerState = .running
+        currentSessionStartTime = Date()
+        breakStartTime = nil
+        
+        // Create new work session after break
+        let newSession = TimerSession(startTime: Date(), type: .work)
+        sessions.append(newSession)
+    }
+    
+    private mutating func updateCurrentSession() {
+        guard let startTime = currentSessionStartTime else { return }
+        let sessionDuration = Date().timeIntervalSince(startTime)
+        totalWorkTime += sessionDuration
+        actualTime = totalWorkTime
+        
+        // Update the last session
+        if var lastSession = sessions.last, lastSession.type == .work {
+            lastSession.duration += sessionDuration
+            lastSession.endTime = Date()
+            sessions[sessions.count - 1] = lastSession
+        }
+    }
+    
+    private mutating func updateCurrentBreakSession() {
+        guard let startTime = breakStartTime else { return }
+        let breakDuration = Date().timeIntervalSince(startTime)
+        totalBreakTime += breakDuration
+        
+        // Update the last break session
+        if var lastSession = sessions.last, lastSession.type == .break {
+            lastSession.duration += breakDuration
+            lastSession.endTime = Date()
+            sessions[sessions.count - 1] = lastSession
+        }
+    }
+    
+    func getCurrentSessionDuration() -> TimeInterval {
+        switch timerState {
+        case .running:
+            guard let startTime = currentSessionStartTime else { return 0 }
+            return Date().timeIntervalSince(startTime)
+        case .break:
+            guard let startTime = breakStartTime else { return 0 }
+            return Date().timeIntervalSince(startTime)
+        case .paused:
+            return 0
+        case .stopped:
+            return 0
+        }
+    }
+    
+    func getTotalElapsedTime() -> TimeInterval {
+        return totalWorkTime + getCurrentSessionDuration()
     }
     
     // Hashable conformance
@@ -308,6 +455,12 @@ class NoteStore: ObservableObject {
     @Published var currentNote: Note?
     @Published var textFormatting: TextFormatting = TextFormatting.defaultFormatting()
     @Published var pages: [ProjectPage] = [] // Store for project pages
+    
+    // MARK: - Timer Management
+    @Published var activeTimerNote: Note?
+    @Published var globalTimerState: TimerState = .stopped
+    private var timerUpdateCancellable: AnyCancellable?
+    private var globalTimer: Timer?
 
     //in notes showonly pending notes
     func getPendingNotes() -> [Note] {
@@ -910,6 +1063,182 @@ class NoteStore: ObservableObject {
         // Save changes
         saveNotes()
         saveColumns()
+    }
+    
+    // MARK: - Centralized Timer Management
+    
+    func startTimer(for note: Note) {
+        // Stop any currently active timer
+        stopCurrentTimer()
+        
+        // Find and update the note
+        guard let index = notes.firstIndex(where: { $0.id == note.id }) else { return }
+        
+        var updatedNote = note
+        updatedNote.startTimer()
+        notes[index] = updatedNote
+        
+        activeTimerNote = updatedNote
+        globalTimerState = .running
+        
+        // Start the global timer
+        startGlobalTimer()
+        saveNotes()
+    }
+    
+    func pauseCurrentTimer() {
+        guard let activeNote = activeTimerNote,
+              let index = notes.firstIndex(where: { $0.id == activeNote.id }) else { return }
+        
+        var updatedNote = notes[index]
+        updatedNote.pauseTimer()
+        notes[index] = updatedNote
+        
+        activeTimerNote = updatedNote
+        globalTimerState = .paused
+        stopGlobalTimer()
+        saveNotes()
+    }
+    
+    func resumeCurrentTimer() {
+        guard let activeNote = activeTimerNote,
+              let index = notes.firstIndex(where: { $0.id == activeNote.id }) else { return }
+        
+        var updatedNote = notes[index]
+        updatedNote.resumeTimer()
+        notes[index] = updatedNote
+        
+        activeTimerNote = updatedNote
+        globalTimerState = .running
+        startGlobalTimer()
+        saveNotes()
+    }
+    
+    func stopCurrentTimer() {
+        guard let activeNote = activeTimerNote,
+              let index = notes.firstIndex(where: { $0.id == activeNote.id }) else { return }
+        
+        var updatedNote = notes[index]
+        updatedNote.stopTimer()
+        notes[index] = updatedNote
+        
+        activeTimerNote = nil
+        globalTimerState = .stopped
+        stopGlobalTimer()
+        saveNotes()
+    }
+    
+    func startBreakForCurrentTimer() {
+        guard let activeNote = activeTimerNote,
+              let index = notes.firstIndex(where: { $0.id == activeNote.id }) else { return }
+        
+        var updatedNote = notes[index]
+        updatedNote.startBreak()
+        notes[index] = updatedNote
+        
+        activeTimerNote = updatedNote
+        globalTimerState = .break
+        startGlobalTimer()
+        saveNotes()
+    }
+    
+    func endBreakForCurrentTimer() {
+        guard let activeNote = activeTimerNote,
+              let index = notes.firstIndex(where: { $0.id == activeNote.id }) else { return }
+        
+        var updatedNote = notes[index]
+        updatedNote.endBreak()
+        notes[index] = updatedNote
+        
+        activeTimerNote = updatedNote
+        globalTimerState = .running
+        saveNotes()
+    }
+    
+    func completeCurrentTask() {
+        guard let activeNote = activeTimerNote,
+              let index = notes.firstIndex(where: { $0.id == activeNote.id }) else { return }
+        
+        var updatedNote = notes[index]
+        updatedNote.stopTimer()
+        updatedNote.isCompleted = true
+        updatedNote.lastModified = Date()
+        notes[index] = updatedNote
+        
+        // Move to next task if available
+        let nextTask = getPendingNotes().first
+        activeTimerNote = nil
+        globalTimerState = .stopped
+        stopGlobalTimer()
+        
+        // Auto-start next task if available
+        if let nextTask = nextTask {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.startTimer(for: nextTask)
+            }
+        }
+        
+        saveNotes()
+    }
+    
+    func switchToTask(_ note: Note) {
+        // Stop current timer if running
+        if activeTimerNote != nil {
+            stopCurrentTimer()
+        }
+        
+        // Start timer for new task
+        startTimer(for: note)
+    }
+    
+    func getCurrentSessionDuration() -> TimeInterval {
+        return activeTimerNote?.getCurrentSessionDuration() ?? 0
+    }
+    
+    func getTotalElapsedTimeForActiveTask() -> TimeInterval {
+        return activeTimerNote?.getTotalElapsedTime() ?? 0
+    }
+    
+    func getActiveTaskSessions() -> [TimerSession] {
+        return activeTimerNote?.sessions ?? []
+    }
+    
+    func formatTime(_ timeInterval: TimeInterval) -> String {
+        let hours = Int(timeInterval) / 3600
+        let minutes = Int(timeInterval) % 3600 / 60
+        let seconds = Int(timeInterval) % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%d:%02d", minutes, seconds)
+        }
+    }
+    
+    private func startGlobalTimer() {
+        stopGlobalTimer()
+        globalTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateActiveTimer()
+        }
+    }
+    
+    private func stopGlobalTimer() {
+        globalTimer?.invalidate()
+        globalTimer = nil
+    }
+    
+    private func updateActiveTimer() {
+        // This will trigger UI updates by updating the published properties
+        if let activeNote = activeTimerNote,
+           let index = notes.firstIndex(where: { $0.id == activeNote.id }) {
+            // Update the note in place to trigger UI refresh
+            notes[index].lastModified = Date()
+        }
+    }
+    
+    deinit {
+        stopGlobalTimer()
+        timerUpdateCancellable?.cancel()
     }
 
     // MARK: - Page Management
