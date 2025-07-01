@@ -24,6 +24,7 @@ struct FloatingSidebarView: View {
     @State private var selectedRelease: Release?
     @State private var showingProjectSelector = false
     @State private var showingReleaseSelector = false
+    @State private var isProjectSelectorExpanded = false
     
     // Scheduled Task Properties
     @State private var selectedTaskTab: TaskTab = .regular
@@ -34,6 +35,12 @@ struct FloatingSidebarView: View {
     @State private var reminderMinutes = 15
     @State private var selectedImage: NSImage?
     @State private var showingImagePicker = false
+    
+    // New unified media content
+    @State private var taskMediaContent = MediaContent()
+    
+    // Media picker visibility toggle
+    @State private var showMediaPicker = UserDefaults.standard.bool(forKey: "showMediaPicker")
     
     @StateObject private var notificationService = ScheduledTaskNotificationService.shared
     
@@ -67,6 +74,9 @@ struct FloatingSidebarView: View {
                 addTaskButton
             }
 
+            // Task Progress Summary
+            taskProgressSummary
+
             if isCompleted {
                 completedTaskView
             }
@@ -95,6 +105,9 @@ struct FloatingSidebarView: View {
             isFocused = true
             setupInitialProjectSelection()
             firstNote = findFirstNote()
+            
+            // Initialize media picker preference with default value
+            initializeMediaPickerPreference()
             
             // Initialize notification service
             notificationService.setNoteStore(noteStore)
@@ -148,99 +161,218 @@ struct FloatingSidebarView: View {
                 .foregroundColor(.white)
             
             Spacer()
-            
+
+            //add a button for Full screen mode
             Button(action: {
-                withAnimation {
-                    controller.hideSidebar()
+                // Open the main application window
+                if let mainWindow = NSApp.windows.first(where: { $0.title == "kerlig" || $0.title.isEmpty == false }) {
+                    mainWindow.setIsVisible(true)
+                    mainWindow.makeKey()
+                    mainWindow.orderFront(nil)
                 }
             }) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.white.opacity(0.7))
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .foregroundColor(.white)
                     .font(.system(size: 16))
                     .padding(4)
                     .contentShape(Circle())
                     .hoverEffect(.highlight)
             }
             .buttonStyle(PlainButtonStyle())
+
+
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
     }
 
-
-
-
-
-
-
-
-
-
-    
     // MARK: - Project and Release Selector
     private var projectReleaseSelector: some View {
+        VStack(spacing: 0) {
+            // Header with toggle button
+            selectorHeader
+            
+            // Expandable content
+            if isProjectSelectorExpanded {
+                expandedSelectorContent
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+            } else {
+                compactSelectorContent
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                                            removal: .move(edge: .top).combined(with: .opacity)
+                ))
+            }
+        }
+        .background(selectorContainerBackground)
+        .cornerRadius(12)
+        .padding(.horizontal, 4)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isProjectSelectorExpanded)
+    }
+    
+    private var selectorHeader: some View {
+        HStack {
+            HStack(spacing: 6) {
+                Image(systemName: "folder.badge.gearshape")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+                
+                Text("Project & Release")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            
+            Spacer()
+            
+            // Current selection summary (when collapsed)
+            if !isProjectSelectorExpanded {
+                HStack(spacing: 4) {
+                    if let project = selectedProject {
+                        if let logoData = project.logoImageData,
+                           let nsImage = NSImage(data: logoData) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .frame(width: 14, height: 14)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(project.color ?? .blue)
+                        }
+                        
+                        Text(project.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                            .lineLimit(1)
+                    } else {
+                        Text("All Projects")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    
+                    if let release = selectedRelease {
+                        Text("•")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray.opacity(0.6))
+                        
+                        Text("v\(release.version)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(hex: "#2C2C2E").opacity(0.6))
+                )
+            }
+            
+            // Toggle button
+            Button(action: {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isProjectSelectorExpanded.toggle()
+                }
+            }) {
+                Image(systemName: isProjectSelectorExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+                    .rotationEffect(.degrees(isProjectSelectorExpanded ? 0 : 0))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(4)
+            .background(
+                Circle()
+                    .fill(Color(hex: "#2C2C2E").opacity(isProjectSelectorExpanded ? 0.8 : 0.4))
+            )
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+    
+    private var compactSelectorContent: some View {
+        EmptyView()
+    }
+    
+    private var expandedSelectorContent: some View {
         VStack(spacing: 8) {
-            // Project Selector
+            // Labels row
             HStack {
                 Text("PROJECT")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.gray)
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            
-            Menu {
-                Button("All Projects") {
-                    selectedProject = nil
-                    selectedRelease = nil
-                    updateTaskData()
-                }
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.8))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 
-                ForEach(noteStore.projects.filter { !$0.isArchived }) { project in
-                    Button(action: {
-                        selectedProject = project
-                        // Auto-select first release of the project
-                        let releases = noteStore.getReleasesForProject(project)
-                        selectedRelease = releases.first
-                        updateTaskData()
-
-                          firstNote = findFirstNote()
-                    }) {
-                        HStack {
-                            if let logoData = project.logoImageData,
-                               let nsImage = NSImage(data: logoData) {
-                                Image(nsImage: nsImage)
-                                    .resizable()
-                                    .frame(width: 16, height: 16)
-                                    .clipShape(Circle())
-                                    .overlay(
-                                        Circle()
-                                            .stroke(
-                                                LinearGradient(
-                                                    gradient: Gradient(colors: [
-                                                        Color.white.opacity(0.3),
-                                                        Color.white.opacity(0.1)
-                                                    ]),
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                ),
-                                                lineWidth: 1
-                                            )
-                                    )
-                                    .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
-                            }
-                            
-                            Text(project.title)
-                            
-                            if selectedProject?.id == project.id {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
+                Text("RELEASE")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.8))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 12)
+            
+            // Cards row
+            HStack(spacing: 8) {
+                // Project Card
+                projectSelectorCard
+                
+                // Release Card
+                releaseSelectorCard
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+        }
+    }
+    
+    private var projectSelectorCard: some View {
+        Menu {
+            Button("All Projects") {
+                selectedProject = nil
+                selectedRelease = nil
+                updateTaskData()
+            }
+            
+            ForEach(noteStore.projects.filter { !$0.isArchived }) { project in
+                Button(action: {
+                    selectedProject = project
+                    // Auto-select first release of the project
+                    let releases = noteStore.getReleasesForProject(project)
+                    selectedRelease = releases.first
+                    updateTaskData()
+                    firstNote = findFirstNote()
+                }) {
+                    HStack {
+                        if let logoData = project.logoImageData,
+                           let nsImage = NSImage(data: logoData) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .frame(width: 16, height: 16)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+                                )
+                        }
+                        
+                        Text(project.title)
+                            .lineLimit(1)
+                        
+                        if selectedProject?.id == project.id {
+                            Spacer()
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12))
+                                .foregroundColor(.green)
                         }
                     }
                 }
-            } label: {
-                HStack {
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    // Project icon
                     if let project = selectedProject {
                         if let logoData = project.logoImageData,
                            let nsImage = NSImage(data: logoData) {
@@ -253,233 +385,354 @@ struct FloatingSidebarView: View {
                                 .font(.system(size: 16))
                                 .foregroundColor(project.color ?? .blue)
                         }
-                        
-                        Text(project.title)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white)
                     } else {
                         Image(systemName: "folder.fill")
                             .font(.system(size: 16))
                             .foregroundColor(.blue)
-                        
-                        Text("All Projects")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white)
                     }
                     
                     Spacer()
                     
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray.opacity(0.6))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(hex: "#2C2C2E"))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                        )
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .padding(.horizontal, 8)
-            
-            // Release Selector (only show if project is selected)
-            if let selectedProject = selectedProject {
-                HStack {
-                    Text("RELEASE")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.gray)
-                    Spacer()
-                }
-                .padding(.horizontal, 8)
                 
-                Menu {
-                    let releases = noteStore.getReleasesForProject(selectedProject)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(selectedProject?.title ?? "All Projects")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    
+                    Text(selectedProject != nil ? "Active Project" : "No Filter")
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray.opacity(0.8))
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .background(selectorCardBackground)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var releaseSelectorCard: some View {
+        Menu {
+            if let selectedProject = selectedProject {
+                let releases = noteStore.getReleasesForProject(selectedProject)
+                if releases.isEmpty {
+                    Button("No Releases") { }
+                        .disabled(true)
+                } else {
                     ForEach(releases) { release in
                         Button(action: {
                             selectedRelease = release
                             updateTaskData()
-                              firstNote = findFirstNote()
+                            firstNote = findFirstNote()
                         }) {
                             HStack {
                                 Image(systemName: release.status.iconName)
+                                    .font(.system(size: 12))
                                     .foregroundColor(release.status.color)
                                 
-                                VStack(alignment: .leading) {
+                                VStack(alignment: .leading, spacing: 1) {
                                     Text("v\(release.version)")
-                                        .font(.system(size: 12, weight: .semibold))
-                                    Text(release.name)
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.gray)
+                                        .font(.system(size: 11, weight: .semibold))
+                                    if !release.name.isEmpty {
+                                        Text(release.name)
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.gray)
+                                            .lineLimit(1)
+                                    }
                                 }
                                 
                                 if selectedRelease?.id == release.id {
                                     Spacer()
                                     Image(systemName: "checkmark")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.green)
                                 }
                             }
                         }
                     }
-                } label: {
-                    HStack {
-                        if let release = selectedRelease {
-                            Image(systemName: release.status.iconName)
-                                .font(.system(size: 16))
-                                .foregroundColor(release.status.color)
-                            
-                            VStack(alignment: .leading) {
-                                Text("v\(release.version)")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white)
-                                Text(release.name)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.gray)
-                            }
-                        } else {
-                            Image(systemName: "shippingbox.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(.orange)
-                            
-                            Text("Select Release")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(hex: "#2C2C2E"))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                            )
-                    )
                 }
-                .buttonStyle(PlainButtonStyle())
-                .padding(.horizontal, 8)
+            } else {
+                Button("Select Project First") { }
+                    .disabled(true)
             }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    // Release icon
+                    if let release = selectedRelease {
+                        Image(systemName: release.status.iconName)
+                            .font(.system(size: 16))
+                            .foregroundColor(release.status.color)
+                    } else {
+                        Image(systemName: "shippingbox.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(selectedProject != nil ? .orange.opacity(0.8) : .gray.opacity(0.5))
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray.opacity(selectedProject != nil ? 0.6 : 0.3))
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    if let release = selectedRelease {
+                        Text("v\(release.version)")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
+                        Text(release.name.isEmpty ? "Release" : release.name)
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray.opacity(0.8))
+                            .lineLimit(1)
+                    } else {
+                        Text(selectedProject != nil ? "Select Release" : "No Project")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(selectedProject != nil ? .white : .gray.opacity(0.6))
+                            .lineLimit(1)
+                        
+                        Text(selectedProject != nil ? "Choose Version" : "Select project first")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray.opacity(selectedProject != nil ? 0.8 : 0.5))
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .background(selectorCardBackground)
+            .opacity(selectedProject != nil ? 1.0 : 0.6)
         }
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(hex: "#1C1C1E"))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                )
-        )
-        .padding(.horizontal, 4)
+        .buttonStyle(PlainButtonStyle())
+        .disabled(selectedProject == nil)
+    }
+    
+    private var selectorContainerBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color(hex: "#1C1C1E"))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(0.08),
+                                Color.white.opacity(0.02)
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
+    }
+    
+    private var selectorCardBackground: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(Color(hex: "#2C2C2E"))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
+            )
     }
     
     private var addTaskView: some View {
         VStack(spacing: 12) {
-            // Header with tabs
-            VStack(spacing: 12) {
-                HStack {
-                    Text("CANCEL")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
-                        .onTapGesture {
-                            resetTaskForm()
-                            isAddingNote = false
-                        }
-                        .keyboardShortcut(.escape)
-                    
-                    Spacer()
-                    
-                    Text("Create Task")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Button(action: selectedTaskTab == .regular ? createNewNote : createScheduledTask) {
-                        Text("Confirm")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [Color(hex: "#4CAF50"), Color(hex: "#45A049")]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                                )
-                            )
-                            .cornerRadius(20)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(newNoteTitle.isEmpty)
-                    .opacity(newNoteTitle.isEmpty ? 0.5 : 1.0)
+            taskCreationHeader
+            taskTabSelector
+            taskFormContent
+        }
+        .background(taskViewBackground)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
+    }
+    
+    private var taskCreationHeader: some View {
+        HStack {
+            Text("CANCEL")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.gray)
+                .onTapGesture {
+                    resetTaskForm()
+                    isAddingNote = false
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                
-                // Tab Selector
-                HStack(spacing: 0) {
-                    ForEach(TaskTab.allCases, id: \.self) { tab in
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedTaskTab = tab
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: tab.iconName)
-                                    .font(.system(size: 12))
-                                Text(tab.rawValue)
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                            .foregroundColor(selectedTaskTab == tab ? .white : .gray)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(selectedTaskTab == tab ? Color(hex: "#4CAF50").opacity(0.2) : Color.clear)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(selectedTaskTab == tab ? Color(hex: "#4CAF50").opacity(0.4) : Color.clear, lineWidth: 0.5)
-                                    )
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
+                .keyboardShortcut(.escape)
             
-            // Task Form Content
+            Spacer()
+            
+            Text("Create Task")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            confirmButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+    
+    private var confirmButton: some View {
+        Button(action: selectedTaskTab == .regular ? createNewNote : createScheduledTask) {
+            Text("Confirm")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(confirmButtonBackground)
+                .cornerRadius(20)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(newNoteTitle.isEmpty)
+        .opacity(newNoteTitle.isEmpty ? 0.5 : 1.0)
+    }
+    
+    private var confirmButtonBackground: some View {
+        LinearGradient(
+            gradient: Gradient(colors: [Color(hex: "#4CAF50"), Color(hex: "#45A049")]),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+        )
+    }
+    
+    private var taskTabSelector: some View {
+        HStack(spacing: 2) {
+            ForEach(TaskTab.allCases, id: \.self) { tab in
+                taskTabView(for: tab)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 2)
+    }
+    
+    private func taskTabView(for tab: TaskTab) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: tab.iconName)
+                .font(.system(size: 11, weight: .medium))
+                .symbolRenderingMode(.hierarchical)
+            Text(tab.rawValue)
+                .font(.system(size: 11, weight: .medium))
+                .tracking(0.2)
+        }
+        .foregroundColor(selectedTaskTab == tab ? .white : .gray.opacity(0.7))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .scaleEffect(selectedTaskTab == tab ? 1.02 : 1.0)
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedTaskTab = tab
+            }
+        }
+        .animation(.easeInOut(duration: 0.1), value: selectedTaskTab)
+    }
+    
+    private func taskTabBackground(for tab: TaskTab) -> some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(hex: "#4CAF50").opacity(0.25),
+                        Color(hex: "#45A049").opacity(0.15)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ) 
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        selectedTaskTab == tab ? 
+                        Color(hex: "#4CAF50").opacity(0.3) : 
+                        Color.clear, 
+                        lineWidth: 0.8
+                    )
+            )
+    }
+    
+    private var taskFormContent: some View {
+        Group {
             if selectedTaskTab == .regular {
                 regularTaskForm
             } else {
                 scheduledTaskForm
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(hex: "#1C1C1E"))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                )
-        )
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
+    }
+    
+    private var taskViewBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color(hex: "#1C1C1E"))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            )
+    }
+    
+    private var mediaPickerSection: some View {
+        VStack(spacing: 12) {
+            // Toggle switch for media picker
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: showMediaPicker ? "photo.fill" : "photo")
+                        .font(.system(size: 14))
+                        .foregroundColor(showMediaPicker ? .blue : .gray)
+                    
+                    Text("Attach Media")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
+                    
+                    Text("(images or emojis)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Toggle("", isOn: $showMediaPicker)
+                    .toggleStyle(SwitchToggleStyle(tint: Color.blue))
+                    .scaleEffect(0.8)
+                    .onChange(of: showMediaPicker) { value in
+                        saveMediaPickerPreference(value)
+                        if !value {
+                            // Clear media content when disabled
+                            taskMediaContent = MediaContent()
+                        }
+                    }
+            }
+            .padding(.horizontal, 16)
+            
+            // Show MediaPickerView only when enabled
+            if showMediaPicker {
+                MediaPickerView(mediaContent: $taskMediaContent)
+                    .padding(.horizontal, 16)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showMediaPicker)
+    }
+    
+    private func saveMediaPickerPreference(_ isEnabled: Bool) {
+        UserDefaults.standard.set(isEnabled, forKey: "showMediaPicker")
+    }
+    
+    private func initializeMediaPickerPreference() {
+        // Set default value for first-time users
+        if UserDefaults.standard.object(forKey: "showMediaPicker") == nil {
+            UserDefaults.standard.set(false, forKey: "showMediaPicker")
+            showMediaPicker = false
+        } else {
+            showMediaPicker = UserDefaults.standard.bool(forKey: "showMediaPicker")
+        }
     }
     
     private var regularTaskForm: some View {
@@ -525,8 +778,11 @@ struct FloatingSidebarView: View {
             }
             .padding(.horizontal, 16)
             
+            // Media picker toggle and content
+            mediaPickerSection
+            
             HStack {
-                Text("Add a regular task")
+                Text("Add a regular task" + (showMediaPicker ? " with optional media" : ""))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.gray)
                 
@@ -711,80 +967,8 @@ struct FloatingSidebarView: View {
             }
             .padding(.horizontal, 16)
             
-            // Image Upload Section
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Attach Image (optional)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
-                    Spacer()
-                }
-                
-                if let selectedImage = selectedImage {
-                    HStack {
-                        Image(nsImage: selectedImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 60, height: 60)
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                            )
-                        
-                        VStack(alignment: .leading) {
-                            Text("Image attached")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
-                            Text("Tap to change")
-                                .font(.system(size: 10))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: { self.selectedImage = nil }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.red)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(hex: "#2C2C2E"))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                            )
-                    )
-                    .onTapGesture {
-                        showImagePicker()
-                    }
-                } else {
-                    Button(action: showImagePicker) {
-                        HStack {
-                            Image(systemName: "photo")
-                                .font(.system(size: 16))
-                            Text("Add Image")
-                                .font(.system(size: 12))
-                        }
-                        .foregroundColor(.white.opacity(0.7))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(hex: "#2C2C2E"))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                                )
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-            .padding(.horizontal, 16)
+            // Media picker toggle and content
+            mediaPickerSection
             
             HStack {
                 Text("Create a scheduled task")
@@ -798,6 +982,176 @@ struct FloatingSidebarView: View {
         }
     }
     
+    // MARK: - Task Progress Summary
+    private var taskProgressSummary: some View {
+        let completedTasks = noteStore.getFilteredCompletedNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)
+        let pendingTasks = noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)
+        let totalTasks = completedTasks.count + pendingTasks.count
+        let progress = totalTasks > 0 ? Double(completedTasks.count) / Double(totalTasks) : 0.0
+        let estimatedTimeRemaining = calculateEstimatedTimeRemaining(pendingTasks)
+        
+        return HStack(spacing: 10) {
+            // Completed tasks
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(.green)
+                
+                Text("\(completedTasks.count)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            
+            // Divider
+            Text("•")
+                .font(.system(size: 8))
+                .foregroundColor(.gray.opacity(0.4))
+            
+            // Pending tasks
+            HStack(spacing: 4) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(.orange.opacity(0.8))
+                
+                Text("\(pendingTasks.count)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            
+            // Inline progress bar
+            if totalTasks > 0 {
+                HStack(spacing: 6) {
+                    // Progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background track
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color(hex: "#2C2C2E"))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
+                                )
+                            
+                            // Progress fill
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color(hex: "#4CAF50"),
+                                            Color(hex: "#45A049")
+                                        ]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * progress)
+                                .animation(.easeInOut(duration: 0.6), value: progress)
+                        }
+                    }
+                    .frame(width: 60, height: 4)
+                    
+                    // Percentage
+                    Text("\(Int(progress * 100))%")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                        .frame(minWidth: 30)
+                }
+            }
+            
+            Spacer()
+            
+            // Estimated time remaining
+            if estimatedTimeRemaining > 0 {
+                HStack(spacing: 3) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 10))
+                        .foregroundColor(.blue.opacity(0.7))
+                    
+                    Text(formatEstimatedTime(estimatedTimeRemaining))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.blue.opacity(0.8))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.blue.opacity(0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.blue.opacity(0.15), lineWidth: 0.5)
+                        )
+                )
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(hex: "#1C1C1E"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.05),
+                                    Color.white.opacity(0.02)
+                                ]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
+        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+    }
+    
+    // MARK: - Helper Methods for Progress Summary
+    private func calculateEstimatedTimeRemaining(_ pendingTasks: [Note]) -> TimeInterval {
+        var totalSeconds: TimeInterval = 0
+        
+        for task in pendingTasks {
+            if let estimatedTime = task.estimatedTime, !estimatedTime.isEmpty {
+                // Parse time format (e.g., "01:30" or "90" minutes)
+                let components = estimatedTime.components(separatedBy: ":")
+                if components.count == 2 {
+                    // HH:MM format
+                    if let hours = Int(components[0]), let minutes = Int(components[1]) {
+                        totalSeconds += TimeInterval(hours * 3600 + minutes * 60)
+                    }
+                } else if components.count == 1 {
+                    // Minutes only format
+                    if let minutes = Int(components[0]) {
+                        totalSeconds += TimeInterval(minutes * 60)
+                    }
+                }
+            } else {
+                // Default estimation for tasks without specified time (15 minutes)
+                totalSeconds += 15 * 60
+            }
+        }
+        
+        return totalSeconds
+    }
+    
+    private func formatEstimatedTime(_ seconds: TimeInterval) -> String {
+        let hours = Int(seconds) / 3600
+        let minutes = Int(seconds) % 3600 / 60
+        
+        if hours > 0 {
+            if minutes > 0 {
+                return "\(hours)h \(minutes)m left"
+            } else {
+                return "\(hours)h left"
+            }
+        } else if minutes > 0 {
+            return "\(minutes)m left"
+        } else {
+            return "Almost done!"
+        }
+    }
+
     private var addTaskButton: some View {
         Button(action: {
             isAddingNote = true
@@ -1356,11 +1710,14 @@ struct FloatingSidebarView: View {
     private func createNewNote() {
         if !newNoteTitle.isEmpty {
             let newId = UUID()
+            let mediaToSave = (showMediaPicker && taskMediaContent.hasContent) ? taskMediaContent : nil
+            
             noteStore.addNote(
                 id: newId,
                 title: newNoteTitle,
                 content: "",
-                category: .today
+                category: .today,
+                mediaContent: mediaToSave
             )
             
             // Add task to appropriate column based on selected project/release
@@ -1378,6 +1735,7 @@ struct FloatingSidebarView: View {
         if !newNoteTitle.isEmpty {
             let imageData = selectedImage?.tiffRepresentation
             let newId = UUID()
+            let mediaToSave = (showMediaPicker && taskMediaContent.hasContent) ? taskMediaContent : nil
             
             noteStore.addScheduledNote(
                 id: newId,
@@ -1388,7 +1746,8 @@ struct FloatingSidebarView: View {
                 priority: taskPriority,
                 estimatedTime: estimatedTime.isEmpty ? nil : estimatedTime,
                 reminderMinutes: reminderMinutes,
-                imageData: imageData,
+                imageData: imageData, // Keep for backward compatibility
+                mediaContent: mediaToSave,
                 category: .today
             )
             
@@ -1412,22 +1771,14 @@ struct FloatingSidebarView: View {
         reminderMinutes = 15
         selectedImage = nil
         selectedTaskTab = .regular
-    }
-    
-    private func showImagePicker() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
         
-        if panel.runModal() == .OK {
-            if let url = panel.url,
-               let image = NSImage(contentsOf: url) {
-                selectedImage = image
-            }
+        // Only reset media content if media picker is enabled
+        if showMediaPicker {
+            taskMediaContent = MediaContent()
         }
     }
+    
+    // Note: showImagePicker() method removed as we now use MediaPickerView
     
     private func focusOnNewNote() {
          DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -1753,6 +2104,45 @@ struct TaskRowView: View {
     
     private var normalTaskView: some View {
         HStack(spacing: 12) {
+            // Media indicator (small)
+            if note.mediaContent.hasContent {
+                VStack {
+                    switch note.mediaContent.type {
+                    case .image:
+                        if let imageData = note.mediaContent.imageData, let nsImage = NSImage(data: imageData) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 24, height: 24)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
+                        }
+                    case .emoji:
+                        if let emoji = note.mediaContent.emoji {
+                            Text(emoji)
+                                .font(.system(size: 16))
+                                .frame(width: 24, height: 24)
+                        }
+                    case .none:
+                        EmptyView()
+                    }
+                }
+            } else if let imageData = note.imageData, let nsImage = NSImage(data: imageData) {
+                // Backward compatibility
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 24, height: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                    )
+            }
+            
             VStack(alignment: .leading, spacing: 4) {
                 TextField("", text: Binding(
                     get: { editableTitle },
@@ -2456,8 +2846,40 @@ struct ScheduledTaskRowView: View {
                         timerView
                     }
                     
-                    // Task image thumbnail
-                    if let imageData = note.imageData, let nsImage = NSImage(data: imageData) {
+                    // Task media thumbnail
+                    if note.mediaContent.hasContent {
+                        switch note.mediaContent.type {
+                        case .image:
+                            if let imageData = note.mediaContent.imageData, let nsImage = NSImage(data: imageData) {
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                    )
+                            }
+                        case .emoji:
+                            if let emoji = note.mediaContent.emoji {
+                                Text(emoji)
+                                    .font(.system(size: 24))
+                                    .frame(width: 40, height: 40)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color(hex: "#2C2C2E"))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6)
+                                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                            )
+                                    )
+                            }
+                        case .none:
+                            EmptyView()
+                        }
+                    } else if let imageData = note.imageData, let nsImage = NSImage(data: imageData) {
+                        // Backward compatibility for old image data
                         Image(nsImage: nsImage)
                             .resizable()
                             .aspectRatio(contentMode: .fill)

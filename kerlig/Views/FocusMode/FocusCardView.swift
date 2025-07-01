@@ -393,9 +393,9 @@ struct FocusCardView: View {
     // MARK: - Helper Methods
     private func setupInitialState() {
         // Auto-start timer for first pending note if no active timer
-        if noteStore.activeTimerNote == nil, let firstNote = noteStore.getFirstPendingNote(selectedProject: nil, selectedRelease: nil) {
-            noteStore.startTimer(for: firstNote)
-        }
+//        if noteStore.activeTimerNote == nil, let firstNote = noteStore.getFirstPendingNote() {
+//            noteStore.startTimer(for: firstNote)
+//        }
     }
     
     private func updateTimerDisplay() {
@@ -415,9 +415,10 @@ struct FocusCardView: View {
     private func toggleTimer() {
         switch noteStore.globalTimerState {
         case .stopped:
-            if let firstNote = noteStore.getFirstPendingNote(selectedProject: nil, selectedRelease: nil) {
-                noteStore.startTimer(for: firstNote)
-            }
+//            if let firstNote = noteStore.getFirstPendingNote() {
+//                noteStore.startTimer(for: firstNote)
+//            }
+            noteStore.pauseCurrentTimer()
         case .running:
             noteStore.pauseCurrentTimer()
         case .paused:

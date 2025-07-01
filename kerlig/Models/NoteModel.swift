@@ -29,6 +29,54 @@ struct TimerSession: Identifiable, Codable {
     }
 }
 
+// MARK: - Media Content Types
+enum MediaContentType: String, Codable {
+    case none = "none"
+    case image = "image"
+    case emoji = "emoji"
+}
+
+struct MediaContent: Codable {
+    var type: MediaContentType
+    var imageData: Data?
+    var emoji: String?
+    var fileName: String?
+    var originalSize: Int?
+    var compressedSize: Int?
+    
+    init(type: MediaContentType = .none, imageData: Data? = nil, emoji: String? = nil, fileName: String? = nil) {
+        self.type = type
+        self.imageData = imageData
+        self.emoji = emoji
+        self.fileName = fileName
+        self.originalSize = imageData?.count
+        self.compressedSize = imageData?.count
+    }
+    
+    // Helper methods
+    var hasContent: Bool {
+        switch type {
+        case .none:
+            return false
+        case .image:
+            return imageData != nil
+        case .emoji:
+            return emoji != nil && !emoji!.isEmpty
+        }
+    }
+    
+    var displayText: String {
+        switch type {
+        case .none:
+            return "No media"
+        case .image:
+            return fileName ?? "Image attached"
+        case .emoji:
+            return emoji ?? "😊"
+        }
+    }
+}
+
 struct Note: Identifiable, Codable, Hashable {
     var id: UUID
     var title: String
@@ -58,12 +106,16 @@ struct Note: Identifiable, Codable, Hashable {
     var scheduledDate: Date?
     var scheduledTime: Date?
     var priority: TaskPriority
-    var imageData: Data? // Store task image as Data
+    @available(*, deprecated, message: "Use mediaContent instead")
+    var imageData: Data? // Keep for backward compatibility
     var description: String? // Additional description for scheduled tasks
     var reminderMinutes: Int? // Minutes before scheduled time to show reminder
     var hasBeenNotified: Bool // Track if notification has been shown
     
-    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil, isScheduled: Bool = false, scheduledDate: Date? = nil, scheduledTime: Date? = nil, priority: TaskPriority = .medium, imageData: Data? = nil, description: String? = nil, reminderMinutes: Int? = nil, hasBeenNotified: Bool = false, timerState: TimerState = .stopped, totalWorkTime: TimeInterval = 0, totalBreakTime: TimeInterval = 0, sessions: [TimerSession] = [], isActiveTimer: Bool = false, targetWorkDuration: TimeInterval? = nil) {
+    // New unified media content
+    var mediaContent: MediaContent
+    
+    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil, isScheduled: Bool = false, scheduledDate: Date? = nil, scheduledTime: Date? = nil, priority: TaskPriority = .medium, imageData: Data? = nil, description: String? = nil, reminderMinutes: Int? = nil, hasBeenNotified: Bool = false, timerState: TimerState = .stopped, totalWorkTime: TimeInterval = 0, totalBreakTime: TimeInterval = 0, sessions: [TimerSession] = [], isActiveTimer: Bool = false, targetWorkDuration: TimeInterval? = nil, mediaContent: MediaContent? = nil) {
         self.id = id
         self.title = title
         self.content = content
@@ -89,6 +141,12 @@ struct Note: Identifiable, Codable, Hashable {
         self.sessions = sessions
         self.isActiveTimer = isActiveTimer
         self.targetWorkDuration = targetWorkDuration
+        self.mediaContent = mediaContent ?? MediaContent()
+        
+        // Migration: if imageData exists but mediaContent is empty, migrate it
+        if let imageData = imageData, !self.mediaContent.hasContent {
+            self.mediaContent = MediaContent(type: .image, imageData: imageData)
+        }
     }
     
     // Timer helper methods
@@ -589,8 +647,8 @@ class NoteStore: ObservableObject {
         currentNote = notes.first(where: { $0.id == noteId })
     }
     
-    func addNote(id: UUID, title: String, content: String, category: NoteCategory = .uncategorized) {
-        let newNote = Note(id: id, title: title, content: content, category: category)
+    func addNote(id: UUID, title: String, content: String, category: NoteCategory = .uncategorized, mediaContent: MediaContent? = nil) {
+        let newNote = Note(id: id, title: title, content: content, category: category, mediaContent: mediaContent)
         notes.append(newNote)
         saveNotes()
     }
@@ -607,8 +665,12 @@ class NoteStore: ObservableObject {
         estimatedTime: String? = nil,
         reminderMinutes: Int? = 15,
         imageData: Data? = nil,
+        mediaContent: MediaContent? = nil,
         category: NoteCategory = .today
     ) {
+        // Use mediaContent if provided, otherwise create from imageData for backward compatibility
+        let finalMediaContent = mediaContent ?? (imageData != nil ? MediaContent(type: .image, imageData: imageData) : MediaContent())
+        
         let scheduledNote = Note(
             id: id,
             title: title,
@@ -619,9 +681,10 @@ class NoteStore: ObservableObject {
             scheduledDate: scheduledDate,
             scheduledTime: scheduledTime,
             priority: priority,
-            imageData: imageData,
+            imageData: imageData, // Keep for backward compatibility
             description: description,
-            reminderMinutes: reminderMinutes
+            reminderMinutes: reminderMinutes,
+            mediaContent: finalMediaContent
         )
         notes.append(scheduledNote)
         saveNotes()
