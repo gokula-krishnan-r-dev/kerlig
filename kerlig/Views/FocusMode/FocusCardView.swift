@@ -1,6 +1,95 @@
 import SwiftUI
 import AVFoundation
 
+/*
+ * FOCUS CARD VIEW - Professional Task Timer Management
+ * 
+ * 🎯 Features:
+ * - Dynamic project/release selection with persistent storage
+ * - Professional UserDefaults management with fallback logic
+ * - Automatic task selection based on current project context
+ * - Real-time state updates when data changes
+ * - Comprehensive logging for debugging
+ * 
+ * 🔄 Auto-refresh triggers:
+ * - When projects are added/removed/archived
+ * - When releases are created/deleted
+ * - When focus card is initialized
+ * 
+ * 📱 Integration:
+ * - Syncs with FloatingSidebarView selection
+ * - Maintains consistent state across app components
+ * - Provides external refresh methods for manual updates
+ * 
+ * ⏱️ Synchronized Timer System:
+ * - Uses centralized noteStore timer system for perfect sync
+ * - Timer values match exactly with FloatingSidebarView
+ * - Real-time updates when timer state changes from other views
+ * - Professional logging for debugging timer operations
+ */
+
+// MARK: - UserDefaults Manager for Project/Release Preferences (Shared)
+private struct ProjectReleasePreferences {
+    static let selectedProjectIdKey = "SelectedProjectId"
+    static let selectedReleaseIdKey = "SelectedReleaseId"
+    static let lastUsedProjectKey = "LastUsedProject"
+    
+    static func loadSelectedProject(from projects: [Project], releases: [Release]) -> (project: Project?, release: Release?) {
+        let userDefaults = UserDefaults.standard
+        
+        print("🔍 [FocusCard] Loading project selection...")
+        
+        // Try to load previously selected project
+        if let projectIdString = userDefaults.string(forKey: selectedProjectIdKey),
+           let projectId = UUID(uuidString: projectIdString) {
+            
+            // Find the project in current available projects
+            if let savedProject = projects.first(where: { $0.id == projectId && !$0.isArchived }) {
+                
+                // Try to load previously selected release for this project
+                if let releaseIdString = userDefaults.string(forKey: selectedReleaseIdKey),
+                   let releaseId = UUID(uuidString: releaseIdString) {
+                    
+                    // Find the release in current available releases for this project
+                    let projectReleases = releases.filter { $0.projectId == savedProject.id }
+                    if let savedRelease = projectReleases.first(where: { $0.id == releaseId }) {
+                        print("🎯 [FocusCard] Restored saved selection: \(savedProject.title) -> v\(savedRelease.version)")
+                        return (savedProject, savedRelease)
+                    }
+                }
+                
+                // If project exists but release doesn't, select first available release
+                let projectReleases = releases.filter { $0.projectId == savedProject.id }
+                let firstRelease = projectReleases.first
+                print("🔄 [FocusCard] Project found, selecting first release: \(savedProject.title) -> \(firstRelease?.version ?? "None")")
+                return (savedProject, firstRelease)
+            }
+        }
+        
+        // Fallback: Try to use last used project if current selection is invalid
+        if let lastProjectIdString = userDefaults.string(forKey: lastUsedProjectKey),
+           let lastProjectId = UUID(uuidString: lastProjectIdString),
+           let lastUsedProject = projects.first(where: { $0.id == lastProjectId && !$0.isArchived }) {
+            
+            let projectReleases = releases.filter { $0.projectId == lastUsedProject.id }
+            let firstRelease = projectReleases.first
+            print("🔄 [FocusCard] Using last used project: \(lastUsedProject.title)")
+            return (lastUsedProject, firstRelease)
+        }
+        
+        // Final fallback: Select first available project
+        if let firstProject = projects.first(where: { !$0.isArchived }) {
+            let projectReleases = releases.filter { $0.projectId == firstProject.id }
+            let firstRelease = projectReleases.first
+            print("🆕 [FocusCard] Auto-selecting first available project: \(firstProject.title)")
+            return (firstProject, firstRelease)
+        }
+        
+        print("⚠️ [FocusCard] No projects available for selection")
+        return (nil, nil)
+    }
+}
+
 struct FocusCardView: View {
     let controller: FocusCardController
     @ObservedObject var noteStore: NoteStore
@@ -62,6 +151,26 @@ struct FocusCardView: View {
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             updateTimerDisplay()
+        }
+        .onChange(of: noteStore.projects.count) { _ in
+            // Refresh focus card state when projects change
+            refreshFocusCardState()
+        }
+        .onChange(of: noteStore.releases.count) { _ in
+            // Refresh focus card state when releases change
+            refreshFocusCardState()
+        }
+        .onChange(of: noteStore.globalTimerState) { newState in
+            // Update UI when timer state changes from other views
+            print("🔄 [FocusCard] Timer state changed to: \(newState)")
+        }
+        .onChange(of: noteStore.activeTimerNote?.id) { _ in
+            // Update UI when active timer note changes
+            if let activeNote = noteStore.activeTimerNote {
+                print("🎯 [FocusCard] Active timer note changed to: \(activeNote.title)")
+            } else {
+                print("⏹️ [FocusCard] No active timer note")
+            }
         }
     }
 
@@ -391,12 +500,78 @@ struct FocusCardView: View {
     }
     
     // MARK: - Helper Methods
+    
+    /// Professional initialization of the focus card with proper project/release selection
     private func setupInitialState() {
-        // Auto-start timer for first pending note if no active timer
-//        if noteStore.activeTimerNote == nil, let firstNote = noteStore.getFirstPendingNote() {
-//            noteStore.startTimer(for: firstNote)
-//        }
+        print("🚀 [FocusCard] Setting up initial state...")
+        
+        // Load the current project and release selection using the professional system
+        let (selectedProject, selectedRelease) = ProjectReleasePreferences.loadSelectedProject(
+            from: noteStore.projects,
+            releases: noteStore.releases
+        )
+        
+        // Get the first pending note for the selected project and release
+        let firstNote = noteStore.getFirstPendingNote(
+            selectedProject: selectedProject,
+            selectedRelease: selectedRelease
+        )
+        
+        // Start timer for the first available task if no timer is currently active
+        if noteStore.activeTimerNote == nil {
+            if let firstNote = firstNote {
+                print("▶️ [FocusCard] Starting timer for: \(firstNote.title)")
+                noteStore.startTimer(for: firstNote)
+            } else {
+                print("⚠️ [FocusCard] No pending tasks found for current selection")
+                print("   Project: \(selectedProject?.title ?? "None")")
+                print("   Release: \(selectedRelease?.version ?? "None")")
+            }
+        } else {
+            print("ℹ️ [FocusCard] Timer already active for: \(noteStore.activeTimerNote?.title ?? "Unknown")")
+        }
+        
+        print("✅ [FocusCard] Initial state setup completed")
     }
+    
+    /// Get current project/release selection summary for debugging
+    private func getCurrentSelectionSummary() -> String {
+        let (selectedProject, selectedRelease) = ProjectReleasePreferences.loadSelectedProject(
+            from: noteStore.projects,
+            releases: noteStore.releases
+        )
+        
+        let projectTitle = selectedProject?.title ?? "All Projects"
+        let releaseVersion = selectedRelease?.version ?? "No Release"
+        return "\(projectTitle) -> v\(releaseVersion)"
+    }
+    
+    /// Refresh the focus card state when projects/releases change
+    private func refreshFocusCardState() {
+        print("🔄 [FocusCard] Refreshing focus card state")
+        
+        // If no timer is active, try to start one with the current selection
+        if noteStore.activeTimerNote == nil {
+            let (selectedProject, selectedRelease) = ProjectReleasePreferences.loadSelectedProject(
+                from: noteStore.projects,
+                releases: noteStore.releases
+            )
+            
+            if let firstNote = noteStore.getFirstPendingNote(selectedProject: selectedProject, selectedRelease: selectedRelease) {
+                print("▶️ [FocusCard] Starting timer for new first task: \(firstNote.title)")
+                noteStore.startTimer(for: firstNote)
+            }
+        }
+        
+                 print("📊 [FocusCard] Current selection: \(getCurrentSelectionSummary())")
+     }
+     
+     /// Public method to refresh focus card state - can be called from external sources
+     func refreshProjectSelectionState() {
+         print("🔄 [FocusCard] External refresh requested for project selection")
+         refreshFocusCardState()
+         print("📊 [FocusCard] Current selection: \(getCurrentSelectionSummary())")
+     }
     
     private func updateTimerDisplay() {
         // Check for milestone notifications (every 10 minutes)
@@ -415,14 +590,26 @@ struct FocusCardView: View {
     private func toggleTimer() {
         switch noteStore.globalTimerState {
         case .stopped:
-//            if let firstNote = noteStore.getFirstPendingNote() {
-//                noteStore.startTimer(for: firstNote)
-//            }
-            noteStore.pauseCurrentTimer()
+            // Start timer for first available task using current project/release selection
+            let (selectedProject, selectedRelease) = ProjectReleasePreferences.loadSelectedProject(
+                from: noteStore.projects,
+                releases: noteStore.releases
+            )
+            
+            if let firstNote = noteStore.getFirstPendingNote(selectedProject: selectedProject, selectedRelease: selectedRelease) {
+                print("▶️ [FocusCard] Starting timer from stopped state: \(firstNote.title)")
+                noteStore.startTimer(for: firstNote)
+                showNotification(message: "Timer started: \(firstNote.title)")
+            } else {
+                print("⚠️ [FocusCard] No tasks available to start timer")
+                showNotification(message: "No tasks available")
+            }
         case .running:
             noteStore.pauseCurrentTimer()
+            showNotification(message: "Timer paused")
         case .paused:
             noteStore.resumeCurrentTimer()
+            showNotification(message: "Timer resumed")
         case .break:
             endBreak()
         }
@@ -447,18 +634,30 @@ struct FocusCardView: View {
     
     private func skipTask() {
         if let activeNote = noteStore.activeTimerNote {
-            let nextTask = noteStore.getPendingNotes().dropFirst().first
+            print("⏭️ [FocusCard] Skipping task: \(activeNote.title)")
+            
+            // Stop current timer
             noteStore.stopCurrentTimer()
             
-            // Move current task to end
+            // Move current task to end of the list
             noteStore.moveNoteToEnd(activeNote)
             
-            // Start next task if available
-            if let nextTask = nextTask {
+            // Get the next task based on current project/release selection
+            let (selectedProject, selectedRelease) = ProjectReleasePreferences.loadSelectedProject(
+                from: noteStore.projects,
+                releases: noteStore.releases
+            )
+            
+            // Get next available task
+            if let nextTask = noteStore.getFirstPendingNote(selectedProject: selectedProject, selectedRelease: selectedRelease) {
+                print("▶️ [FocusCard] Starting next task: \(nextTask.title)")
                 noteStore.startTimer(for: nextTask)
+                showNotification(message: "Task skipped. Started: \(nextTask.title)")
+            } else {
+                print("⚠️ [FocusCard] No more tasks available for current selection")
+                showNotification(message: "Task skipped. No more tasks available.")
             }
             
-            showNotification(message: "Task skipped")
             SoundManager.shared.playSound("skip")
         }
     }
@@ -598,3 +797,9 @@ struct StatItem: View {
 
 
 
+
+
+
+#Preview {
+    FocusCardView(controller: FocusCardController(), noteStore: NoteStore())
+}

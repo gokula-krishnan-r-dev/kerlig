@@ -1188,6 +1188,8 @@ class NoteStore: ObservableObject {
     // MARK: - Centralized Timer Management
     
     func startTimer(for note: Note) {
+
+        
         // Stop any currently active timer
         stopCurrentTimer()
         

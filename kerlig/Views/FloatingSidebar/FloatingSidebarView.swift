@@ -3,6 +3,109 @@ import AppKit
 import AVFoundation
 import UserNotifications
 
+// MARK: - UserDefaults Manager for Project/Release Preferences
+private struct ProjectReleasePreferences {
+    static let selectedProjectIdKey = "SelectedProjectId"
+    static let selectedReleaseIdKey = "SelectedReleaseId"
+    static let lastUsedProjectKey = "LastUsedProject"
+    
+    static func saveSelectedProject(_ project: Project?, release: Release?) {
+        let userDefaults = UserDefaults.standard
+        
+        if let project = project {
+            userDefaults.set(project.id.uuidString, forKey: selectedProjectIdKey)
+            userDefaults.set(project.id.uuidString, forKey: lastUsedProjectKey)
+            
+            if let release = release {
+                userDefaults.set(release.id.uuidString, forKey: selectedReleaseIdKey)
+            } else {
+                userDefaults.removeObject(forKey: selectedReleaseIdKey)
+            }
+        } else {
+            userDefaults.removeObject(forKey: selectedProjectIdKey)
+            userDefaults.removeObject(forKey: selectedReleaseIdKey)
+        }
+        
+        userDefaults.synchronize()
+        
+        // Debug logging
+        print("💾 Project Preferences Saved:")
+        print("   Project: \(project?.title ?? "None")")
+        print("   Release: \(release?.version ?? "None")")
+    }
+    
+    static func loadSelectedProject(from projects: [Project], releases: [Release]) -> (project: Project?, release: Release?) {
+        let userDefaults = UserDefaults.standard
+        
+        // Try to load previously selected project
+        if let projectIdString = userDefaults.string(forKey: selectedProjectIdKey),
+           let projectId = UUID(uuidString: projectIdString) {
+            
+            // Find the project in current available projects
+            if let savedProject = projects.first(where: { $0.id == projectId && !$0.isArchived }) {
+                
+                // Try to load previously selected release for this project
+                if let releaseIdString = userDefaults.string(forKey: selectedReleaseIdKey),
+                   let releaseId = UUID(uuidString: releaseIdString) {
+                    
+                    // Find the release in current available releases for this project
+                    let projectReleases = releases.filter { $0.projectId == savedProject.id }
+                    if let savedRelease = projectReleases.first(where: { $0.id == releaseId }) {
+                        print("🎯 Restored saved selection: \(savedProject.title) -> v\(savedRelease.version)")
+                        return (savedProject, savedRelease)
+                    }
+                }
+                
+                // If project exists but release doesn't, select first available release
+                let projectReleases = releases.filter { $0.projectId == savedProject.id }
+                let firstRelease = projectReleases.first
+                print("🔄 Project found, selecting first release: \(savedProject.title) -> \(firstRelease?.version ?? "None")")
+                return (savedProject, firstRelease)
+            }
+        }
+        
+        // Fallback: Try to use last used project if current selection is invalid
+        if let lastProjectIdString = userDefaults.string(forKey: lastUsedProjectKey),
+           let lastProjectId = UUID(uuidString: lastProjectIdString),
+           let lastUsedProject = projects.first(where: { $0.id == lastProjectId && !$0.isArchived }) {
+            
+            let projectReleases = releases.filter { $0.projectId == lastUsedProject.id }
+            let firstRelease = projectReleases.first
+            print("🔄 Using last used project: \(lastUsedProject.title)")
+            return (lastUsedProject, firstRelease)
+        }
+        
+        // Final fallback: Select first available project
+        if let firstProject = projects.first(where: { !$0.isArchived }) {
+            let projectReleases = releases.filter { $0.projectId == firstProject.id }
+            let firstRelease = projectReleases.first
+            print("🆕 Auto-selecting first available project: \(firstProject.title)")
+            return (firstProject, firstRelease)
+        }
+        
+        print("⚠️ No projects available for selection")
+        return (nil, nil)
+    }
+    
+    static func clearPreferences() {
+        let userDefaults = UserDefaults.standard
+        userDefaults.removeObject(forKey: selectedProjectIdKey)
+        userDefaults.removeObject(forKey: selectedReleaseIdKey)
+        userDefaults.synchronize()
+        print("🗑️ Project preferences cleared")
+    }
+    
+    /// Get current stored preferences for debugging
+    static func getCurrentStoredPreferences() -> (projectId: String?, releaseId: String?, lastUsedProjectId: String?) {
+        let userDefaults = UserDefaults.standard
+        return (
+            projectId: userDefaults.string(forKey: selectedProjectIdKey),
+            releaseId: userDefaults.string(forKey: selectedReleaseIdKey),
+            lastUsedProjectId: userDefaults.string(forKey: lastUsedProjectKey)
+        )
+    }
+}
+
 struct FloatingSidebarView: View {
     // MARK: - Properties
     @StateObject private var noteStore = NoteStore()
@@ -106,7 +209,7 @@ struct FloatingSidebarView: View {
         .cornerRadius(20)
         .onAppear {
             isFocused = true
-            setupInitialProjectSelection()
+            initializeProjectSelection()
             firstNote = findFirstNote()
             
             // Initialize media picker preference with default value
@@ -130,6 +233,14 @@ struct FloatingSidebarView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 TickSoundService.shared.playTestSound()
             }
+        }
+        .onChange(of: noteStore.projects.count) { _ in
+            // Validate selection when projects change
+            validateAndRefreshSelection()
+        }
+        .onChange(of: noteStore.releases.count) { _ in
+            // Validate selection when releases change
+            validateAndRefreshSelection()
         }
         .sheet(isPresented: $notificationService.showingScheduledAlert) {
             if let task = notificationService.currentScheduledTask {
@@ -400,19 +511,12 @@ struct FloatingSidebarView: View {
     private var projectSelectorCard: some View {
         Menu {
             Button("All Projects") {
-                selectedProject = nil
-                selectedRelease = nil
-                updateTaskData()
+                clearProjectSelection()
             }
             
             ForEach(noteStore.projects.filter { !$0.isArchived }) { project in
                 Button(action: {
-                    selectedProject = project
-                    // Auto-select first release of the project
-                    let releases = noteStore.getReleasesForProject(project)
-                    selectedRelease = releases.first
-                    updateTaskData()
-                    firstNote = findFirstNote()
+                    selectProject(project)
                 }) {
                     HStack {
                         if let logoData = project.logoImageData,
@@ -496,9 +600,7 @@ struct FloatingSidebarView: View {
                 } else {
                     ForEach(releases) { release in
                         Button(action: {
-                            selectedRelease = release
-                            updateTaskData()
-                            firstNote = findFirstNote()
+                            selectRelease(release)
                         }) {
                             HStack {
                                 Image(systemName: release.status.iconName)
@@ -1819,16 +1921,127 @@ struct FloatingSidebarView: View {
         NSApp.activate(ignoringOtherApps: true)
     }
     
-    // Project and Release Management
-    private func setupInitialProjectSelection() {
-        // Auto-select first project if available
-        if let firstProject = noteStore.projects.first(where: { !$0.isArchived }) {
-            selectedProject = firstProject
-            let releases = noteStore.getReleasesForProject(firstProject)
-            selectedRelease = releases.first
-            updateTaskData()
-        }
+    // MARK: - Project and Release Management
+    
+    /// Initialize project selection using the professional UserDefaults system
+    private func initializeProjectSelection() {
+        print("🚀 Initializing project selection...")
+        
+        // Load saved selection using the professional system
+        let (savedProject, savedRelease) = ProjectReleasePreferences.loadSelectedProject(
+            from: noteStore.projects,
+            releases: noteStore.releases
+        )
+        
+        // Apply the loaded selection
+        selectedProject = savedProject
+        selectedRelease = savedRelease
+        
+        // Update task data and UI
+        updateTaskData()
+        
+        print("✅ Project selection initialized: \(savedProject?.title ?? "None") -> \(savedRelease?.version ?? "None")")
     }
+    
+    /// Select a project and automatically choose the best release
+    private func selectProject(_ project: Project) {
+        print("📁 Selecting project: \(project.title)")
+        
+        // Set the selected project
+        selectedProject = project
+        
+        // Get available releases for this project
+        let projectReleases = noteStore.getReleasesForProject(project)
+        
+        // Auto-select the first available release
+        selectedRelease = projectReleases.first
+        
+        // Save the selection using the professional system
+        ProjectReleasePreferences.saveSelectedProject(selectedProject, release: selectedRelease)
+        
+        // Update task data and UI
+        updateTaskData()
+        firstNote = findFirstNote()
+        
+        print("✅ Project selected successfully")
+    }
+    
+    /// Select a specific release for the current project
+    private func selectRelease(_ release: Release) {
+        guard let currentProject = selectedProject else {
+            print("⚠️ Cannot select release without a project")
+            return
+        }
+        
+        print("🎯 Selecting release: v\(release.version) for \(currentProject.title)")
+        
+        // Set the selected release
+        selectedRelease = release
+        
+        // Save the selection using the professional system
+        ProjectReleasePreferences.saveSelectedProject(selectedProject, release: selectedRelease)
+        
+        // Update task data and UI
+        updateTaskData()
+        firstNote = findFirstNote()
+        
+        print("✅ Release selected successfully")
+    }
+    
+    /// Clear current project/release selection
+    private func clearProjectSelection() {
+        print("🗑️ Clearing project selection")
+        
+        selectedProject = nil
+        selectedRelease = nil
+        
+        // Clear saved preferences
+        ProjectReleasePreferences.clearPreferences()
+        
+        // Update task data and UI
+        updateTaskData()
+        firstNote = findFirstNote()
+        
+                 print("✅ Project selection cleared")
+     }
+     
+     /// Validate and refresh current project/release selection
+     /// This should be called when noteStore data changes
+     private func validateAndRefreshSelection() {
+         guard let currentProject = selectedProject else { return }
+         
+         // Check if current project still exists and is not archived
+         if !noteStore.projects.contains(where: { $0.id == currentProject.id && !$0.isArchived }) {
+            print("⚠️ Current project no longer available, reinitializing selection")
+            initializeProjectSelection()
+            return
+         }
+         
+         // Check if current release still exists
+         if let currentRelease = selectedRelease {
+            let projectReleases = noteStore.getReleasesForProject(currentProject)
+            if !projectReleases.contains(where: { $0.id == currentRelease.id }) {
+                print("⚠️ Current release no longer available, selecting first available")
+                selectedRelease = projectReleases.first
+                ProjectReleasePreferences.saveSelectedProject(selectedProject, release: selectedRelease)
+                updateTaskData()
+            }
+         }
+     }
+     
+     /// Get current selection summary for debugging
+     private func getCurrentSelectionSummary() -> String {
+         let projectTitle = selectedProject?.title ?? "All Projects"
+         let releaseVersion = selectedRelease?.version ?? "No Release"
+         return "\(projectTitle) -> v\(releaseVersion)"
+     }
+     
+     /// Public method to refresh selection state - can be called from external sources
+     func refreshProjectSelection() {
+         print("🔄 External refresh requested for project selection")
+         validateAndRefreshSelection()
+         print("📊 Current selection: \(getCurrentSelectionSummary())")
+     }
     
     private func updateTaskData() {
         // This method is now simplified since filtering logic is handled by NoteStore
@@ -2280,6 +2493,33 @@ struct CompletedTaskRow: View {
     }
 }
 
+/*
+ * SYNCHRONIZED TIMER SYSTEM IMPLEMENTATION
+ * 
+ * 🎯 Overview:
+ * This TaskRowView now uses a centralized timer system through noteStore instead of local timers.
+ * This ensures perfect synchronization between FloatingSidebarView and FocusCardView.
+ * 
+ * 🔄 Key Changes:
+ * - Removed local @State timer and elapsedTime variables
+ * - All timer operations go through noteStore centralized system
+ * - Timer display reads from noteStore.getTotalElapsedTimeForActiveTask()
+ * - Break times use noteStore.getCurrentSessionDuration()
+ * - Task completion uses noteStore.completeCurrentTask()
+ * 
+ * 📊 Synchronization Benefits:
+ * - FloatingSidebarView and FocusCardView show identical timer values
+ * - Timer state is preserved when switching between views
+ * - Professional logging for debugging timer operations
+ * - Consistent timer behavior across the entire application
+ * 
+ * 🔧 Technical Implementation:
+ * - Timer starts automatically for first note if no active timer
+ * - Centralized break/resume operations through noteStore
+ * - Proper timer cleanup when tasks are skipped/deleted
+ * - Real-time updates across all UI components
+ */
+
 // MARK: - Task Row View
 struct TaskRowView: View {
     var note: Note
@@ -2292,13 +2532,12 @@ struct TaskRowView: View {
     @State private var isSkipping = false
     
     @State private var isBreak = false
-    @State private var breakTime: TimeInterval = 0
     @State private var isHovered = false
     @State private var editableTitle: String = ""
-    @State private var timer: Timer?
-    @State private var elapsedTime: TimeInterval = 0
     @State private var hoveredButton: String? = nil
     @State private var tickCounter: Int = 0
+    
+    // Use centralized noteStore timer system - no local timer needed
     
     var body: some View {
         VStack {
@@ -2327,22 +2566,44 @@ struct TaskRowView: View {
         }
         .onAppear {
             editableTitle = note.title
+             // Load the current project and release selection using the professional system
+        let (selectedProject, selectedRelease) = ProjectReleasePreferences.loadSelectedProject(
+            from: noteStore.projects,
+            releases: noteStore.releases
+        )
+        
+        // Get the first pending note for the selected project and release
+        let firstNote = noteStore.getFirstPendingNote(
+            selectedProject: selectedProject,
+            selectedRelease: selectedRelease
+        )
+            // Start timer for the first available task if no timer is currently active
+        if noteStore.activeTimerNote == nil {
+            if let firstNote = firstNote {
+                print("▶️ [FocusCard] Starting timer for: \(firstNote.title)")
+                noteStore.startTimer(for: firstNote)
+            } else {
+                print("⚠️ [FocusCard] No pending tasks found for current selection")
+                print("   Project: \(selectedProject?.title ?? "None")")
+                print("   Release: \(selectedRelease?.version ?? "None")")
+            }
+        } else {
+            print("ℹ️ [FocusCard] Timer already active for: \(noteStore.activeTimerNote?.title ?? "Unknown")")
+        }
 
-            
-                        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                if !isBreak {
-                    elapsedTime += 1
-                      // Start the tick sound service if this is the first note
-                } else {
-                    breakTime += 1
-                }
+
+            // Start centralized timer for first note if not already running
+            if firstNote?.id == note.id && noteStore.activeTimerNote?.id != note.id {
+                print("▶️ [Sidebar] Starting centralized timer for: \(note.title)")
+                noteStore.startTimer(for: note)
             }
             
-                // TickSoundService.shared.startTicking(interval: 300.0)
-          
+            // Start tick sound for first note
+            if firstNote?.id == note.id {
+                TickSoundService.shared.startTicking(interval: 3.0)
+            }
         }
         .onDisappear {
-            timer?.invalidate()
             // Stop the tick sound if this is the first note
             if firstNote?.id == note.id {
                 TickSoundService.shared.stopTicking()
@@ -2363,10 +2624,11 @@ struct TaskRowView: View {
                     isHovered: hoveredButton == "done",
                     color: Color(hex: "#4CAF50"),
                     action: {
-                        var updatedNote = note
-                        updatedNote.isCompleted = true
-                        updatedNote.actualTime = elapsedTime
-                        noteStore.updateNote(updatedNote)
+                        // Use centralized timer system
+                        let elapsedTime = noteStore.getTotalElapsedTimeForActiveTask()
+                        
+                        // Complete the task using centralized system
+                        noteStore.completeCurrentTask()
                         
                         // Stop the tick sound when marking a task as done
                         if firstNote?.id == note.id {
@@ -2374,6 +2636,8 @@ struct TaskRowView: View {
                         }
                         
                         onDone(elapsedTime)
+                        
+                        print("✅ [Sidebar] Task completed: \(note.title) in \(formatTime(elapsedTime))")
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "done" : nil
@@ -2401,13 +2665,16 @@ struct TaskRowView: View {
                     isHovered: hoveredButton == "break",
                     color: Color(hex: "#F59E0B"),
                     action: {
+                        // Use centralized break system
+                        noteStore.startBreakForCurrentTimer()
                         isBreak = true
-                        breakTime = elapsedTime
                         
                         // Stop the tick sound during break
                         if firstNote?.id == note.id {
                             TickSoundService.shared.stopTicking()
                         }
+                        
+                        print("☕ [Sidebar] Break started for: \(note.title)")
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "break" : nil
@@ -2421,10 +2688,13 @@ struct TaskRowView: View {
                     isHovered: hoveredButton == "skip",
                     color: Color(hex: "#9333EA"),
                     action: {
-                        print("Task skipped: \(note.title)")
+                        print("⏭️ [Sidebar] Task skipped: \(note.title)")
                         
-                        // Move the task to the end of the list
+                        // Only handle skip if this is the first note (active timer)
                         if let firstNote = firstNote, note.id == firstNote.id {
+                            // Stop current timer
+                            noteStore.stopCurrentTimer()
+                            
                             // Trigger skip animation
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 isSkipping = true
@@ -2439,30 +2709,14 @@ struct TaskRowView: View {
                                     isSkipping = false
                                 }
                             }
-
-
-                             
                             
                             // Call onSkip with the skipped note
                             onSkip(note)
-                            
+                        } else {
+                            // For non-first notes, just move to end without animation
+                            noteStore.moveNoteToEnd(note)
+                            onSkip(note)
                         }
-                        
-                        print("Task skipped: \(note.title)")
-                           DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        // Move the task to the end of the list
-                        if let firstNote = firstNote, note.id == firstNote.id {
-                         
- 
-                                noteStore.moveNoteToEnd(note)
-
-                            
-                            // Call onSkip with the skipped note after 2 seconds
-                                onSkip(note)
-
-                            
-                        }
-                           }
                     },
                     onHover: { isHovering in
                         hoveredButton = isHovering ? "skip" : nil
@@ -2476,8 +2730,14 @@ struct TaskRowView: View {
                     isHovered: hoveredButton == "delete",
                     color: Color(hex: "#EF4444"),
                     action: {
+                        print("🗑️ [Sidebar] Task deleted: \(note.title)")
+                        
+                        // Stop timer if this is the active task
+                        if firstNote?.id == note.id {
+                            noteStore.stopCurrentTimer()
+                        }
+                        
                         noteStore.deleteNote(id: note.id)
-
                         onSkip(note)
                     },
                     onHover: { isHovering in
@@ -2522,26 +2782,30 @@ struct TaskRowView: View {
             
             Spacer()
             
-            Text(formatTime(breakTime))
+            // Use centralized break timer from noteStore
+            Text(formatTime(noteStore.getCurrentSessionDuration()))
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.white)
             
             TaskActionButton(
                 icon: "arrow.right.circle",
                 label: "Resume",
-                isHovered: hoveredButton == "skip",
+                isHovered: hoveredButton == "resume",
                 color: Color(hex: "#4CAF50"),
                 action: {
+                    // Use centralized break system
+                    noteStore.endBreakForCurrentTimer()
                     isBreak = false
-                    breakTime = 0
                     
                     // Resume the tick sound when returning from break
                     if firstNote?.id == note.id {
                         TickSoundService.shared.startTicking(interval: 3.0)
                     }
+                    
+                    print("▶️ [Sidebar] Break ended, resuming: \(note.title)")
                 },
                 onHover: { isHovering in
-                    hoveredButton = isHovering ? "skip" : nil
+                    hoveredButton = isHovering ? "resume" : nil
                 }
             )
         }
@@ -2690,7 +2954,8 @@ struct TaskRowView: View {
                 .font(.system(size: 14))
                 .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
             
-            Text(formatTime(elapsedTime))
+            // Use centralized timer from noteStore
+            Text(formatTime(noteStore.getTotalElapsedTimeForActiveTask()))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
         }
@@ -3485,3 +3750,8 @@ class GifCache {
     }
 }
 
+
+
+#Preview {
+    FloatingSidebarView(controller: FloatingSidebarController(), onClose: {})
+}
