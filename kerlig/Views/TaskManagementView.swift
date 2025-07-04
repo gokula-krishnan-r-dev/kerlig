@@ -126,38 +126,29 @@ struct TaskManagementView: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Left sidebar with projects and releases
-            leftSidebar
+        VStack(spacing: 0) {
+            // Modern header with dropdowns (only show when project is selected)
+            if selectedProject != nil {
+                modernHeader
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             
-            // Main content area with task columns or pages
-            VStack(spacing: 0) {
-                headerView
-                // Tab selector
-                tabSelector
+            // Main content area
+            ZStack {
+                // Background with animated pattern
+                backgroundView
                 
-                // Content based on selected tab
-                if selectedTab == .tasks {
-                    mainContent
+                // Content based on selection state
+                if selectedProject == nil {
+                    // Project selection view
+                    projectSelectionView
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 } else {
-                    ProjectPagesView(
-                        noteStore: noteStore,
-                        selectedProject: $selectedProject
-                    )
+                    // Task management view
+                    taskManagementView
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
-            .background(
-                ZStack {
-                    // Base background
-                    Color(hex: "#0F1014")
-                    
-                    // Dynamic pattern overlay
-                    PatternBackground(phase: backgroundAnimationPhase, scale: patternScale)
-                        .opacity(patternOpacity)
-                        .blendMode(.overlay)
-                }
-            )
-            .background(.ultraThinMaterial)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(primaryBgColor)
@@ -194,19 +185,451 @@ struct TaskManagementView: View {
         }
     }
     
-    // MARK: - Background Animation
+    // MARK: - Background and Visual Components
+    
+    private var backgroundView: some View {
+        ZStack {
+            // Base gradient background
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "#0A0B12"),
+                    Color(hex: "#1A1B2E"),
+                    Color(hex: "#16213E")
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            
+            // Dynamic pattern overlay
+            PatternBackground(phase: backgroundAnimationPhase, scale: patternScale)
+                .opacity(patternOpacity)
+                .blendMode(.overlay)
+        }
+        .ignoresSafeArea()
+    }
+    
+    private var modernHeader: some View {
+        VStack(spacing: 0) {
+            HStack {
+                // Back button
+                Button(action: {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        selectedProject = nil
+                        selectedRelease = nil
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Projects")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.1))
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .hoverEffect(.lift)
+                
+                Spacer()
+                
+                // Project and Release dropdowns
+                HStack(spacing: 16) {
+                    projectDropdown
+                    releaseDropdown
+                }
+                
+                Spacer()
+                
+                // Action buttons
+                HStack(spacing: 12) {
+                    Button(action: { isAddingRelease = true }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 14))
+                            Text("New Release")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(accentGradient)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button(action: { showFloatingSidebar() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 14))
+                            Text("Mac Write")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(successColor)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 20)
+            .background(.ultraThinMaterial)
+            
+            // Header divider
+            Rectangle()
+                .fill(Color.white.opacity(0.1))
+                .frame(height: 1)
+        }
+    }
     
     private func startBackgroundAnimation() {
-        withAnimation(.linear(duration: 20).repeatForever(autoreverses: true)) {
+        withAnimation(.linear(duration: 25).repeatForever(autoreverses: true)) {
             backgroundAnimationPhase = 1.0
         }
         
-        withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
-            patternScale = 1.1
+        withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
+            patternScale = 1.2
         }
         
-        withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
-            patternOpacity = 0.25
+        withAnimation(.easeInOut(duration: 15).repeatForever(autoreverses: true)) {
+            patternOpacity = 0.3
+        }
+    }
+    
+    // MARK: - Dropdown Components
+    
+    private var projectDropdown: some View {
+        Menu {
+            ForEach(filteredProjects, id: \.id) { project in
+                Button(action: {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        selectedProject = project
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        // Enhanced circular project image
+                        if let logoData = project.logoImageData, let nsImage = NSImage(data: logoData) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 32, height: 32)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.white.opacity(0.3),
+                                                    Color.white.opacity(0.1)
+                                                ]),
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1.5
+                                        )
+                                )
+                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                        } else {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            (project.color ?? .blue).opacity(0.8),
+                                            (project.color ?? .blue)
+                                        ]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Text(String(project.title.prefix(1)).uppercased())
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.white.opacity(0.3),
+                                                    Color.white.opacity(0.1)
+                                                ]),
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1.5
+                                        )
+                                )
+                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(project.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.primary)
+                            
+                            Text(project.description)
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                        
+                        if selectedProject?.id == project.id {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(accentColor)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                if let project = selectedProject {
+                    // Enhanced circular project image for dropdown label
+                    if let logoData = project.logoImageData, let nsImage = NSImage(data: logoData) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 28, height: 28)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.white.opacity(0.4),
+                                                Color.white.opacity(0.1)
+                                            ]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1.5
+                                    )
+                            )
+                            .shadow(color: Color.black.opacity(0.3), radius: 3, x: 0, y: 2)
+                    } else {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        (project.color ?? .blue).opacity(0.9),
+                                        (project.color ?? .blue)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Text(String(project.title.prefix(1)).uppercased())
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.white.opacity(0.4),
+                                                Color.white.opacity(0.1)
+                                            ]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1.5
+                                    )
+                            )
+                            .shadow(color: Color.black.opacity(0.3), radius: 3, x: 0, y: 2)
+                    }
+                    
+                    Text(project.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                } else {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "folder")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        )
+                    
+                    Text("Select Project")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.gray)
+                }
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.gray)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(0.08))
+                    .background(
+                        .ultraThinMaterial,
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.2),
+                                        Color.white.opacity(0.05)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+            )
+        }
+        .disabled(filteredProjects.isEmpty)
+    }
+    
+    private var releaseDropdown: some View {
+        Menu {
+            ForEach(filteredReleases, id: \.id) { release in
+                Button(action: {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        selectedRelease = release
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: release.status.iconName)
+                            .foregroundColor(release.status.color)
+                        
+                        VStack(alignment: .leading) {
+                            Text("v\(release.version)")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text(release.name)
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        if selectedRelease?.id == release.id {
+                            Spacer()
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12))
+                                .foregroundColor(accentColor)
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if let release = selectedRelease {
+                    Image(systemName: release.status.iconName)
+                        .foregroundColor(release.status.color)
+                        .font(.system(size: 16))
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("v\(release.version)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                        Text(release.name)
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                } else {
+                    Text("Select Release")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.gray)
+                }
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(0.1))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+            )
+        }
+        .disabled(filteredReleases.isEmpty)
+    }
+    
+    // MARK: - Project Selection View
+    
+    private var projectSelectionView: some View {
+        VStack(spacing: 0) {
+            // Header section
+            VStack(spacing: 16) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Task Management")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text("Select a project to get started")
+                            .font(.system(size: 18))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: { isAddingProject = true }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16))
+                            Text("New Project")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(accentGradient)
+                        .cornerRadius(12)
+                        .shadow(color: accentColor.opacity(0.3), radius: 10, x: 0, y: 5)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .hoverEffect(.lift)
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 40)
+            .padding(.bottom, 32)
+            
+            // Projects grid
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 24), count: 3), spacing: 24) {
+                    ForEach(Array(filteredProjects.enumerated()), id: \.element.id) { index, project in
+                        ProjectCard(
+                            project: project,
+                            onSelect: {
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                    selectedProject = project
+                                }
+                            }
+                        )
+                        .scaleEffect(animateIn ? 1 : 0.8)
+                        .opacity(animateIn ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(index) * 0.1), value: animateIn)
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 40)
+            }
+            .clipped()
         }
     }
     
@@ -218,10 +641,8 @@ struct TaskManagementView: View {
             }
         }
         
-        // Auto-select first project if available
-        if selectedProject == nil {
-            selectedProject = filteredProjects.first
-        }
+        // Don't auto-select first project anymore - let user choose
+        // selectedProject = filteredProjects.first
     }
     
     private func handleProjectSelection(_ project: Project?) {
@@ -272,11 +693,138 @@ struct TaskManagementView: View {
         taskColumns.removeAll()
         taskColumnNotes.removeAll()
     }
-
-
-    private var headerView: some View {
-
     
+    // MARK: - Task Management View
+    private var taskManagementView: some View {
+        VStack(spacing: 0) {
+            // Tab selector
+            tabSelector
+            
+            // Content based on selected tab
+            if selectedTab == .tasks {
+                modernTaskBoard
+            } else {
+                ProjectPagesView(
+                    noteStore: noteStore,
+                    selectedProject: $selectedProject
+                )
+            }
+        }
+    }
+    
+    private var modernTaskBoard: some View {
+        Group {
+            if selectedRelease == nil {
+                releaseSelectionView
+            } else if isLoadingColumns {
+                loadingView
+            } else if taskColumns.isEmpty {
+                emptyColumnsView
+            } else {
+                modernTaskColumnsView
+            }
+        }
+    }
+    
+    private var releaseSelectionView: some View {
+        VStack(spacing: 32) {
+            VStack(spacing: 16) {
+                Image(systemName: "rocket.fill")
+                    .font(.system(size: 64))
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [accentColor, .purple]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                VStack(spacing: 8) {
+                    Text("Select a Release")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Text("Choose a release version to view and manage tasks")
+                        .font(.system(size: 16))
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            
+            VStack(spacing: 16) {
+                if !filteredReleases.isEmpty {
+                    Text("Available Releases")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 2), spacing: 16) {
+                        ForEach(filteredReleases, id: \.id) { release in
+                            ReleaseCard(
+                                release: release,
+                                onSelect: {
+                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                        selectedRelease = release
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 32)
+                } else {
+                    Button(action: { isAddingRelease = true }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                            Text("Create First Release")
+                        }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(accentGradient)
+                        .cornerRadius(12)
+                        .shadow(color: accentColor.opacity(0.3), radius: 10, x: 0, y: 5)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .hoverEffect(.lift)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .opacity(animateIn ? 1 : 0)
+        .animation(.easeOut(duration: 0.6).delay(0.3), value: animateIn)
+    }
+    
+    private var modernTaskColumnsView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 20) {
+                ForEach(Array(taskColumns.enumerated()), id: \.element.id) { index, column in
+                    ModernColumnView(
+                        column: column,
+                        notes: filteredTasks[column.id] ?? [],
+                        noteStore: noteStore,
+                        onRefresh: refreshTaskData
+                    )
+                    .frame(width: isCompactMode ? 300 : 350)
+                    .scaleEffect(animateIn ? 1 : 0.9)
+                    .opacity(animateIn ? 1 : 0)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(index) * 0.1), value: animateIn)
+                }
+                
+                // Add column button
+                AddColumnButton(onAdd: addNewColumn)
+                    .frame(width: isCompactMode ? 300 : 350)
+                    .opacity(animateIn ? 0.7 : 0)
+                    .animation(.easeOut(duration: 0.6).delay(0.8), value: animateIn)
+            }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 24)
+        }
+        .background(Color.clear)
+    }
+
+
+    // MARK: - Helper Functions
     func showFloatingSidebar() {
         //before toggle close already existing window close
         if let existingWindow = NSApp.windows.first(where: { $0.isVisible }) {
@@ -284,62 +832,8 @@ struct TaskManagementView: View {
         }
         floatingSidebarController.toggleSidebar()
     }
-        
+    
     let floatingSidebarController = FloatingSidebarController()
-        return VStack(spacing: 0) {
-        HStack {
-            // Title and subtitle
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Task Management")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                
-                if let project = selectedProject {
-                    Text(project.title)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                } else {
-                    Text("Select a project to get started")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                }
-            }
-            
-            Spacer()
-            
-            // Action buttons
-            HStack(spacing: 12) {
-
-                // Add task button
-                Button(action: {showFloatingSidebar()
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .medium))
-                        Text("Mac Write")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(accentColor)
-                    .cornerRadius(8)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .disabled(selectedRelease == nil)
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 20)
-        .background(.ultraThinMaterial)
-        
-        // Divider
-        Rectangle()
-            .fill(Color.gray.opacity(0.2))
-            .frame(height: 1)
-    }
-    }
     private func createDefaultColumnsForRelease(_ release: Release) {
         let defaultColumnTitles = ["Backlog", "In Progress", "Today", "Review", "Done", "Cancelled"]
         let defaultColors: [Color] = [.blue, .orange, .purple, .green, .red, .gray]
@@ -370,397 +864,9 @@ struct TaskManagementView: View {
         }
     }
     
-    // MARK: - Left Sidebar
-    
-    private var leftSidebar: some View {
-        VStack(spacing: 0) {
-            // Header
-            sidebarHeader
-            
-            // Search bar
-            searchBar
-            
-            // Projects list
-            projectsList
-            
-            // Releases section
-            if selectedProject != nil {
-                releasesSection
-            }
-        }
-        .frame(width: 350)
-        .background(
-            ZStack {
-                // Base background
-                Color(hex: "#18191E")
-                
-                // Dynamic pattern overlay
-                PatternBackground(phase: backgroundAnimationPhase, scale: patternScale * 0.8)
-                    .opacity(patternOpacity * 1.2)
-                    .blendMode(.overlay)
-            }
-        )
-        .background(.ultraThinMaterial)
-        .overlay(
-            Rectangle()
-                .frame(width: 1)
-                .foregroundColor(Color.gray.opacity(0.2))
-                .offset(x: 1),
-            alignment: .trailing
-        )
-    }
-    
-    private var sidebarHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Task Management")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                
-                Text("\(filteredProjects.count) projects")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            
-            Spacer()
-            
-            Button(action: {
-                isAddingProject = true
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
-                    
-                    Text("New Project")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(hex: "#4A90E2").opacity(0.8),
-                                    Color(hex: "#357ABD").opacity(0.9)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color.white.opacity(0.3),
-                                            Color.white.opacity(0.1)
-                                        ]),
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    ),
-                                    lineWidth: 1
-                                )
-                        )
-                        .shadow(color: Color(hex: "#4A90E2").opacity(0.3), radius: 8, x: 0, y: 4)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .scaleEffect(animateIn ? 1 : 0.8)
-            .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.3), value: animateIn)
-            .hoverEffect(.lift)
-        }
-        .padding()
-        .background(.thinMaterial)
-        .opacity(animateIn ? 1 : 0)
-        .offset(y: animateIn ? 0 : -20)
-        .animation(.easeOut(duration: 0.6).delay(0.1), value: animateIn)
-    }
-    
-    private var searchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.gray)
-                .font(.system(size: 14))
-            
-            TextField("Search projects and tasks...", text: $searchText)
-                .textFieldStyle(PlainTextFieldStyle())
-                .font(.system(size: 14))
-                .foregroundColor(.white)
-            
-            if !searchText.isEmpty {
-                Button(action: {
-                    searchText = ""
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
-                        .font(.system(size: 14))
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.2))
-                .background(
-                    .ultraThinMaterial,
-                    in: RoundedRectangle(cornerRadius: 8)
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .cornerRadius(8)
-        .padding(.horizontal)
-        .padding(.bottom, 8)
-        .opacity(animateIn ? 1 : 0)
-        .offset(y: animateIn ? 0 : -10)
-        .animation(.easeOut(duration: 0.6).delay(0.2), value: animateIn)
-    }
-    
-    private var projectsList: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Projects header
-            HStack {
-                Button(action: {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        isProjectListExpanded.toggle()
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: isProjectListExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray)
-                        
-                        Text("PROJECTS")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.gray)
-                        
-                        Spacer()
-                        
-                        Text("\(filteredProjects.count)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.gray.opacity(0.2))
-                            .cornerRadius(8)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            
-            // Projects list
-            if isProjectListExpanded {
-                ScrollView {
-                    LazyVStack(spacing: 4) {
-                        ForEach(Array(zip(filteredProjects.indices, filteredProjects)), id: \.1.id) { index, project in
-                            ProjectRowView(
-                                project: project,
-                                isSelected: selectedProject?.id == project.id,
-                                onSelect: {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        selectedProject = project
-                                    }
-                                },
-                                onDelete: {
-                                    deleteProject(project)
-                                }
-                            )
-                            .opacity(animateIn ? 1 : 0)
-                            .offset(x: animateIn ? 0 : -20)
-                            .animation(.easeOut(duration: 0.4).delay(0.3 + Double(index) * 0.05), value: animateIn)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                }
-            }
-            
-            // All releases list (not filtered by project)
-            allReleasesList
-        }
-    }
-    
-    private var allReleasesList: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Releases header
-            HStack {
-                Button(action: {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        isReleaseListExpanded.toggle()
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: isReleaseListExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray)
-                        
-                        Text("ALL RELEASES")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.gray)
-                        
-                        Spacer()
-                        
-                        Text("\(noteStore.releases.count)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.gray.opacity(0.2))
-                            .cornerRadius(8)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color.gray.opacity(0.05))
-            
-            if isReleaseListExpanded && !noteStore.releases.isEmpty {
-                ScrollView {
-                    LazyVStack(spacing: 4) {
-                        ForEach(noteStore.releases.sorted(by: { $0.creationDate > $1.creationDate })) { release in
-                            let project = noteStore.projects.first(where: { $0.id == release.projectId })
-                            ReleaseRowView(
-                                release: release,
-                                projectTitle: getProjectTitle(for: release),
-                                isSelected: selectedRelease?.id == release.id,
-                                onSelect: {
-                                    // Find and select the project first
-                                    if let project = noteStore.projects.first(where: { $0.id == release.projectId }) {
-                                        selectedProject = project
-                                        // Then select the release
-                                        selectedRelease = release
-                                    }
-                                },
-                                onDelete: {
-                                    deleteRelease(release)
-                                },
-                                projectLogoData: project?.logoImageData
-                            )
-                            .padding(.horizontal, 8)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .frame(maxHeight: 200)
-            }
-            
-            // Task columns list (for selected release)
-            if let release = selectedRelease {
-                taskColumnsList(for: release)
-            }
-        }
-        .opacity(animateIn ? 1 : 0)
-        .offset(y: animateIn ? 0 : 20)
-        .animation(.easeOut(duration: 0.6).delay(0.5), value: animateIn)
-    }
-    
-    private func taskColumnsList(for release: Release) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Columns header
-            HStack {
-                Button(action: {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        isColumnsListExpanded.toggle()
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: isColumnsListExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray)
-                        
-                        Text("TASK COLUMNS")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.gray)
-                        
-                        Spacer()
-                        
-                        if isLoadingColumns {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .progressViewStyle(CircularProgressViewStyle(tint: .gray))
-                        } else {
-                            Text("\(taskColumns.count)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.gray)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.gray.opacity(0.2))
-                                .cornerRadius(8)
-                        }
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color.gray.opacity(0.05))
-            
-            if isColumnsListExpanded {
-                if isLoadingColumns {
-                    HStack {
-                        Spacer()
-                        ProgressView("Loading columns...")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                        Spacer()
-                    }
-                    .padding()
-                } else if !taskColumns.isEmpty {
-                    ScrollView {
-                        LazyVStack(spacing: 4) {
-                            ForEach(taskColumns.sorted(by: { $0.order < $1.order })) { column in
-                                EnhancedColumnRowView(
-                                    column: column,
-                                    taskCount: taskColumnNotes[column.id]?.count ?? 0
-                                )
-                                .padding(.horizontal, 8)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .frame(maxHeight: 200)
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "rectangle.3.group")
-                            .font(.system(size: 24))
-                            .foregroundColor(.gray.opacity(0.5))
-                        
-                        Text("No columns available")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                        
-                        Button(action: {
-                            createDefaultColumnsForRelease(release)
-                            loadTaskDataForRelease(release)
-                        }) {
-                            Text("Create Default Columns")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(accentColor)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(AnimatedButtonStyle())
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-                }
-            }
-        }
-        .opacity(animateIn ? 1 : 0)
-        .offset(y: animateIn ? 0 : 20)
-        .animation(.easeOut(duration: 0.6).delay(0.6), value: animateIn)
-    }
+
+
+
     
     // Helper function to get project title for a release
     private func getProjectTitle(for release: Release) -> String {
@@ -801,231 +907,6 @@ struct TaskManagementView: View {
         }
     }
     
-    // MARK: - Main Content
-    
-    private var mainContent: some View {
-        VStack(spacing: 0) {
-            // Main header
-            mainHeader
-            
-            // Task board
-            if selectedRelease != nil {
-                taskBoard
-            } else {
-                emptyStateView
-            }
-        }
-    }
-    
-    private var mainHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                if let project = selectedProject {
-                    HStack(spacing: 12) {
-                        // Project logo
-                        if let logoData = project.logoImageData, let nsImage = NSImage(data: logoData) {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 32, height: 32)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
-                        } else {
-                            Circle()
-                                .fill(project.color ?? .blue)
-                                .frame(width: 32, height: 32)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(project.title)
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                            
-                            if let release = selectedRelease {
-                                HStack(spacing: 8) {
-                                    Image(systemName: release.status.iconName)
-                                        .foregroundColor(release.status.color)
-                                        .font(.system(size: 12))
-                                    
-                                    Text("v\(release.version)")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundColor(release.status.color)
-                                    
-                                    Text("•")
-                                        .foregroundColor(.gray)
-                                        .font(.system(size: 10))
-                                    
-                                    Text(release.name)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.gray)
-                                    
-                                    if !taskColumns.isEmpty {
-                                        Text("•")
-                                            .foregroundColor(.gray)
-                                            .font(.system(size: 10))
-                                        
-                                        Text("\(taskColumns.count) columns")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                            } else {
-                                Text("No release selected")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                    }
-                } else {
-                    Text("Select a Project")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.gray)
-                }
-            }
-            
-            Spacer()
-            
-            // Action buttons and controls
-            HStack(spacing: 12) {
-                // Quick add task button
-                if selectedRelease != nil && !taskColumns.isEmpty {
-                    Button(action: {
-                        addQuickTask()
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 14))
-                            Text("Quick Task")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(accentGradient)
-                        .cornerRadius(8)
-                    }
-                    .buttonStyle(AnimatedButtonStyle())
-                }
-                
-                // Refresh button
-                Button(action: {
-                    refreshTaskData()
-                }) {
-                    Image(systemName: isLoadingColumns ? "arrow.clockwise" : "arrow.clockwise")
-                        .foregroundColor(.gray)
-                        .padding(8)
-                        .background(cardBgColor)
-                        .cornerRadius(8)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .help("Refresh task data")
-                .disabled(isLoadingColumns)
-                
-                // Filter menu
-                Menu {
-                    Button(action: { selectedFilter = .all }) {
-                        HStack {
-                            Text("All Tasks")
-                            if selectedFilter == .all {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                    
-                    Button(action: { selectedFilter = .completed }) {
-                        HStack {
-                            Text("Completed Tasks")
-                            if selectedFilter == .completed {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                    
-                    Button(action: { selectedFilter = .incomplete }) {
-                        HStack {
-                            Text("Incomplete Tasks")
-                            if selectedFilter == .incomplete {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    Button(action: {
-                        withAnimation {
-                            showCompletedTasks.toggle()
-                        }
-                    }) {
-                        HStack {
-                            Text("Show Completed Tasks")
-                            Spacer()
-                            Image(systemName: showCompletedTasks ? "checkmark.square" : "square")
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 14))
-                        Text(selectedFilter.rawValue)
-                            .font(.system(size: 14))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(cardBgColor)
-                    .cornerRadius(8)
-                }
-                
-                // Compact mode toggle
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        isCompactMode.toggle()
-                    }
-                }) {
-                    Image(systemName: isCompactMode ? "arrow.left.and.right.square" : "arrow.up.and.down.square")
-                        .foregroundColor(.gray)
-                        .padding(8)
-                        .background(cardBgColor)
-                        .cornerRadius(8)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .help(isCompactMode ? "Expand columns" : "Compact columns")
-            }
-        }
-        .padding()
-        .background(
-            ZStack {
-                // Base background
-                Color(hex: "#1A1B21")
-                
-                // Dynamic pattern overlay
-                PatternBackground(phase: backgroundAnimationPhase, scale: patternScale * 0.5)
-                    .opacity(patternOpacity * 0.8)
-                    .blendMode(.overlay)
-            }
-        )
-        .background(.ultraThinMaterial)
-        .overlay(
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(Color.gray.opacity(0.2))
-                .offset(y: 1),
-            alignment: .bottom
-        )
-        .opacity(animateIn ? 1 : 0)
-        .offset(y: animateIn ? 0 : -10)
-        .animation(.easeOut(duration: 0.6).delay(0.2), value: animateIn)
-    }
-    
     private func addQuickTask() {
         guard let release = selectedRelease,
               let firstColumn = taskColumns.first else { return }
@@ -1058,18 +939,6 @@ struct TaskManagementView: View {
         loadTaskDataForRelease(release)
     }
     
-    private var taskBoard: some View {
-        Group {
-            if isLoadingColumns {
-                loadingView
-            } else if taskColumns.isEmpty {
-                emptyColumnsView
-            } else {
-                taskColumnsView
-            }
-        }
-    }
-    
     private var loadingView: some View {
         VStack(spacing: 16) {
             ProgressView()
@@ -1081,7 +950,7 @@ struct TaskManagementView: View {
                 .foregroundColor(.gray)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(primaryBgColor)
+        .background(Color.clear)
     }
     
     private var emptyColumnsView: some View {
@@ -1096,119 +965,78 @@ struct TaskManagementView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
                 
-                Text("Create your first release to start organizing tasks")
+                Text("Create default columns to start organizing tasks")
                     .font(.system(size: 16))
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
             }
             
-            if selectedProject != nil && selectedRelease == nil {
-                Button(action: {
-                    isAddingRelease = true
-                }) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Create First Release")
-                    }
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(accentGradient)
-                    .cornerRadius(24)
-                    .shadow(color: accentColor.opacity(0.3), radius: 5, x: 0, y: 2)
+            Button(action: {
+                if let release = selectedRelease {
+                    createDefaultColumnsForRelease(release)
+                    loadTaskDataForRelease(release)
                 }
-                .buttonStyle(AnimatedButtonStyle())
+            }) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Create Default Columns")
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .background(accentGradient)
+                .cornerRadius(24)
+                .shadow(color: accentColor.opacity(0.3), radius: 5, x: 0, y: 2)
             }
+            .buttonStyle(PlainButtonStyle())
+            .hoverEffect(.lift)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .opacity(animateIn ? 1 : 0)
         .animation(.easeOut(duration: 0.6).delay(0.4), value: animateIn)
     }
     
-    private var taskColumnsView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: isCompactMode ? 8 : 16) {
-                ForEach(Array(zip(taskColumns.indices, taskColumns)), id: \.1.id) { index, column in
-                    NoteColumnView(
-                        column: column,
-                        notes: filteredTasks[column.id] ?? [],
-                        noteStore: noteStore,
-                        refresh: refreshTaskData,
-                    )
-                    .frame(width: isCompactMode ? 280 : 320)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.black.opacity(0.15))
-                            .background(
-                                .ultraThinMaterial,
-                                in: RoundedRectangle(cornerRadius: 12)
-                            )
-                            .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
-                    .opacity(animateIn ? 1 : 0)
-                    .offset(y: animateIn ? 0 : 50)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.3 + Double(index) * 0.1), value: animateIn)
-                }
-                
-                // Add column button
-                addColumnButton
-            }
-            .padding()
-        }
-        .refreshable {
-            // Refresh task data when user pulls to refresh
-            if let release = selectedRelease {
-                loadTaskDataForRelease(release)
-            }
-        }
-    }
-    
-    private var addColumnButton: some View {
-        VStack(spacing: 16) {
-            Button(action: {
-                addNewColumn()
-            }) {
-                VStack(spacing: 12) {
-                    Image(systemName: "plus.circle.dashed")
-                        .font(.system(size: 32))
-                        .foregroundColor(.gray.opacity(0.6))
-                    
-                    Text("Add Column")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.gray.opacity(0.8))
-                }
-                .frame(maxWidth: .infinity, minHeight: 200)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.black.opacity(0.1))
-                        .background(
-                            .ultraThinMaterial,
-                            in: RoundedRectangle(cornerRadius: 12)
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-        .frame(width: isCompactMode ? 280 : 320)
-        .opacity(animateIn ? 0.6 : 0)
-        .animation(.easeOut(duration: 0.6).delay(0.8), value: animateIn)
-    }
-    
     private func addNewColumn() {
         guard let release = selectedRelease else { return }
         
-        let newColumnTitle = "New Column"
+        // Create a simple dialog for column creation
+        let alert = NSAlert()
+        alert.messageText = "Create New Column"
+        alert.informativeText = "Enter a name for your new task column:"
+        alert.addButton(withTitle: "Create")
+        alert.addButton(withTitle: "Cancel")
+        
+        let inputTextField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        inputTextField.placeholderString = "Column name"
+        alert.accessoryView = inputTextField
+        
+        // Show the alert
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window) { response in
+                if response == .alertFirstButtonReturn {
+                    let columnTitle = inputTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !columnTitle.isEmpty {
+                        self.createNewColumn(title: columnTitle)
+                    }
+                }
+            }
+        } else {
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                let columnTitle = inputTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !columnTitle.isEmpty {
+                    createNewColumn(title: columnTitle)
+                }
+            }
+        }
+    }
+    
+    private func createNewColumn(title: String) {
+        guard let release = selectedRelease else { return }
+        
         let newColumn = NoteColumn(
-            title: newColumnTitle,
+            title: title,
             order: taskColumns.count,
             color: availableColors.randomElement() ?? .blue
         )
@@ -1225,49 +1053,10 @@ struct TaskManagementView: View {
             noteStore.updateRelease(updatedRelease)
         }
         
-        // Refresh local data
-        loadTaskDataForRelease(release)
-    }
-    
-    private var emptyStateView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "folder.badge.gearshape")
-                .font(.system(size: 64))
-                .foregroundColor(.gray.opacity(0.3))
-            
-            VStack(spacing: 8) {
-                Text("No Release Selected")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                
-                Text("Select a project and release to start managing tasks")
-                    .font(.system(size: 16))
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
-            }
-            
-            if selectedProject != nil {
-                Button(action: {
-                    isAddingRelease = true
-                }) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Create New Release")
-                    }
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(accentGradient)
-                    .cornerRadius(24)
-                }
-                .buttonStyle(AnimatedButtonStyle())
-            }
+        // Refresh local data with animation
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            loadTaskDataForRelease(release)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .opacity(animateIn ? 1 : 0)
-        .animation(.easeOut(duration: 0.6).delay(0.4), value: animateIn)
     }
     
 
@@ -1479,224 +1268,36 @@ struct TaskManagementView: View {
                 }) {
                     VStack(spacing: 8) {
                         Text(tab.rawValue)
-                            .font(.system(size: 14, weight: selectedTab == tab ? .semibold : .regular))
+                            .font(.system(size: 16, weight: selectedTab == tab ? .semibold : .regular))
                             .foregroundColor(selectedTab == tab ? .white : .gray)
                         
                         Rectangle()
                             .fill(selectedTab == tab ? accentColor : Color.clear)
-                            .frame(height: 2)
+                            .frame(height: 3)
+                            .animation(.easeInOut(duration: 0.3), value: selectedTab)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .hoverEffect(.lift)
             }
             
-            Spacer()
+                        Spacer()
         }
         .background(.ultraThinMaterial)
+
         .overlay(
             Rectangle()
                 .frame(height: 1)
-                .foregroundColor(Color.gray.opacity(0.2))
+                .foregroundColor(Color.white.opacity(0.1))
                 .offset(y: 1),
             alignment: .bottom
         )
-    }
-    
-    private var releasesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Releases header
-            HStack {
-                Text("RELEASES")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.gray)
-                
-                Spacer()
-                
-                Text("\(filteredReleases.count)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.gray)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.gray.opacity(0.2))
-                    .cornerRadius(8)
-                
-                Button(action: {
-                    isAddingRelease = true
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12))
-                        .foregroundColor(accentColor)
-                }
-                .buttonStyle(AnimatedButtonStyle())
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color.gray.opacity(0.05))
-            
-            // Release dropdown/selector
-            if !filteredReleases.isEmpty {
-                Menu {
-                    ForEach(filteredReleases, id: \.id) { release in
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                selectedRelease = release
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: release.status.iconName)
-                                    .foregroundColor(release.status.color)
-                                
-                                VStack(alignment: .leading) {
-                                    Text("v\(release.version)")
-                                        .font(.system(size: 14, weight: .semibold))
-                                    Text(release.name)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.gray)
-                                }
-                                
-                                if selectedRelease?.id == release.id {
-                                    Spacer()
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(accentColor)
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack {
-                        if let release = selectedRelease {
-                            HStack(spacing: 8) {
-                                Image(systemName: release.status.iconName)
-                                    .foregroundColor(release.status.color)
-                                    .font(.system(size: 14))
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("v\(release.version)")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.white)
-                                    
-                                    Text(release.name)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.gray)
-                                }
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.gray)
-                            }
-                        } else {
-                            HStack {
-                                Text("Select Release")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.gray)
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(cardBgColor)
-                    .cornerRadius(8)
-                }
-                .padding(.horizontal)
-            } else {
-                // No releases message
-                VStack(spacing: 12) {
-                    Image(systemName: "calendar.badge.plus")
-                        .font(.system(size: 24))
-                        .foregroundColor(.gray.opacity(0.5))
-                    
-                    Text("No releases yet")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                    
-                    Button(action: {
-                        isAddingRelease = true
-                    }) {
-                        Text("Create First Release")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(accentGradient)
-                            .cornerRadius(16)
-                    }
-                    .buttonStyle(AnimatedButtonStyle())
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-            }
-        }
-        .opacity(animateIn ? 1 : 0)
-        .offset(y: animateIn ? 0 : 20)
-        .animation(.easeOut(duration: 0.6).delay(0.4), value: animateIn)
-    }
-}
-
-// MARK: - Pattern Background
-struct PatternBackground: View {
-    var phase: CGFloat
-    var scale: CGFloat
-    
-    var body: some View {
-        ZStack {
-            // First pattern layer
-            GeometryReader { geometry in
-                Path { path in
-                    let width = geometry.size.width
-                    let height = geometry.size.height
-                    let spacing: CGFloat = 60 * scale
-                    
-                    for x in stride(from: 0, through: width, by: spacing) {
-                        for y in stride(from: 0, through: height, by: spacing) {
-                            let offsetX = sin(phase * .pi + y/50) * 15
-                            path.addEllipse(in: CGRect(x: x + offsetX, y: y, width: 4, height: 4))
-                        }
-                    }
-                }
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [Color.blue.opacity(0.7), Color.purple.opacity(0.7)]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            }
-            
-            // Second pattern layer
-            GeometryReader { geometry in
-                Path { path in
-                    let width = geometry.size.width
-                    let height = geometry.size.height
-                    let spacing: CGFloat = 80 * scale
-                    
-                    for x in stride(from: 0, through: width, by: spacing) {
-                        for y in stride(from: 0, through: height, by: spacing) {
-                            let offsetX = cos(phase * .pi + x/50) * 20
-                            path.addEllipse(in: CGRect(x: x, y: y + offsetX, width: 3, height: 3))
-                        }
-                    }
-                }
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [Color.cyan.opacity(0.6), Color.blue.opacity(0.6)]),
-                        startPoint: .topTrailing,
-                        endPoint: .bottomLeading
-                    )
-                )
-            }
-        }
     }
 }
 
 #Preview {
     TaskManagementView()
 } 
+

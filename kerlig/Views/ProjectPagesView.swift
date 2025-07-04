@@ -499,7 +499,6 @@ struct ProjectPagesView: View {
 }
 
 // MARK: - Supporting Views
-
 struct PageRowView: View {
     let page: ProjectPage
     let project: Project?

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import UniformTypeIdentifiers
 
 // MARK: - Timer State Management
 enum TimerState: String, Codable {
@@ -77,7 +78,7 @@ struct MediaContent: Codable {
     }
 }
 
-struct Note: Identifiable, Codable, Hashable {
+struct Note: Identifiable, Codable, Hashable, Transferable {
     var id: UUID
     var title: String
     var content: String
@@ -258,6 +259,18 @@ struct Note: Identifiable, Codable, Hashable {
     
     static func == (lhs: Note, rhs: Note) -> Bool {
         lhs.id == rhs.id
+    }
+    
+    // MARK: - Transferable Conformance
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(for: Note.self, contentType: .kerligNote)
+    }
+}
+
+// MARK: - Custom UTType for Note
+extension UTType {
+    static var kerligNote: UTType {
+        UTType(importedAs: "com.kerlig.note")
     }
 }
 
