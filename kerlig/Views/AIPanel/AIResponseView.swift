@@ -207,6 +207,9 @@ struct AIResponseView: View {
                 )
         )
         .transition(.scale.combined(with: .opacity))
+        .onAppear{
+            appState.cancelStreaming()
+        }
     }
 
     // Individual animated dot for streaming indicator
@@ -344,8 +347,7 @@ struct AIResponseView: View {
     // Streaming content view with real-time updates
     private var streamingContentView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Streaming progress indicator
-            // streamingProgressView
+         
 
             // Real-time response content
             FormattedTextView(appState.displayedResponse)
@@ -360,30 +362,7 @@ struct AIResponseView: View {
         }
     }
 
-    // Streaming progress indicator
-    private var streamingProgressView: some View {
-        HStack {
-            Text(appState.connectionState.rawValue)
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            Spacer()
-
-            if appState.streamingProgress > 0 {
-                HStack(spacing: 4) {
-                    Text("\(Int(appState.streamingProgress * 100))%")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-
-                    ProgressView(value: appState.streamingProgress)
-                        .frame(width: 60)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                }
-            }
-        }
-        .padding(.horizontal, 3)
-        .padding(.bottom, 4)
-    }
+    
 
     // Typing cursor animation
     private var typingCursor: some View {

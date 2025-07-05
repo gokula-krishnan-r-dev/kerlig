@@ -1299,5 +1299,6 @@ struct TaskManagementView: View {
 
 #Preview {
     TaskManagementView()
+    .environmentObject(AppState())
 } 
 

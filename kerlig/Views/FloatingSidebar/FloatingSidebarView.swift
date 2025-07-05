@@ -201,8 +201,9 @@ struct FloatingSidebarView: View {
                 .padding(.vertical, 12)
             
             completedTasksSection
-            
-            focusModeButton
+            if (!noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).isEmpty) {
+                focusModeButton
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backgroundWithResizeHandle)
