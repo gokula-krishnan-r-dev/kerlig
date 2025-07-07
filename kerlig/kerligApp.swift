@@ -13,6 +13,9 @@ struct kerligApp: App {
   @StateObject private var appState = AppState()
   @State private var floatingPanel: FloatingPanelController?
   @State private var statusBarController: StatusBarController?
+  
+  // Add global hotkey manager
+  @State private var globalHotkeyManager: HotkeyManager?
 
   @StateObject private var textCaptureService = TextCaptureService()
   @StateObject private var customActionsStorage = CustomActionsStorage()
@@ -47,6 +50,9 @@ struct kerligApp: App {
 
               // Register for panel close notifications
               registerForPanelCloseNotifications()
+              
+              // Initialize global hotkeys when the main view appears
+              initializeGlobalHotkeys()
             }
         } else if appState.isFirstLaunch {
           // Show welcome screen on first launch
@@ -54,12 +60,24 @@ struct kerligApp: App {
             .environmentObject(appState)
             .environmentObject(customActionsStorage)
             .frame(minWidth: 800, minHeight: 600)
+            .onAppear {
+              // Initialize global hotkeys even during first launch
+              if globalHotkeyManager == nil {
+                initializeGlobalHotkeys()
+              }
+            }
         } else {
           // Show onboarding screens after welcome but before main app
           OnboardingView()
             .environmentObject(appState)
             .environmentObject(customActionsStorage)
             .frame(minWidth: 800, minHeight: 600)
+            .onAppear {
+              // Initialize global hotkeys even during onboarding
+              if globalHotkeyManager == nil {
+                initializeGlobalHotkeys()
+              }
+            }
         }
       }
     }
@@ -78,8 +96,57 @@ struct kerligApp: App {
           showPortMonitorWindow()
         }
         .keyboardShortcut("p", modifiers: [.option, .command])
+        
+        Button("Screenshot Analysis") {
+          ScreenshotPanelController.shared.togglePanel()
+        }
+        .keyboardShortcut("k", modifiers: [.option, .command])
       }
     }
+  }
+  
+  // MARK: - Global Hotkey Initialization
+  
+  private func initializeGlobalHotkeys() {
+    // Prevent multiple initializations
+    guard globalHotkeyManager == nil else {
+      print("🔄 Global hotkey manager already initialized")
+      return
+    }
+    
+    // Create the global hotkey manager
+    globalHotkeyManager = HotkeyManager()
+    
+    // Register text capture hotkey (Option + Space)
+    _ = globalHotkeyManager?.registerHotkey { selectedText in
+      DispatchQueue.main.async {
+        // Hide main window if it's open
+        for window in NSApp.windows {
+          if window.title != "Settings" && window.title != "AI Assistant" {
+            window.orderOut(nil)
+          }
+        }
+
+        // Show floating panel with selected text
+        if !selectedText.isEmpty {
+          self.floatingPanel?.showPanel(with: selectedText, appState: self.appState)
+        } else {
+          self.floatingPanel?.showEmptySelectionPanel(appState: self.appState)
+        }
+      }
+    }
+    
+    // Register screenshot hotkey (Command + ~) - this is the key change
+    let screenshotRegistered = globalHotkeyManager?.registerScreenshotHotkey()
+    
+    if screenshotRegistered == true {
+      print("✅ Global screenshot hotkey (Command + ~) registered successfully")
+    } else {
+      print("❌ Failed to register global screenshot hotkey")
+    }
+    
+    // Ensure the hotkey manager stays alive for the lifetime of the app
+    print("🌐 Global hotkey manager initialized - hotkeys will work system-wide")
   }
 
   private func setupPopover() {
@@ -99,24 +166,10 @@ struct kerligApp: App {
     // Initialize floating panel controller
     floatingPanel = FloatingPanelController()
 
-    // Register hotkey to capture selected text and show the panel
-    let hotkeyManager = HotkeyManager()
-    _ = hotkeyManager.registerHotkey { selectedText in
-      DispatchQueue.main.async {
-        // Hide main window if it's open
-        for window in NSApp.windows {
-          if window.title != "Settings" && window.title != "AI Assistant" {
-            window.orderOut(nil)
-          }
-        }
-
-        // Show floating panel with selected text
-        if !selectedText.isEmpty {
-          self.floatingPanel?.showPanel(with: selectedText, appState: self.appState)
-        } else {
-          self.floatingPanel?.showEmptySelectionPanel(appState: self.appState)
-        }
-      }
+    // Initialize global hotkeys here as well to ensure they work 
+    // even if the main window never appears (e.g., menu bar app mode)
+    if globalHotkeyManager == nil {
+      initializeGlobalHotkeys()
     }
   }
 

@@ -11,6 +11,11 @@ class HotkeyManager {
   // Key combination for Option+Space
   private let keyCode = UInt32(kVK_Space)  // Space key
   private let modifiers = UInt32(1 << 11)  // Option key modifier flag (optionKey = 11)
+  
+  // Screenshot hotkey (Command + ~)
+  private var screenshotHotKeyRef: EventHotKeyRef?
+  private let screenshotKeyCode = UInt32(kVK_ANSI_Grave)  // ~ key (grave accent)
+  private let screenshotModifiers = UInt32(cmdKey)  // Command key
 
   // Permission state tracking
   private var hasRequestedPermissions = false
@@ -22,9 +27,13 @@ class HotkeyManager {
 
   // Add a property for the Gemini Vision service
   private var geminiVisionService = GeminiVisionService()
+  
+  // Add screenshot panel controller
+  private var screenshotPanelController = ScreenshotPanelController.shared
 
   deinit {
     unregisterHotkey()
+    unregisterScreenshotHotkey()
     removeKeyPressCallbacks()
   }
 
@@ -87,13 +96,14 @@ class HotkeyManager {
       )
 
       if status == noErr {
-        // Only handle our specific hotkey
-        if hotKeyID.signature == 0x4B72_6C67 && hotKeyID.id == 1 {
-          NSLog("🔥 HotKey event received - signature: \(hotKeyID.signature), id: \(hotKeyID.id)")
-          if let userDataPtr = userData {
-            let hotkeyManager = Unmanaged<HotkeyManager>.fromOpaque(userDataPtr)
-              .takeUnretainedValue()
-
+        if let userDataPtr = userData {
+          let hotkeyManager = Unmanaged<HotkeyManager>.fromOpaque(userDataPtr)
+            .takeUnretainedValue()
+          
+          // Handle text capture hotkey (Option+Space)
+          if hotKeyID.signature == 0x4B72_6C67 && hotKeyID.id == 1 {
+            NSLog("🔥 Text Capture HotKey event received - signature: \(hotKeyID.signature), id: \(hotKeyID.id)")
+            
             // Check if permissions are granted
             if hotkeyManager.hasAccessibilityPermission() {
               NSLog("✅ Accessibility permissions confirmed")
@@ -102,9 +112,14 @@ class HotkeyManager {
               NSLog("❌ No accessibility permissions when hotkey triggered")
               hotkeyManager.verifyAccessibilityPermissions()
             }
-          } else {
-            NSLog("❌ No userData available in event handler")
           }
+          // Handle screenshot hotkey (Command+~)
+          else if hotKeyID.signature == 0x53637273 && hotKeyID.id == 2 {
+            NSLog("📸 Screenshot HotKey event received - signature: \(hotKeyID.signature), id: \(hotKeyID.id)")
+            hotkeyManager.handleScreenshotHotkeyPressed()
+          }
+        } else {
+          NSLog("❌ No userData available in event handler")
         }
       } else {
         NSLog("❌ Failed to get hotkey ID from event: \(status)")
@@ -139,6 +154,60 @@ class HotkeyManager {
     if let eventHandler = eventHandler {
       RemoveEventHandler(eventHandler)
       self.eventHandler = nil
+    }
+  }
+  
+  // MARK: - Screenshot Hotkey Management
+  
+  /// Register the screenshot hotkey (Command + ~)
+  func registerScreenshotHotkey() -> Bool {
+    // Unregister any existing screenshot hotkey first
+    unregisterScreenshotHotkey()
+    
+    // Create a unique four-character code for the screenshot hotkey
+    let signature: OSType = 0x53637273  // 'Scrs' as hex for Screenshot
+    let hotKeyID = EventHotKeyID(signature: signature, id: 2)
+    
+    // Register the screenshot hotkey
+    var screenshotHotKeyRef: EventHotKeyRef?
+    let registerErr = RegisterEventHotKey(
+      screenshotKeyCode,
+      screenshotModifiers,
+      hotKeyID,
+      GetApplicationEventTarget(),
+      0,
+      &screenshotHotKeyRef
+    )
+    
+    if registerErr == noErr {
+      self.screenshotHotKeyRef = screenshotHotKeyRef
+      NSLog("✅ Successfully registered Command+~ screenshot hotkey")
+      
+      // Install event handler if not already installed
+      if eventHandler == nil {
+        installEventHandler()
+      }
+      
+      return true
+    } else {
+      let errorDesc: String
+      switch registerErr {
+      case -9874: errorDesc = "hotKeyExistsErr: The screenshot hotkey is already registered by another app"
+      case -50: errorDesc = "paramErr: Invalid parameters"
+      case -108: errorDesc = "memFullErr: Not enough memory"
+      default: errorDesc = "Error code: \(registerErr)"
+      }
+      NSLog("❌ Failed to register screenshot hotkey: \(errorDesc)")
+      return false
+    }
+  }
+  
+  /// Unregister the screenshot hotkey
+  func unregisterScreenshotHotkey() {
+    if let screenshotHotKeyRef = screenshotHotKeyRef {
+      UnregisterEventHotKey(screenshotHotKeyRef)
+      self.screenshotHotKeyRef = nil
+      NSLog("🗑️ Unregistered screenshot hotkey")
     }
   }
 
@@ -738,6 +807,18 @@ class HotkeyManager {
       } else {
         NSLog("⚠️ No callback registered to handle hotkey")
       }
+    }
+  }
+  
+  // Handle the screenshot hotkey being pressed
+  private func handleScreenshotHotkeyPressed() {
+    NSLog("📸 Handling screenshot hotkey press")
+    
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      
+      // Toggle the screenshot panel (capture screenshot or show existing panel)
+      self.screenshotPanelController.togglePanel()
     }
   }
 
