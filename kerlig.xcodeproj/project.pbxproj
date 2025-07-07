@@ -243,6 +243,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				551D8BD72DFBF2C6004BD63E /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				555993AD2E193769007A3BCC /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 558AF8EA2DD20927009924D2 /* Products */;
@@ -709,8 +710,16 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
 			requirement = {
-				kind = upToNextMinorVersion;
+				kind = upToNextMajorVersion;
 				minimumVersion = 2.4.1;
+			};
+		};
+		555993AD2E193769007A3BCC /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/simibac/ConfettiSwiftUI.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.3;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

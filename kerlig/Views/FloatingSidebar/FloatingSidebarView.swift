@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import UserNotifications
+import QuartzCore
 
 // MARK: - UserDefaults Manager for Project/Release Preferences
 private struct ProjectReleasePreferences {
@@ -2135,6 +2136,13 @@ struct FloatingSidebarView: View {
                         .font(.system(size: 28, weight: .bold))
                         .foregroundColor(.white)
                         .padding(.top, 20)
+                        .onAppear {
+                            // Show confetti animation when task is completed
+                            let confettiController = ConfettiWindowController()
+                            confettiController.showConfetti()
+                            // Custom duration
+confettiController.showConfetti(duration: 5.0)
+                        }
                     
                     GifImageView(gifURL: getRandomCelebrationGif(category: getCelebrationCategory(for: completedTaskTime)))
                         .frame(width: 250, height: 250)
@@ -2637,6 +2645,10 @@ struct TaskRowView: View {
                         }
                         
                         onDone(elapsedTime)
+                        
+                        // Show confetti animation
+                        let confettiController = ConfettiWindowController()
+                        confettiController.showConfetti()
                         
                         print("✅ [Sidebar] Task completed: \(note.title) in \(formatTime(elapsedTime))")
                     },
@@ -3750,7 +3762,6 @@ class GifCache {
         }
     }
 }
-
 
 
 #Preview {
