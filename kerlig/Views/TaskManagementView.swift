@@ -609,27 +609,20 @@ struct TaskManagementView: View {
             .padding(.top, 40)
             .padding(.bottom, 32)
             
-            // Projects grid
-            ScrollView {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 24), count: 3), spacing: 24) {
-                    ForEach(Array(filteredProjects.enumerated()), id: \.element.id) { index, project in
-                        ProjectCard(
-                            project: project,
-                            onSelect: {
-                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                    selectedProject = project
-                                }
-                            }
-                        )
-                        .scaleEffect(animateIn ? 1 : 0.8)
-                        .opacity(animateIn ? 1 : 0)
-                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(index) * 0.1), value: animateIn)
+            // Projects table view
+            ProjectListView(
+                onSelectProject: { project in
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        selectedProject = project
                     }
+                },
+                onAddProject: {
+                    isAddingProject = true
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 40)
-            }
-            .clipped()
+            )
+            .environmentObject(noteStore)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 40)
         }
     }
     

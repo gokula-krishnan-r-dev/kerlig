@@ -1,5 +1,5 @@
 import SwiftUI
-struct ProjectRowView: View {
+struct ProjectRowTaskView: View {
     let project: Project
     let isSelected: Bool
     let onSelect: () -> Void
