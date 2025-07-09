@@ -839,6 +839,167 @@ class NoteStore: ObservableObject {
         saveProjects()
     }
     
+    func exportProjectToJSON(_ project: Project) -> Data? {
+        // Create a project export model with all related data
+        let projectReleases = getReleasesForProject(project)
+        let projectColumns = releases.flatMap { release in
+            columns.filter { release.columnIds.contains($0.id) }
+        }
+        let projectNotes = projectColumns.flatMap { column in
+            notes.filter { column.noteIds.contains($0.id) }
+        }
+        
+        let exportModel = [
+            "project": project,
+            "releases": projectReleases,
+            "columns": projectColumns,
+            "notes": projectNotes
+        ] as [String: Any]
+        
+        // Convert to JSON data
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: exportModel, options: .prettyPrinted)
+            return jsonData
+        } catch {
+            print("Error exporting project: \(error)")
+            return nil
+        }
+    }
+    
+    func duplicateProject(_ project: Project) -> Project {
+        // Create a new project with the same properties but new IDs
+        let newProject = Project(
+            title: "\(project.title) Copy",
+            description: project.description,
+            creationDate: Date(),
+            lastModified: Date(),
+            releaseIds: [], // Will be populated with new release IDs
+            color: project.color,
+            isArchived: false,
+            logoImageData: project.logoImageData
+        )
+        
+        // Add the new project
+        projects.append(newProject)
+        
+        // Get all releases for the original project
+        let projectReleases = getReleasesForProject(project)
+        
+        // Create a mapping of old IDs to new IDs for tracking
+        var releaseIdMapping = [UUID: UUID]()
+        var columnIdMapping = [UUID: UUID]()
+        var noteIdMapping = [UUID: UUID]()
+        
+        // Duplicate each release
+        for release in projectReleases {
+            let newReleaseId = UUID()
+            releaseIdMapping[release.id] = newReleaseId
+            
+            // Create new release with new ID
+            let newRelease = Release(
+                id: newReleaseId,
+                version: release.version,
+                name: release.name,
+                description: release.description,
+                creationDate: Date(),
+                lastModified: Date(),
+                targetDate: release.targetDate,
+                status: release.status,
+                projectId: newProject.id,
+                columnIds: [] // Will be populated with new column IDs
+            )
+            
+            // Add new release
+            releases.append(newRelease)
+            
+            // Update project with new release ID
+            if let index = projects.firstIndex(where: { $0.id == newProject.id }) {
+                projects[index].releaseIds.append(newReleaseId)
+            }
+            
+            // Get columns for this release
+            let releaseColumns = columns.filter { release.columnIds.contains($0.id) }
+            
+            // Duplicate each column
+            for column in releaseColumns {
+                let newColumnId = UUID()
+                columnIdMapping[column.id] = newColumnId
+                
+                // Create new column with new ID
+                let newColumn = NoteColumn(
+                    id: newColumnId,
+                    title: column.title,
+                    noteIds: [], // Will be populated with new note IDs
+                    order: column.order,
+                    color: column.color
+                )
+                
+                // Add new column
+                columns.append(newColumn)
+                
+                // Update release with new column ID
+                if let index = releases.firstIndex(where: { $0.id == newReleaseId }) {
+                    releases[index].columnIds.append(newColumnId)
+                }
+                
+                // Get notes for this column
+                let columnNotes = notes.filter { column.noteIds.contains($0.id) }
+                
+                // Duplicate each note
+                for note in columnNotes {
+                    let newNoteId = UUID()
+                    noteIdMapping[note.id] = newNoteId
+                    
+                    // Create new note with new ID
+                    let newNote = Note(
+                        id: newNoteId,
+                        title: note.title,
+                        content: note.content,
+                        creationDate: Date(),
+                        lastModified: Date(),
+                        isFavorite: note.isFavorite,
+                        category: note.category,
+                        color: note.color,
+                        estimatedTime: note.estimatedTime,
+                        isCompleted: note.isCompleted,
+                        actualTime: note.actualTime,
+                        isScheduled: note.isScheduled,
+                        scheduledDate: note.scheduledDate,
+                        scheduledTime: note.scheduledTime,
+                        priority: note.priority,
+                        imageData: note.imageData,
+                        description: note.description,
+                        reminderMinutes: note.reminderMinutes,
+                        hasBeenNotified: note.hasBeenNotified,
+                        timerState: note.timerState,
+                        totalWorkTime: note.totalWorkTime,
+                        totalBreakTime: note.totalBreakTime,
+                        sessions: note.sessions,
+                        isActiveTimer: note.isActiveTimer,
+                        targetWorkDuration: note.targetWorkDuration,
+                        mediaContent: note.mediaContent
+                    )
+                    
+                    // Add new note
+                    notes.append(newNote)
+                    
+                    // Update column with new note ID
+                    if let index = columns.firstIndex(where: { $0.id == newColumnId }) {
+                        columns[index].noteIds.append(newNoteId)
+                    }
+                }
+            }
+        }
+        
+        // Save all changes
+        saveProjects()
+        saveReleases()
+        saveColumns()
+        saveNotes()
+        
+        return newProject
+    }
+    
     func addNoteToProject(noteId: UUID, projectId: UUID) {
         if let index = projects.firstIndex(where: { $0.id == projectId }) {
             var project = projects[index]
@@ -1527,3 +1688,4 @@ class NoteStore: ObservableObject {
         pages = []
     }
 } 
+
