@@ -2625,6 +2625,7 @@ struct TaskRowView: View {
     
     private var actionButtonsView: some View {
         HStack(spacing: 8) {
+
             if !isBreak {
                 // Done button
                 TaskActionButton(
@@ -2656,6 +2657,7 @@ struct TaskRowView: View {
                         hoveredButton = isHovering ? "done" : nil
                     }
                 )
+                // .tooltip("Mark task as completed", arrowPosition: .bottom)
                 
                 // Notes button
                 TaskActionButton(
@@ -2785,6 +2787,7 @@ struct TaskRowView: View {
                         )
                 )
         )
+        .tooltip("Mark task as completed", arrowPosition: .bottom)
     }
     
     private var breakModeView: some View {
@@ -2926,6 +2929,7 @@ struct TaskRowView: View {
                 timerView
             }
         }
+        .tooltip(note.title, arrowPosition: .bottom)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
@@ -3364,6 +3368,17 @@ struct ScheduledTaskRowView: View {
     
     private var actionButtonsView: some View {
         HStack(spacing: 8) {
+            Text(note.title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(Color.black.opacity(0.5))
+                .cornerRadius(12)
+                .lineLimit(3)
+                .tooltip(note.title, arrowPosition: .bottom)
+                
             if !isBreak {
                 // Done button
                 TaskActionButton(
