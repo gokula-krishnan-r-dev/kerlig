@@ -135,8 +135,6 @@ struct TaskManagementView: View {
             
             // Main content area
             ZStack {
-                // Background with animated pattern
-                backgroundView
                 
                 // Content based on selection state
                 if selectedProject == nil {
@@ -151,10 +149,8 @@ struct TaskManagementView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(primaryBgColor)
         .onAppear {
             setupInitialState()
-            startBackgroundAnimation()
         }
         .onChange(of: selectedProject) { _, newProject in
             handleProjectSelection(newProject)
@@ -184,30 +180,7 @@ struct TaskManagementView: View {
             addReleaseSheet
         }
     }
-    
-    // MARK: - Background and Visual Components
-    
-    private var backgroundView: some View {
-        ZStack {
-            // Base gradient background
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(hex: "#0A0B12"),
-                    Color(hex: "#1A1B2E"),
-                    Color(hex: "#16213E")
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            
-            // Dynamic pattern overlay
-            PatternBackground(phase: backgroundAnimationPhase, scale: patternScale)
-                .opacity(patternOpacity)
-                .blendMode(.overlay)
-        }
-        .ignoresSafeArea()
-    }
-    
+
     private var modernHeader: some View {
         VStack(spacing: 0) {
             HStack {
@@ -586,23 +559,8 @@ struct TaskManagementView: View {
                     }
                     
                     Spacer()
+
                     
-                    Button(action: { isAddingProject = true }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 16))
-                            Text("New Project")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(accentGradient)
-                        .cornerRadius(12)
-                        .shadow(color: accentColor.opacity(0.3), radius: 10, x: 0, y: 5)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .hoverEffect(.lift)
                 }
             }
             .padding(.horizontal, 32)

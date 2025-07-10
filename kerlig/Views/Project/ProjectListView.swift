@@ -70,9 +70,13 @@ struct ProjectListView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 12) {
             // Search and controls header
             VStack(spacing: 16) {
+
+                HStack{
+
+                  
                 // Search bar
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -90,104 +94,14 @@ struct ProjectListView: View {
                     }
                 }
                 .padding(10)
-                .background(Color.white.opacity(0.07))
+                .background(Color.black.opacity(0.2))
                 .cornerRadius(8)
-                
-                // Sort and filter controls
+                .frame(maxWidth: 300)
+  Spacer()
+
+    // Sort and filter controls
                 HStack {
-                    Text("Sort by:")
-                        .foregroundColor(.gray)
-                    
-                    Picker("Sort", selection: $sortOption) {
-                        ForEach(SortOption.allCases, id: \.self) { option in
-                            Text(option.rawValue)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 140)
-                    
-                    Button(action: { isAscending.toggle() }) {
-                        Image(systemName: isAscending ? "arrow.up" : "arrow.down")
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Toggle(isOn: $showArchived) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "archivebox")
-                                .font(.system(size: 12))
-                            Text("Show Archived")
-                                .font(.system(size: 13))
-                        }
-                    }
-                    .toggleStyle(.switch)
-                    .padding(.leading, 16)
-                    
                     Spacer()
-                    
-                    Text("\(filteredProjects.count) projects")
-                        .font(.system(size: 13))
-                        .foregroundColor(.gray)
-                        .padding(.trailing, 16)
-                    
-                    // Bulk selection toggle
-                    Button(action: {
-                        isBulkSelectMode.toggle()
-                        if !isBulkSelectMode {
-                            selectedProjects.removeAll()
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isBulkSelectMode ? "checkmark.square.fill" : "square")
-                            Text(isBulkSelectMode ? "Cancel" : "Select")
-                                .font(.system(size: 13))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(isBulkSelectMode ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.2))
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 8)
-                    
-                    // Bulk actions menu (only shown when items are selected)
-                    if isBulkSelectMode && !selectedProjects.isEmpty {
-                        Menu {
-                            Button(action: {
-                                // Archive selected projects
-                                for projectId in selectedProjects {
-                                    if let project = noteStore.projects.first(where: { $0.id == projectId }) {
-                                        var updatedProject = project
-                                        updatedProject.isArchived = true
-                                        noteStore.updateProject(updatedProject)
-                                    }
-                                }
-                                selectedProjects.removeAll()
-                            }) {
-                                Label("Archive Selected", systemImage: "archivebox")
-                            }
-                            
-                            Button(action: {
-                                // Delete selected projects
-                                for projectId in selectedProjects {
-                                    if let project = noteStore.projects.first(where: { $0.id == projectId }) {
-                                        noteStore.deleteProject(project)
-                                    }
-                                }
-                                selectedProjects.removeAll()
-                            }) {
-                                Label("Delete Selected", systemImage: "trash")
-                            }
-                        } label: {
-                            Text("Actions (\(selectedProjects.count))")
-                                .font(.system(size: 13))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.accentColor)
-                                .cornerRadius(6)
-                        }
-                        .menuStyle(.borderlessButton)
-                        .padding(.trailing, 8)
-                    }
                     
                     Button(action: onAddProject) {
                         HStack {
@@ -201,9 +115,12 @@ struct ProjectListView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                }
+                
+              
+
             }
-            .padding()
-            .background(Color.black.opacity(0.2))
+           
             
             // Table header
             HStack(spacing: 16) {
