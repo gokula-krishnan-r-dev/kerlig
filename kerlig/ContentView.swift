@@ -36,7 +36,7 @@ struct ContentView: View {
     @State private var isFirstLaunch: Bool = false
     @State private var showPermissionsNeeded: Bool = false
     @State private var permissionGranted: Bool = false
-    @State private var selectedSidebarItem: SidebarItem = .taskManagement
+    @State private var selectedSidebarItem: SidebarItem? = .taskManagement
     @State private var showClipboardPermissionAlert = false
     @State private var clipboardPollingTimer: Timer?
     @State private var sidebarWidth: CGFloat = 240
@@ -56,26 +56,31 @@ struct ContentView: View {
     private let hotkeyManager = HotkeyManager()
     private let floatingPanel = FloatingPanelController()
     private let projectsPanel = ProjectsPanelController()
-//    private var clipboardShortcutMonitor: ClipboardShortcutMonitor?
     
     var body: some View {
         NavigationSplitView {
-            List(SidebarItem.allCases, selection: $selectedSidebarItem) { item in
-                Label(item.rawValue, systemImage: item.icon)
+            List(selection: $selectedSidebarItem) {
+                ForEach(SidebarItem.allCases) { item in
+                    Label(item.rawValue, systemImage: item.icon)
+                        .tag(item) // Ensure each row can update the selection
+                }
             }
-            .listStyle(.sidebar)
         } detail: {
-            switch selectedSidebarItem {
-            case .dashboard:
-                DashboardView()
-            case .taskManagement:
-                TaskManagementView()
-            case .noteboard:
-                NoteBoardView()
-            case .clipboardHistory:
-                ClipboardHistoryView()
-            case .history:
-                HistoryView()
+            if let selectedSidebarItem = selectedSidebarItem {
+                switch selectedSidebarItem {
+                case .dashboard:
+                    DashboardView()
+                case .taskManagement:
+                    TaskManagementView()
+                case .noteboard:
+                    NoteBoardView()
+                case .clipboardHistory:
+                    ClipboardHistoryView()
+                case .history:
+                    HistoryView()
+                }
+            } else {
+                Text("Select an item from the sidebar.")
             }
         }
         .environmentObject(customActionsStorage)
@@ -511,9 +516,4 @@ struct KeyCapsuleView: View {
     }
 }
 
-//preview
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-    }
-}
+
