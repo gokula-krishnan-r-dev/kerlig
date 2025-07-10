@@ -230,7 +230,7 @@ struct TaskManagementView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(accentGradient)
+                        // .background(accentGradient)
                         .cornerRadius(8)
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -245,7 +245,7 @@ struct TaskManagementView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(successColor)
+                        // .background(successColor)
                         .cornerRadius(8)
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -254,11 +254,6 @@ struct TaskManagementView: View {
             .padding(.horizontal, 32)
             .padding(.vertical, 20)
             .background(.ultraThinMaterial)
-            
-            // Header divider
-            Rectangle()
-                .fill(Color.white.opacity(0.1))
-                .frame(height: 1)
         }
     }
     
@@ -1208,7 +1203,6 @@ struct TaskManagementView: View {
     }
     
     // MARK: - Tab Selector
-    
     private var tabSelector: some View {
         HStack(spacing: 0) {
             ForEach(TabSection.allCases, id: \.self) { tab in
@@ -1237,7 +1231,6 @@ struct TaskManagementView: View {
                         Spacer()
         }
         .background(.ultraThinMaterial)
-
         .overlay(
             Rectangle()
                 .frame(height: 1)
