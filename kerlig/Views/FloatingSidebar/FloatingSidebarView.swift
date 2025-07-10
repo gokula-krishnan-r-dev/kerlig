@@ -1806,9 +1806,19 @@ struct FloatingSidebarView: View {
                 Text("Focus Mode")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
+
+                    Text("⌘F")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.5))
+                    .cornerRadius(20)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
+            //shortcut for focus mode
+            .keyboardShortcut("f", modifiers: [.command])
             .background(
                 RoundedRectangle(cornerRadius: 20)
                     .fill(
@@ -2625,6 +2635,17 @@ struct TaskRowView: View {
     
     private var actionButtonsView: some View {
         HStack(spacing: 8) {
+            VStack{
+
+            
+            Text(note.title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+HStack{
+
 
             if !isBreak {
                 // Done button
@@ -2762,6 +2783,8 @@ struct TaskRowView: View {
             } else {
                 breakModeView
             }
+}
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -2787,7 +2810,6 @@ struct TaskRowView: View {
                         )
                 )
         )
-        .tooltip("Mark task as completed", arrowPosition: .bottom)
     }
     
     private var breakModeView: some View {
@@ -3371,13 +3393,15 @@ struct ScheduledTaskRowView: View {
             Text(note.title)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.white)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 6)
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity)
                 .background(Color.black.opacity(0.5))
                 .cornerRadius(12)
                 .lineLimit(3)
                 .tooltip(note.title, arrowPosition: .bottom)
+HStack{
+
 
             if !isBreak {
                 // Done button
@@ -3468,6 +3492,7 @@ struct ScheduledTaskRowView: View {
             } else {
                 breakModeView
             }
+}
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
