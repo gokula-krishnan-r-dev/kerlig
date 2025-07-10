@@ -2162,7 +2162,7 @@ confettiController.showConfetti(duration: 5.0)
                         Button(action: {
                             // Start tick sound for the next task
                             if let nextNote = noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).first {
-                                TickSoundService.shared.startTicking(interval: 3.0)
+                                TickSoundService.shared.startTicking(interval: 15.0)
                             }
                             
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -2609,7 +2609,7 @@ struct TaskRowView: View {
             
             // Start tick sound for first note
             if firstNote?.id == note.id {
-                TickSoundService.shared.startTicking(interval: 3.0)
+                TickSoundService.shared.startTicking(interval: 15.0)
             }
         }
         .onDisappear {
@@ -2815,7 +2815,7 @@ struct TaskRowView: View {
                     
                     // Resume the tick sound when returning from break
                     if firstNote?.id == note.id {
-                        TickSoundService.shared.startTicking(interval: 3.0)
+                        TickSoundService.shared.startTicking(interval: 15.0)
                     }
                     
                     print("▶️ [Sidebar] Break ended, resuming: \(note.title)")
@@ -3378,7 +3378,7 @@ struct ScheduledTaskRowView: View {
                 .cornerRadius(12)
                 .lineLimit(3)
                 .tooltip(note.title, arrowPosition: .bottom)
-                
+
             if !isBreak {
                 // Done button
                 TaskActionButton(

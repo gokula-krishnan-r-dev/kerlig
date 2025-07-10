@@ -49,6 +49,7 @@ struct ContentView: View {
     @State private var animateFeatures = false
     @State private var animatePulse = false
     @State private var isButtonPressed = false
+    @State private var showTaskTimerDemo = false
 
     @StateObject private var textCaptureService = TextCaptureService()
     @StateObject private var customActionsStorage = CustomActionsStorage()
@@ -147,6 +148,9 @@ struct ContentView: View {
             withAnimation(.spring()) {
                 self.showClipboardPopup = true
             }
+        }
+        .sheet(isPresented: $showTaskTimerDemo) {
+            TaskTimerDemoView()
         }
     }
     
@@ -381,6 +385,8 @@ struct ContentView: View {
 // MARK: - Placeholder Views for Navigation
 
 struct DashboardView: View {
+    @State private var showTaskTimerDemo = false
+    
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "square.grid.2x2")
@@ -393,9 +399,27 @@ struct DashboardView: View {
             
             Text("Dashboard functionality - Coming Soon!")
                 .foregroundColor(.secondary)
+            
+            Button(action: {
+                showTaskTimerDemo = true
+            }) {
+                HStack {
+                    Image(systemName: "timer")
+                    Text("Task Timer Demo")
+                }
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .shadow(color: Color.black.opacity(0.2), radius: 3, x: 0, y: 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.textBackgroundColor))
+        .sheet(isPresented: $showTaskTimerDemo) {
+            TaskTimerDemoView()
+        }
     }
 }
 

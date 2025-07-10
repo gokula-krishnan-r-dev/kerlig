@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import SwiftUI
 
 /// A service that plays notification sounds at regular intervals
 class TickSoundService {
@@ -14,6 +15,10 @@ class TickSoundService {
     private let soundFileExtension = "mp3"
     private var soundFilePath: URL?
     
+    // Notification panel properties
+    private var notificationPanel: NotificationPanelController?
+    private var notificationMessage: String = "Time to stay focused!"
+    
     // MARK: - Initialization
     private init() {
         loadSoundFile()
@@ -23,19 +28,28 @@ class TickSoundService {
     // MARK: - Public Methods
     
     /// Start playing notification sounds at the specified interval
-    /// - Parameter interval: Time interval between notifications in seconds (default: 3.0)
-    func startTicking(interval: TimeInterval = 3.0) {
+    /// - Parameters:
+    ///   - interval: Time interval between notifications in seconds (default: 3.0)
+    ///   - message: Custom message to display in the notification panel
+    func startTicking(interval: TimeInterval = 3.0, message: String? = nil) {
         guard !isPlaying else { return }
+        
+        // Set notification message if provided
+        if let message = message {
+            self.notificationMessage = message
+        }
         
         // Stop any existing timer
         stopTicking()
         
-        // Play sound immediately
+        // Play sound immediately and show notification
         playSound()
+        showNotificationPanel()
         
         // Schedule timer for repeated playback
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.playSound()
+            self?.showNotificationPanel()
         }
         
         isPlaying = true
@@ -46,6 +60,7 @@ class TickSoundService {
         timer?.invalidate()
         timer = nil
         isPlaying = false
+        hideNotificationPanel()
     }
     
     /// Check if the service is currently playing notification sounds
@@ -57,6 +72,13 @@ class TickSoundService {
     /// Play the notification sound once for testing purposes
     func playTestSound() {
         playSound()
+    }
+    
+    /// Show notification panel with custom message
+    /// - Parameter message: Message to display in the notification panel
+    func showNotificationWithMessage(message: String) {
+        self.notificationMessage = message
+        showNotificationPanel()
     }
     
     /// Debug function to check the status of the sound file
@@ -121,6 +143,19 @@ class TickSoundService {
         // Reset to beginning and play
         audioPlayer?.currentTime = 0
         audioPlayer?.play()
+    }
+    
+    private func showNotificationPanel() {
+        // Create and show notification panel if not already visible
+        if notificationPanel == nil {
+            notificationPanel = NotificationPanelController()
+        }
+        
+        notificationPanel?.showNotification(withMessage: notificationMessage)
+    }
+    
+    private func hideNotificationPanel() {
+        notificationPanel?.hideNotification()
     }
     
     private func prepareAudioPlayer() {

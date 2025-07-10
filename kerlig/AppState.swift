@@ -172,6 +172,11 @@ class AppState: ObservableObject {
     }
   }
 
+  // Task Timer Notification Settings
+  @Published var taskTimerEnabled: Bool = true
+  @Published var defaultTaskDuration: Double = 10.0 // in minutes
+  @Published var showTaskCompletionNotification: Bool = true
+
   init() {
     // Load saved settings
     apiKey = savedAPIKey
@@ -216,6 +221,9 @@ class AppState: ObservableObject {
 
     // Set up notification observer for panel closing
     setupNotificationObservers()
+
+    // Initialize task timer settings from UserDefaults
+    loadTaskTimerSettings()
   }
 
   deinit {
@@ -527,5 +535,25 @@ class AppState: ObservableObject {
     
     typingTimer?.invalidate()
     typingTimer = nil
+  }
+
+  // Initialize task timer settings from UserDefaults
+  private func loadTaskTimerSettings() {
+      taskTimerEnabled = UserDefaults.standard.bool(forKey: "taskTimerEnabled")
+      defaultTaskDuration = UserDefaults.standard.double(forKey: "defaultTaskDuration")
+      if defaultTaskDuration == 0 {
+          defaultTaskDuration = 10.0 // Default to 10 minutes if not set
+      }
+      showTaskCompletionNotification = UserDefaults.standard.bool(forKey: "showTaskCompletionNotification")
+      if (UserDefaults.standard.object(forKey: "showTaskCompletionNotification").map({ _ in true }) == nil) ?? false {
+          showTaskCompletionNotification = true // Default to true if not set
+      }
+  }
+  
+  // Save task timer settings to UserDefaults
+  func saveTaskTimerSettings() {
+      UserDefaults.standard.set(taskTimerEnabled, forKey: "taskTimerEnabled")
+      UserDefaults.standard.set(defaultTaskDuration, forKey: "defaultTaskDuration")
+      UserDefaults.standard.set(showTaskCompletionNotification, forKey: "showTaskCompletionNotification")
   }
 }
