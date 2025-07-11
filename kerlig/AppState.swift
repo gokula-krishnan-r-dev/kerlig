@@ -40,6 +40,8 @@ class AppState: ObservableObject {
   @Published var isPinned: Bool = false  // Track if panel is pinned
   @Published var startWithBlank: Bool = false  // Track if starting with blank content
   @Published var isFirstLaunch: Bool = false  // Track if this is the first app launch
+  @Published var runInBackground: Bool = true  // Track if app should run in background
+  @Published var launchAtLogin: Bool = false  // Track if app should launch at login
 
   // Onboarding related
   @Published var currentOnboardingStep: OnboardingStep = .permissions
@@ -150,6 +152,31 @@ class AppState: ObservableObject {
     }
   }
 
+  var savedRunInBackground: Bool {
+    get {
+      // Default to true if never set before
+      if UserDefaults.standard.object(forKey: "runInBackground") == nil {
+        return true
+      }
+      return UserDefaults.standard.bool(forKey: "runInBackground")
+    }
+    set {
+      UserDefaults.standard.set(newValue, forKey: "runInBackground")
+      runInBackground = newValue
+    }
+  }
+
+  var savedLaunchAtLogin: Bool {
+    get {
+      return UserDefaults.standard.bool(forKey: "launchAtLogin")
+    }
+    set {
+      UserDefaults.standard.set(newValue, forKey: "launchAtLogin")
+      launchAtLogin = newValue
+      LaunchAtLoginManager.shared.isEnabled = newValue
+    }
+  }
+
   var savedIsFirstLaunch: Bool {
     get {
       // Return true if the key doesn't exist yet (first launch)
@@ -205,6 +232,12 @@ class AppState: ObservableObject {
     if UserDefaults.standard.object(forKey: "startWithBlank") != nil {
       startWithBlank = UserDefaults.standard.bool(forKey: "startWithBlank")
     }
+
+    // Load background mode preference
+    runInBackground = savedRunInBackground
+
+    // Load launch at login preference
+    launchAtLogin = savedLaunchAtLogin
 
     // Load history
     loadHistory()
@@ -349,6 +382,22 @@ class AppState: ObservableObject {
     savedStartWithBlank = !startWithBlank
   }
 
+  // Toggle background mode
+  func toggleBackgroundMode() {
+    savedRunInBackground = !runInBackground
+    
+    // Notify the background app manager of the change
+    NotificationCenter.default.post(
+      name: NSNotification.Name("BackgroundModeChanged"),
+      object: runInBackground
+    )
+  }
+
+  // Toggle launch at login
+  func toggleLaunchAtLogin() {
+    savedLaunchAtLogin = !launchAtLogin
+  }
+
   // Save settings
   func saveSettings() {
     UserDefaults.standard.set(apiKey, forKey: "apiKey")
@@ -358,6 +407,8 @@ class AppState: ObservableObject {
     UserDefaults.standard.set(responseStyle.rawValue, forKey: "responseStyle")
     UserDefaults.standard.set(isPinned, forKey: "isPinned")
     UserDefaults.standard.set(startWithBlank, forKey: "startWithBlank")
+    UserDefaults.standard.set(runInBackground, forKey: "runInBackground")
+    UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
   }
 
   // Mark first launch as completed

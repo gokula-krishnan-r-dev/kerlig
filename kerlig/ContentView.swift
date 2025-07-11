@@ -234,13 +234,17 @@ struct ContentView: View {
         }
     }
     
-    private func openAccessibilitySettings() {
-        if #available(macOS 13.0, *) {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-        } else {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!)
-        }
+      private func openAccessibilitySettings() {
+    if #available(macOS 13.0, *) {
+      if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+        NSWorkspace.shared.open(url)
+      }
+    } else {
+      if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+        NSWorkspace.shared.open(url)
+      }
     }
+  }
     
     private func setupHotkeyManager() {
         // Check for permission to register hotkeys
@@ -367,11 +371,15 @@ struct ContentView: View {
     }
     
     private func openAccessibilityPermissionSettings() {
-        if #available(macOS 13.0, *) {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-        } else {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!)
+              if #available(macOS 13.0, *) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+          NSWorkspace.shared.open(url)
         }
+      } else {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+          NSWorkspace.shared.open(url)
+        }
+      }
     }
     
     // Helper function for pulse animation

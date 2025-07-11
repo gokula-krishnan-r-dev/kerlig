@@ -74,8 +74,53 @@ struct GeneralSettingsView: View {
                 .font(.title2)
                 .fontWeight(.bold)
             
-            // Add general settings here
-            Toggle("Enable hotkey (Option+Space)", isOn: $appState.hotkeyEnabled)
+            // Hotkey settings
+            GroupBox(label: Text("Hotkey Settings").font(.headline)) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Enable hotkey (Option+Space)", isOn: $appState.hotkeyEnabled)
+                        .onChange(of: appState.hotkeyEnabled) { _ in
+                            appState.saveSettings()
+                        }
+                    
+                    Text("Use Option+Space to capture text and show the AI panel")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 8)
+            }
+            
+            // App behavior settings
+            GroupBox(label: Text("App Behavior").font(.headline)) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Run in background", isOn: $appState.runInBackground)
+                        .onChange(of: appState.runInBackground) { _ in
+                            appState.toggleBackgroundMode()
+                        }
+                    
+                    Text("When enabled, the app runs in the background and can be accessed via the menu bar")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Toggle("Start with blank content", isOn: $appState.startWithBlank)
+                        .onChange(of: appState.startWithBlank) { _ in
+                            appState.toggleStartWithBlank()
+                        }
+                    
+                    Text("When enabled, the AI panel will start with blank content instead of showing captured text")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Toggle("Launch at login", isOn: $appState.launchAtLogin)
+                        .onChange(of: appState.launchAtLogin) { _ in
+                            appState.toggleLaunchAtLogin()
+                        }
+                    
+                    Text("Automatically start Kerlig when you log in to your Mac")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 8)
+            }
         }
     }
 }

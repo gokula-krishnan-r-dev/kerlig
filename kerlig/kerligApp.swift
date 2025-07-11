@@ -9,13 +9,13 @@ import SwiftUI
 
 @main
 struct kerligApp: App {
-  @State private var popover = NSPopover()
   @StateObject private var appState = AppState()
-  @State private var floatingPanel: FloatingPanelController?
-  @State private var statusBarController: StatusBarController?
-
   @StateObject private var textCaptureService = TextCaptureService()
   @StateObject private var customActionsStorage = CustomActionsStorage()
+  
+  @State private var floatingPanel: FloatingPanelController?
+  @State private var backgroundAppManager = BackgroundAppManager.shared
+  @State private var hasConfiguredBackgroundMode = false
 
   var body: some Scene {
     WindowGroup {
@@ -27,26 +27,7 @@ struct kerligApp: App {
             .environmentObject(customActionsStorage)
             .frame(minWidth: 800)
             .onAppear {
-              if statusBarController == nil {
-                statusBarController = StatusBarController(captureService: textCaptureService)
-              }
-
-              textCaptureService.startMonitoring()
-
-              // Request permissions on first launch
-              DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let hotkeyManager = HotkeyManager()
-                hotkeyManager.showAccessibilityPermissionsDialog()
-              }
-
-              // Set up popover
-              setupPopover()
-
-              // Set up floating panel
-              setupFloatingPanel()
-
-              // Register for panel close notifications
-              registerForPanelCloseNotifications()
+              setupBackgroundMode()
             }
         } else if appState.isFirstLaunch {
           // Show welcome screen on first launch
@@ -54,12 +35,18 @@ struct kerligApp: App {
             .environmentObject(appState)
             .environmentObject(customActionsStorage)
             .frame(minWidth: 800, minHeight: 600)
+            .onAppear {
+              setupBackgroundMode()
+            }
         } else {
           // Show onboarding screens after welcome but before main app
           OnboardingView()
             .environmentObject(appState)
             .environmentObject(customActionsStorage)
             .frame(minWidth: 800, minHeight: 600)
+            .onAppear {
+              setupBackgroundMode()
+            }
         }
       }
     }
@@ -69,6 +56,12 @@ struct kerligApp: App {
       CommandGroup(after: .appInfo) {
         Button("Capture Text") {
           textCaptureService.captureSelectedText()
+          let selectedText = textCaptureService.getTextFromSelection()
+          if !selectedText.isEmpty {
+            floatingPanel?.showPanel(with: selectedText, appState: appState)
+          } else {
+            floatingPanel?.showEmptySelectionPanel(appState: appState)
+          }
         }
         .keyboardShortcut("c", modifiers: [.option, .command])
 
@@ -78,44 +71,50 @@ struct kerligApp: App {
           showPortMonitorWindow()
         }
         .keyboardShortcut("p", modifiers: [.option, .command])
+        
+        Button("Show Main Window") {
+          backgroundAppManager.showMainWindow()
+        }
+        .keyboardShortcut("m", modifiers: [.option, .command])
       }
     }
   }
 
-  private func setupPopover() {
-    // Configure the popover
-    popover.behavior = .transient
-    popover.animates = true
-
-    // Set ContentView as the popover's contentViewController
-    let contentView = ContentView()
-      .environmentObject(appState)
-      .environmentObject(customActionsStorage)
-    popover.contentViewController = NSHostingController(rootView: contentView)
-
-  }
-
-  private func setupFloatingPanel() {
+  private func setupBackgroundMode() {
+    // Only configure once
+    guard !hasConfiguredBackgroundMode else { return }
+    hasConfiguredBackgroundMode = true
+    
     // Initialize floating panel controller
     floatingPanel = FloatingPanelController()
-
-    // Register hotkey to capture selected text and show the panel
-    let hotkeyManager = HotkeyManager()
-    _ = hotkeyManager.registerHotkey { selectedText in
-      DispatchQueue.main.async {
-        // Hide main window if it's open
-        for window in NSApp.windows {
-          if window.title != "Settings" && window.title != "AI Assistant" {
-            window.orderOut(nil)
-          }
-        }
-
-        // Show floating panel with selected text
-        if !selectedText.isEmpty {
-          self.floatingPanel?.showPanel(with: selectedText, appState: self.appState)
-        } else {
-          self.floatingPanel?.showEmptySelectionPanel(appState: self.appState)
-        }
+    
+    // Configure the background app manager
+    guard let floatingPanelController = floatingPanel else {
+      NSLog("❌ Error: FloatingPanelController is nil")
+      return
+    }
+    
+    backgroundAppManager.configure(
+      appState: appState,
+      customActionsStorage: customActionsStorage,
+      floatingPanelController: floatingPanelController,
+      textCaptureService: textCaptureService
+    )
+    
+    // Request permissions on first setup
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+      let hotkeyManager = HotkeyManager()
+      hotkeyManager.showAccessibilityPermissionsDialog()
+    }
+    
+    // Register for panel close notifications
+    registerForPanelCloseNotifications()
+    
+    // Check if we should start in background mode
+    if appState.runInBackground && appState.onboardingComplete {
+      // Start in background mode after a short delay
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        self.backgroundAppManager.enterBackgroundMode()
       }
     }
   }
@@ -128,8 +127,8 @@ struct kerligApp: App {
       queue: .main
     ) { _ in
       // Update app state when panel is closed
-      appState.isAIPanelVisible = false
-      appState.emptySelectionMode = false
+      self.appState.isAIPanelVisible = false
+      self.appState.emptySelectionMode = false
     }
   }
 
