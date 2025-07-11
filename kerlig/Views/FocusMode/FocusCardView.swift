@@ -739,7 +739,7 @@ struct FocusCardView: View {
     
     // MARK: - Background and Overlays
     private var backgroundView: some View {
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: 18)
             .fill(
                 LinearGradient(
                     gradient: Gradient(colors: [
@@ -752,7 +752,7 @@ struct FocusCardView: View {
                 )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 18)
                     .stroke(
                         LinearGradient(
                             gradient: Gradient(colors: [
@@ -782,7 +782,7 @@ struct FocusCardView: View {
     }
     
     private var borderOverlay: some View {
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: 18)
             .stroke(
                 LinearGradient(
                     gradient: Gradient(colors: [
