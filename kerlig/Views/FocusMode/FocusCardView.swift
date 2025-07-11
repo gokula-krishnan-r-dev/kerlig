@@ -262,13 +262,36 @@ struct FocusCardView: View {
                     if let activeNote = noteStore.activeTimerNote, activeNote.isAIEnhanced {
                         HStack(spacing: 4) {
                             Image(systemName: "sparkles")
-                                .font(.system(size: 8))
-                                .foregroundColor(.purple.opacity(0.8))
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.cyan)
+                                .scaleEffect(pulseAnimation ? 1.2 : 1.0)
+                                .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: pulseAnimation)
                             
                             Text("AI Enhanced")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundColor(.purple.opacity(0.8))
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.cyan.opacity(0.9))
                         }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color.cyan.opacity(0.15),
+                                            Color.blue.opacity(0.08)
+                                        ]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.cyan.opacity(0.3), lineWidth: 0.5)
+                                )
+                        )
+                        .scaleEffect(isHovered ? 1.05 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovered)
                     }
                     
                     // Session count
@@ -285,31 +308,6 @@ struct FocusCardView: View {
                             .foregroundColor(.orange)
                     }
                     
-                    Spacer()
-                    
-                    // Dynamic expansion indicator
-                    if !isHovered {
-                        HStack(spacing: 3) {
-                            Image(systemName: "chevron.up")
-                                .font(.system(size: 7))
-                                .foregroundColor(.gray.opacity(0.4))
-                            Text("hover to expand")
-                                .font(.system(size: 8))
-                                .foregroundColor(.gray.opacity(0.5))
-                        }
-                        .opacity(pulseAnimation ? 0.8 : 0.5)
-                        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: pulseAnimation)
-                    } else {
-                        HStack(spacing: 3) {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 7))
-                                .foregroundColor(.gray.opacity(0.6))
-                            Text("expanded")
-                                .font(.system(size: 8))
-                                .foregroundColor(.gray.opacity(0.7))
-                        }
-                        .transition(.opacity)
-                    }
                 }
             }
         }
@@ -567,39 +565,48 @@ struct FocusCardView: View {
             
             Text(description)
                 .font(.system(size: 11, weight: .regular))
-                .foregroundColor(.white.opacity(0.85))
+                .foregroundColor(.white.opacity(0.9))
                 .lineLimit(isHovered ? nil : 3)
                 .multilineTextAlignment(.leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
+                                    Color.indigo.opacity(0.12),
                                     Color.purple.opacity(0.08),
-                                    Color.purple.opacity(0.12)
+                                    Color.blue.opacity(0.06)
                                 ]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 10)
                                 .stroke(
                                     LinearGradient(
                                         gradient: Gradient(colors: [
-                                            Color.purple.opacity(0.3),
-                                            Color.purple.opacity(0.15)
+                                            Color.indigo.opacity(0.4),
+                                            Color.purple.opacity(0.25),
+                                            Color.blue.opacity(0.15)
                                         ]),
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     ),
-                                    lineWidth: 1
+                                    lineWidth: 1.2
                                 )
                         )
+                        .shadow(
+                            color: Color.indigo.opacity(0.15),
+                            radius: 4,
+                            x: 0,
+                            y: 2
+                        )
                 )
-                .animation(.easeInOut(duration: 0.2), value: isHovered)
+                .scaleEffect(isHovered ? 1.01 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovered)
         }
     }
     
@@ -725,18 +732,40 @@ struct FocusCardView: View {
             .fill(
                 LinearGradient(
                     gradient: Gradient(colors: [
-                        Color(hex: isHovered ? "#242426" : "#1C1C1E"),
-                        Color(hex: isHovered ? "#1E1E20" : "#181818")
+                        Color(hex: isHovered ? "#2A2A2C" : "#1C1C1E"),
+                        Color(hex: isHovered ? "#1F1F21" : "#181818"),
+                        Color(hex: isHovered ? "#1A1A1C" : "#151515")
                     ]),
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(isHovered ? 0.15 : 0.08),
+                                Color.cyan.opacity(isHovered ? 0.1 : 0.05),
+                                Color.clear
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: isHovered ? 1.5 : 1
+                    )
+            )
             .shadow(
-                color: Color.black.opacity(isHovered ? 0.3 : 0.2),
-                radius: isHovered ? 8 : 5,
+                color: isHovered ? Color.cyan.opacity(0.2) : Color.black.opacity(0.2),
+                radius: isHovered ? 12 : 6,
                 x: 0,
-                y: isHovered ? 4 : 2
+                y: isHovered ? 6 : 3
+            )
+            .shadow(
+                color: Color.black.opacity(isHovered ? 0.4 : 0.3),
+                radius: isHovered ? 4 : 2,
+                x: 0,
+                y: isHovered ? 2 : 1
             )
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovered)
     }
@@ -1223,30 +1252,66 @@ struct ProfessionalSubtaskRowView: View {
     
     private var checkboxButton: some View {
         Button(action: {
-            toggleSubtaskCompletion()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6, blendDuration: 0.1)) {
+                toggleSubtaskCompletion()
+            }
         }) {
             ZStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(subtask.isCompleted ? Color.green.opacity(0.2) : Color.clear)
-                    .frame(width: 16, height: 16)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(
+                        subtask.isCompleted ? 
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.green.opacity(0.25),
+                                Color.mint.opacity(0.15)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ) :
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(0.1),
+                                Color.clear
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 18, height: 18)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 6)
                             .stroke(
-                                subtask.isCompleted ? Color.green : Color.gray.opacity(0.5),
-                                lineWidth: 1.5
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        subtask.isCompleted ? Color.green.opacity(0.8) : Color.cyan.opacity(isHovered ? 0.6 : 0.3),
+                                        subtask.isCompleted ? Color.mint.opacity(0.6) : Color.blue.opacity(isHovered ? 0.4 : 0.2)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: subtask.isCompleted ? 2 : 1.5
                             )
                     )
                 
                 if subtask.isCompleted {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.green)
+                        .scaleEffect(1.1)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
+            .shadow(
+                color: subtask.isCompleted ? Color.green.opacity(0.3) : Color.cyan.opacity(isHovered ? 0.2 : 0.1),
+                radius: subtask.isCompleted ? 4 : (isHovered ? 3 : 2),
+                x: 0,
+                y: subtask.isCompleted ? 2 : (isHovered ? 1 : 0)
+            )
         }
         .buttonStyle(PlainButtonStyle())
-        .scaleEffect(isHovered ? 1.1 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .scaleEffect(isHovered ? 1.15 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7, blendDuration: 0.1), value: isHovered)
+        .animation(.spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.2), value: subtask.isCompleted)
     }
     
     private var titleText: some View {
@@ -1261,36 +1326,88 @@ struct ProfessionalSubtaskRowView: View {
     @ViewBuilder
     private var priorityIndicator: some View {
         if subtask.priority != .medium {
-            HStack(spacing: 2) {
+            HStack(spacing: 3) {
                 Image(systemName: subtask.priority.iconName)
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundColor(subtask.priority.color)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(priorityAccentColor)
                 
                 Text(subtask.priority.rawValue.capitalized)
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundColor(subtask.priority.color)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(priorityAccentColor)
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
             .background(
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(subtask.priority.color.opacity(0.15))
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                priorityBackgroundColor.opacity(0.2),
+                                priorityBackgroundColor.opacity(0.1)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(priorityAccentColor.opacity(0.3), lineWidth: 0.5)
+                    )
             )
+            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovered)
+        }
+    }
+    
+    private var priorityAccentColor: Color {
+        switch subtask.priority {
+        case .low: return .cyan
+        case .medium: return .blue
+        case .high: return .orange
+        }
+    }
+    
+    private var priorityBackgroundColor: Color {
+        switch subtask.priority {
+        case .low: return .mint
+        case .medium: return .blue
+        case .high: return .red
         }
     }
     
     @ViewBuilder
     private var durationBadge: some View {
         if let duration = subtask.estimatedDuration {
-            Text(formatDuration(duration))
-                .font(.system(size: 8, weight: .medium))
-                .foregroundColor(.gray.opacity(0.8))
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.gray.opacity(0.15))
-                )
+            HStack(spacing: 2) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundColor(.indigo.opacity(0.8))
+                
+                Text(formatDuration(duration))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.indigo.opacity(0.9))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.indigo.opacity(0.15),
+                                Color.purple.opacity(0.08)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.indigo.opacity(0.25), lineWidth: 0.5)
+                    )
+            )
+            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovered)
         }
     }
     
@@ -1347,31 +1464,60 @@ struct ProfessionalSubtaskRowView: View {
                 }
             }
         }
-        .padding(.top, 4)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.top, 6)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.gray.opacity(0.05))
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.indigo.opacity(0.08),
+                            Color.purple.opacity(0.05),
+                            Color.clear
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.gray.opacity(0.1), lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.indigo.opacity(0.2),
+                                    Color.purple.opacity(0.1)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.8
+                        )
+                )
+                .shadow(
+                    color: Color.indigo.opacity(0.1),
+                    radius: 2,
+                    x: 0,
+                    y: 1
                 )
         )
     }
     
     private var subtaskBackground: some View {
-        RoundedRectangle(cornerRadius: 10)
+        RoundedRectangle(cornerRadius: 12)
+            .fill(backgroundFillColor)
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(borderStrokeColor, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(borderStrokeColor, lineWidth: isHovered ? 1.5 : 1)
             )
             .shadow(
                 color: shadowColor,
-                radius: isHovered ? 4 : 2,
+                radius: isHovered ? 6 : 3,
                 x: 0,
-                y: isHovered ? 2 : 1
+                y: isHovered ? 3 : 1
             )
+            .scaleEffect(isHovered ? 1.02 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7, blendDuration: 0.1), value: isHovered)
     }
     
     // MARK: - Computed Properties
@@ -1381,24 +1527,57 @@ struct ProfessionalSubtaskRowView: View {
                subtask.completionDate != nil
     }
     
+    private var backgroundFillColor: some ShapeStyle {
+        if subtask.isCompleted {
+            return LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.green.opacity(0.15),
+                    Color.green.opacity(0.08),
+                    Color.mint.opacity(0.05)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else if isHovered {
+            return LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.cyan.opacity(0.12),
+                    Color.blue.opacity(0.08),
+                    Color.indigo.opacity(0.05)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            return LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.08),
+                    Color.gray.opacity(0.04),
+                    Color.clear
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
    
     private var borderStrokeColor: Color {
         if subtask.isCompleted {
-            return Color.green.opacity(0.3)
+            return Color.green.opacity(0.4)
         } else if isHovered {
-            return Color.purple.opacity(0.2)
+            return Color.cyan.opacity(0.3)
         } else {
-            return Color.gray.opacity(0.1)
+            return Color.white.opacity(0.15)
         }
     }
     
     private var shadowColor: Color {
         if subtask.isCompleted {
-            return Color.green.opacity(0.2)
+            return Color.green.opacity(0.25)
         } else if isHovered {
-            return Color.purple.opacity(0.15)
+            return Color.cyan.opacity(0.2)
         } else {
-            return Color.black.opacity(0.1)
+            return Color.black.opacity(0.12)
         }
     }
     
