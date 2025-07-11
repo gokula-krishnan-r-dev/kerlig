@@ -248,12 +248,26 @@ struct FocusCardView: View {
                         .truncationMode(.tail)
                     
                     Spacer()
-                    
-                    // Timer display
-                    Text(noteStore.formatTime(noteStore.getTotalElapsedTimeForActiveTask()))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
-                        .monospacedDigit()
+               HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .font(.system(size: 14))
+                .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
+            
+            // Use centralized timer from noteStore
+            Text(noteStore.formatTime(noteStore.getTotalElapsedTimeForActiveTask()))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Color(hex: "#4CAF50").opacity(0.8))
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(hex: "#4CAF50").opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(hex: "#4CAF50").opacity(0.2), lineWidth: 0.5)
+                )
+        )       
                 }
                 
                 // Compact info row
@@ -473,9 +487,12 @@ struct FocusCardView: View {
         VStack(spacing: 0) {
             // Only show when hovered or if there's meaningful content
             if isHovered || hasmeaningfulAIContent(note) {
-                Divider()
-                    .background(Color.purple.opacity(0.3))
-                    .padding(.horizontal, 12)
+               Text(note.title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
                 
                 VStack(alignment: .leading, spacing: 16) {
                     // AI Description section
@@ -547,18 +564,18 @@ struct FocusCardView: View {
             HStack(spacing: 8) {
                 Image(systemName: "text.alignleft")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.purple.opacity(0.8))
+                    .foregroundColor(.green.opacity(0.8))
                 
                 Text("AI Description")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.purple.opacity(0.9))
+                    .foregroundColor(.green.opacity(0.8))
                 
                 Spacer()
                 
                 if isHovered {
                     Image(systemName: "eye")
                         .font(.system(size: 10))
-                        .foregroundColor(.purple.opacity(0.6))
+                        .foregroundColor(.green.opacity(0.6))
                         .transition(.opacity)
                 }
             }
@@ -615,35 +632,29 @@ struct FocusCardView: View {
             HStack(spacing: 8) {
                 Image(systemName: "checklist")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.purple.opacity(0.8))
+                    .foregroundColor(.green.opacity(0.8))
                 
                 let completedCount = note.aiGeneratedSubtasks.filter(\.isCompleted).count
                 let totalCount = note.aiGeneratedSubtasks.count
                 
                 Text("Subtasks")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.purple.opacity(0.9))
+                    .foregroundColor(.green.opacity(0.9))
                 
                 // Progress indicator
                 Text("(\(completedCount)/\(totalCount))")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.purple.opacity(0.7))
+                    .foregroundColor(.green.opacity(0.7))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.purple.opacity(0.15))
+                            .fill(Color.green.opacity(0.15))
                     )
                 
                 Spacer()
                 
-                // Progress bar
-                if totalCount > 0 {
-                    ProgressView(value: Double(completedCount), total: Double(totalCount))
-                        .progressViewStyle(LinearProgressViewStyle(tint: .purple))
-                        .frame(width: 40)
-                        .scaleEffect(0.8)
-                }
+              
             }
             
             // Subtasks list
@@ -1141,14 +1152,15 @@ struct TimerActionButton: View {
     let color: Color
     let action: () -> Void
     let onHover: (Bool) -> Void
+    var borderColor: Color? = nil
     
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 11))
-                    .foregroundColor(isHovered ? .white : color)
-                
+                    .foregroundColor(isHovered ? borderColor ?? color : .gray)
+
                 if isHovered {
                     Text(label)
                         .font(.system(size: 11, weight: .medium))
@@ -1159,7 +1171,7 @@ struct TimerActionButton: View {
             .padding(.vertical, 4)
             .padding(.horizontal, 6)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 55)
                     .fill(
                         isHovered ? 
                             LinearGradient(
@@ -1175,9 +1187,9 @@ struct TimerActionButton: View {
                     )
                     .overlay(
                         isHovered ?
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(color.opacity(0.4), lineWidth: 0.5) :
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius:55)
+                                .stroke(color.opacity(0.3), lineWidth: 0.5) :
+                            RoundedRectangle(cornerRadius: 55)
                                 .stroke(Color.clear, lineWidth: 0)
                     )
             )
@@ -1832,4 +1844,5 @@ struct StatItem: View {
 
 #Preview {
     FocusCardView(controller: FocusCardController(), noteStore: NoteStore())
+        .frame(width: 700 , height: 700)
 }
