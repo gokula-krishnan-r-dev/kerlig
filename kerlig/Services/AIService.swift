@@ -181,6 +181,322 @@ class AIService {
     return enhancedPrompt.isEmpty ? prompt : enhancedPrompt
   }
 
+  // MARK: - AI-Enhanced Task Generation
+  func generateTaskDescriptionAndSubtasks(
+    taskTitle: String,
+    completion: @escaping (Result<TaskEnhancementData, Error>) -> Void
+  ) {
+    print("🚀 [AI-SERVICE] ==========================================")
+    print("🚀 [AI-SERVICE] STEP 1: Starting AI task enhancement")
+    print("🚀 [AI-SERVICE] Task Title: '\(taskTitle)'")
+    print("🚀 [AI-SERVICE] Base URL: \(baseURL)")
+    print("🚀 [AI-SERVICE] Timestamp: \(Date())")
+    
+    logger.log("🚀 [AI-TASK] Generating enhanced task data for: \(taskTitle)", level: .info)
+    
+    // Validate inputs
+    guard !taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      print("❌ [AI-SERVICE] STEP 1 FAILED: Empty task title")
+      completion(.failure(URLError(.badURL)))
+      return
+    }
+    
+    guard !baseURL.isEmpty else {
+      print("❌ [AI-SERVICE] STEP 1 FAILED: Empty base URL")
+      completion(.failure(URLError(.badURL)))
+      return
+    }
+    
+    print("✅ [AI-SERVICE] STEP 1 COMPLETE: Input validation passed")
+    print("🚀 [AI-SERVICE] STEP 2: Creating prompts and payload")
+    
+    let systemPrompt = """
+    You are an expert task management assistant. Given a task title, provide a comprehensive analysis including:
+    1. A detailed description of what the task involves
+    2. Break down the task into 3-6 actionable subtasks
+    3. Estimate time for each subtask
+    4. Identify the priority level for each subtask
+    
+    Return the response in JSON format with the following structure:
+    {
+        "description": "Detailed description of the main task",
+        "subtasks": [
+            {
+                "title": "Subtask title",
+                "description": "Detailed description of the subtask",
+                "estimatedDuration": 1800,
+                "priority": "medium"
+            }
+        ]
+    }
+    
+    Important guidelines:
+    - Make subtasks specific and actionable
+    - Estimated duration should be in seconds
+    - Priority should be "low", "medium", or "high"
+    - Each subtask should be achievable within 30 minutes
+    - Focus on practical, real-world steps
+    """
+    
+    let userPrompt = """
+    Task: \(taskTitle)
+    
+    Please analyze this task and provide a comprehensive breakdown with description and subtasks.
+    """
+    
+    print("📝 [AI-SERVICE] System Prompt Length: \(systemPrompt.count) characters")
+    print("📝 [AI-SERVICE] User Prompt: '\(userPrompt)'")
+    
+    let payload: [String: Any] = [
+      "messages": [
+        [
+          "content": systemPrompt,
+          "role": "system"
+        ],
+        [
+          "content": userPrompt,
+          "role": "user"
+        ]
+      ],
+      "instruction": systemPrompt,
+      "text": userPrompt,
+      "stream": false
+    ]
+    
+    print("📦 [AI-SERVICE] Payload Structure:")
+    print("   - Messages count: \((payload["messages"] as? [[String: Any]])?.count ?? 0)")
+    print("   - Stream: \(payload["stream"] as? Bool ?? false)")
+    print("   - Text: '\((payload["text"] as? String ?? "").prefix(50))...'")
+
+    print("✅ [AI-SERVICE] STEP 2 COMPLETE: Prompts and payload created")
+    print("🚀 [AI-SERVICE] STEP 3: Creating URL and request")
+
+    guard let url = URL(string: baseURL) else {
+      print("❌ [AI-SERVICE] STEP 3 FAILED: Invalid URL - '\(baseURL)'")
+      logger.log("❌ [AI-TASK] Invalid URL for task enhancement", level: .error)
+      completion(.failure(URLError(.badURL)))
+      return
+    }
+    
+    print("✅ [AI-SERVICE] URL Created: \(url.absoluteString)")
+    
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.timeoutInterval = 30.0
+    
+    print("📨 [AI-SERVICE] Request Configuration:")
+    print("   - Method: \(request.httpMethod ?? "Unknown")")
+    print("   - Headers: \(request.allHTTPHeaderFields ?? [:])")
+    print("   - Timeout: \(request.timeoutInterval) seconds")
+    
+    do {
+      let jsonData = try JSONSerialization.data(withJSONObject: payload)
+      request.httpBody = jsonData
+      print("✅ [AI-SERVICE] STEP 3 COMPLETE: Request body serialized (\(jsonData.count) bytes)")
+    } catch {
+      print("❌ [AI-SERVICE] STEP 3 FAILED: JSON serialization error - \(error.localizedDescription)")
+      logger.log("❌ [AI-TASK] Failed to serialize request: \(error.localizedDescription)", level: .error)
+      completion(.failure(error))
+      return
+    }
+
+    print("🚀 [AI-SERVICE] STEP 4: Making network request...")
+    let requestStartTime = Date()
+
+    URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+      let requestDuration = Date().timeIntervalSince(requestStartTime)
+      print("📡 [AI-SERVICE] STEP 4 COMPLETE: Network request finished in \(String(format: "%.2f", requestDuration))s")
+      
+      guard let self = self else {
+        print("❌ [AI-SERVICE] STEP 5 FAILED: Self is nil - creating fallback response")
+        // Still call completion handler to prevent caller from hanging
+        let fallbackData = TaskEnhancementData(
+          description: "AI-enhanced analysis of: \(taskTitle). This is a comprehensive task that requires careful planning and execution.",
+          subtasks: [
+            TaskEnhancementData.SubtaskData(
+              title: "Research and Planning",
+              description: "Gather information and plan the approach for: \(taskTitle)",
+              estimatedDuration: 900,
+              priority: "medium"
+            ),
+            TaskEnhancementData.SubtaskData(
+              title: "Implementation",
+              description: "Execute the main components of: \(taskTitle)",
+              estimatedDuration: 1800,
+              priority: "high"
+            ),
+            TaskEnhancementData.SubtaskData(
+              title: "Review and Finalize",
+              description: "Review work and make final adjustments for: \(taskTitle)",
+              estimatedDuration: 600,
+              priority: "medium"
+            )
+          ]
+        )
+        completion(.success(fallbackData))
+        return
+      }
+      
+      print("🚀 [AI-SERVICE] STEP 5: Processing network response")
+      
+      // Check for network errors
+      if let error = error {
+        print("❌ [AI-SERVICE] STEP 5 FAILED: Network error")
+        print("❌ [AI-SERVICE] Error Details:")
+        print("   - Description: \(error.localizedDescription)")
+        print("   - Type: \(type(of: error))")
+        if let nsError = error as NSError? {
+          print("   - Code: \(nsError.code)")
+          print("   - Domain: \(nsError.domain)")
+          print("   - User Info: \(nsError.userInfo)")
+        }
+        self.logger.log("❌ [AI-TASK] Network error: \(error.localizedDescription)", level: .error)
+        completion(.failure(error))
+        return
+      }
+      
+      // Check HTTP response
+      if let httpResponse = response as? HTTPURLResponse {
+        print("📋 [AI-SERVICE] HTTP Response:")
+        print("   - Status Code: \(httpResponse.statusCode)")
+        print("   - Headers: \(httpResponse.allHeaderFields)")
+        
+        if httpResponse.statusCode != 200 {
+          print("❌ [AI-SERVICE] STEP 5 FAILED: Non-200 status code")
+          completion(.failure(URLError(.badServerResponse)))
+          return
+        }
+      }
+      
+      guard let data = data else {
+        print("❌ [AI-SERVICE] STEP 5 FAILED: No data received")
+        self.logger.log("❌ [AI-TASK] No data received", level: .error)
+        completion(.failure(URLError(.cannotParseResponse)))
+        return
+      }
+      
+      print("✅ [AI-SERVICE] STEP 5 COMPLETE: Data received (\(data.count) bytes)")
+      print("🚀 [AI-SERVICE] STEP 6: Parsing response data")
+      
+      // Log raw response for debugging
+      if let rawString = String(data: data, encoding: .utf8) {
+        print("📋 [AI-SERVICE] Raw Response: '\(rawString.prefix(500))...'")
+      }
+      
+      do {
+        // Parse the response
+        guard let jsonResponse = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+          print("❌ [AI-SERVICE] STEP 6 FAILED: Response is not a JSON object")
+          completion(.failure(URLError(.cannotParseResponse)))
+          return
+        }
+        
+        print("📋 [AI-SERVICE] JSON Response Keys: \(jsonResponse.keys.joined(separator: ", "))")
+        
+        guard let responseText = jsonResponse["response"] as? String else {
+          print("❌ [AI-SERVICE] STEP 6 FAILED: No 'response' field in JSON")
+          print("❌ [AI-SERVICE] Available fields: \(jsonResponse.keys.joined(separator: ", "))")
+          self.logger.log("❌ [AI-TASK] Invalid response format", level: .error)
+          completion(.failure(URLError(.cannotParseResponse)))
+          return
+        }
+        
+        print("✅ [AI-SERVICE] STEP 6 COMPLETE: Found response text (\(responseText.count) chars)")
+        print("📋 [AI-SERVICE] Response Text: '\(responseText.prefix(200))...'")
+        
+        self.logger.log("✅ [AI-TASK] Received AI response: \(responseText.prefix(200))...", level: .info)
+        
+        print("🚀 [AI-SERVICE] STEP 7: Parsing AI response as JSON")
+        
+        // Try to parse the JSON response text
+        guard let jsonData = responseText.data(using: .utf8) else {
+          print("❌ [AI-SERVICE] STEP 7 FAILED: Cannot convert response to UTF-8 data")
+          self.createFallbackTaskData(responseText: responseText, completion: completion)
+          return
+        }
+        
+        do {
+          let taskData = try JSONDecoder().decode(TaskEnhancementData.self, from: jsonData)
+          print("✅ [AI-SERVICE] STEP 7 COMPLETE: Successfully parsed TaskEnhancementData")
+          print("🎉 [AI-SERVICE] ==========================================")
+          print("🎉 [AI-SERVICE] AI TASK ENHANCEMENT SUCCESS!")
+          print("🎉 [AI-SERVICE] Description: '\(taskData.description.prefix(100))...'")
+          print("🎉 [AI-SERVICE] Subtasks: \(taskData.subtasks.count)")
+          for (index, subtask) in taskData.subtasks.enumerated() {
+            print("🎉 [AI-SERVICE]   \(index + 1). '\(subtask.title)' (\(subtask.priority))")
+          }
+          print("🎉 [AI-SERVICE] ==========================================")
+          
+          self.logger.log("✅ [AI-TASK] Successfully parsed task enhancement data", level: .info)
+          completion(.success(taskData))
+        } catch {
+          print("❌ [AI-SERVICE] STEP 7 FAILED: JSON decoding error")
+          print("❌ [AI-SERVICE] Decoding Error: \(error.localizedDescription)")
+          print("❌ [AI-SERVICE] JSON Data: '\(String(data: jsonData, encoding: .utf8) ?? "Cannot display")'")
+          
+          self.logger.log("⚠️ [AI-TASK] Failed to parse JSON, creating fallback data", level: .warning)
+          self.createFallbackTaskData(responseText: responseText, completion: completion)
+        }
+      } catch {
+        print("❌ [AI-SERVICE] STEP 6 FAILED: JSON parsing error")
+        print("❌ [AI-SERVICE] Error: \(error.localizedDescription)")
+        self.logger.log("❌ [AI-TASK] JSON parsing error: \(error.localizedDescription)", level: .error)
+        
+        // Create basic enhancement data as fallback
+        self.createBasicFallbackData(taskTitle: taskTitle, completion: completion)
+      }
+    }.resume()
+    
+    print("🚀 [AI-SERVICE] STEP 4: Network request initiated (async)")
+  }
+  
+  // MARK: - Fallback Data Creation
+  private func createFallbackTaskData(responseText: String, completion: @escaping (Result<TaskEnhancementData, Error>) -> Void) {
+    print("🔧 [AI-SERVICE] Creating fallback data from response text")
+    
+    let fallbackData = TaskEnhancementData(
+      description: responseText,
+      subtasks: []
+    )
+    print("✅ [AI-SERVICE] Fallback data created with response as description")
+    completion(.success(fallbackData))
+  }
+  
+  private func createBasicFallbackData(taskTitle: String, completion: @escaping (Result<TaskEnhancementData, Error>) -> Void) {
+    print("🔧 [AI-SERVICE] Creating basic fallback data for: \(taskTitle)")
+    
+    let fallbackData = TaskEnhancementData(
+      description: "AI-enhanced analysis of: \(taskTitle). This is a comprehensive task that requires careful planning and execution.",
+      subtasks: [
+        TaskEnhancementData.SubtaskData(
+          title: "Research and Planning",
+          description: "Gather information and plan the approach for: \(taskTitle)",
+          estimatedDuration: 900,
+          priority: "medium"
+        ),
+        TaskEnhancementData.SubtaskData(
+          title: "Implementation",
+          description: "Execute the main components of: \(taskTitle)",
+          estimatedDuration: 1800,
+          priority: "high"
+        ),
+        TaskEnhancementData.SubtaskData(
+          title: "Review and Finalize",
+          description: "Review work and make final adjustments for: \(taskTitle)",
+          estimatedDuration: 600,
+          priority: "medium"
+        )
+      ]
+    )
+    
+    print("✅ [AI-SERVICE] Basic fallback data created:")
+    print("   - Description: '\(fallbackData.description.prefix(100))...'")
+    print("   - Subtasks: \(fallbackData.subtasks.count)")
+    
+    completion(.success(fallbackData))
+  }
+
   // MARK: - Streaming Response Generation
   func generateStreamingResponse(
     prompt: String,
@@ -996,4 +1312,39 @@ class StreamingDelegate: NSObject, URLSessionDataDelegate {
       }
     }
   }
+}
+
+// MARK: - Task Enhancement Data Models
+struct TaskEnhancementData: Codable {
+    let description: String
+    let subtasks: [SubtaskData]
+    
+    struct SubtaskData: Codable {
+        let title: String
+        let description: String?
+        let estimatedDuration: TimeInterval // in seconds
+        let priority: String // "low", "medium", or "high"
+        
+        // Convert to Subtask model
+        func toSubtask(order: Int) -> Subtask {
+            let subtaskPriority: SubtaskPriority
+            switch priority.lowercased() {
+            case "low":
+                subtaskPriority = .low
+            case "high":
+                subtaskPriority = .high
+            default:
+                subtaskPriority = .medium
+            }
+            
+            return Subtask(
+                title: title,
+                description: description,
+                isCompleted: false,
+                estimatedDuration: estimatedDuration,
+                priority: subtaskPriority,
+                order: order
+            )
+        }
+    }
 }

@@ -30,6 +30,74 @@ struct TimerSession: Identifiable, Codable {
     }
 }
 
+// MARK: - Subtask Model for AI-generated subtasks
+struct Subtask: Identifiable, Codable, Hashable {
+    let id = UUID()
+    var title: String
+    var description: String?
+    var isCompleted: Bool
+    var creationDate: Date
+    var completionDate: Date?
+    var estimatedDuration: TimeInterval? // In seconds
+    var actualDuration: TimeInterval? // In seconds
+    var priority: SubtaskPriority
+    var order: Int // For ordering subtasks
+    
+    init(title: String, description: String? = nil, isCompleted: Bool = false, estimatedDuration: TimeInterval? = nil, priority: SubtaskPriority = .medium, order: Int = 0) {
+        self.title = title
+        self.description = description
+        self.isCompleted = isCompleted
+        self.creationDate = Date()
+        self.completionDate = nil
+        self.estimatedDuration = estimatedDuration
+        self.actualDuration = nil
+        self.priority = priority
+        self.order = order
+    }
+    
+    // Helper methods
+    mutating func markCompleted() {
+        self.isCompleted = true
+        self.completionDate = Date()
+    }
+    
+    mutating func markIncomplete() {
+        self.isCompleted = false
+        self.completionDate = nil
+    }
+    
+    // Hashable conformance
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: Subtask, rhs: Subtask) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+enum SubtaskPriority: String, Codable, CaseIterable {
+    case low = "Low"
+    case medium = "Medium"
+    case high = "High"
+    
+    var color: Color {
+        switch self {
+        case .low: return .blue
+        case .medium: return .green
+        case .high: return .orange
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .low: return "arrow.down.circle"
+        case .medium: return "minus.circle"
+        case .high: return "arrow.up.circle"
+        }
+    }
+}
+
 // MARK: - Media Content Types
 enum MediaContentType: String, Codable {
     case none = "none"
@@ -116,7 +184,14 @@ struct Note: Identifiable, Codable, Hashable, Transferable {
     // New unified media content
     var mediaContent: MediaContent
     
-    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil, isScheduled: Bool = false, scheduledDate: Date? = nil, scheduledTime: Date? = nil, priority: TaskPriority = .medium, imageData: Data? = nil, description: String? = nil, reminderMinutes: Int? = nil, hasBeenNotified: Bool = false, timerState: TimerState = .stopped, totalWorkTime: TimeInterval = 0, totalBreakTime: TimeInterval = 0, sessions: [TimerSession] = [], isActiveTimer: Bool = false, targetWorkDuration: TimeInterval? = nil, mediaContent: MediaContent? = nil) {
+    // AI-generated content
+    var aiGeneratedDescription: String? // AI-generated detailed description
+    var aiGeneratedSubtasks: [Subtask] // AI-generated subtasks
+    var isAIEnhanced: Bool // Flag to indicate if AI enhancement has been applied
+    var aiGenerationDate: Date? // When AI content was generated
+    var aiGenerationPrompt: String? // The prompt used to generate AI content
+    
+    init(id: UUID = UUID(), title: String, content: String, creationDate: Date = Date(), lastModified: Date = Date(), isFavorite: Bool = false, category: NoteCategory = .uncategorized, color: String? = nil, estimatedTime: String? = nil, isCompleted: Bool = false, actualTime: TimeInterval? = nil, isScheduled: Bool = false, scheduledDate: Date? = nil, scheduledTime: Date? = nil, priority: TaskPriority = .medium, imageData: Data? = nil, description: String? = nil, reminderMinutes: Int? = nil, hasBeenNotified: Bool = false, timerState: TimerState = .stopped, totalWorkTime: TimeInterval = 0, totalBreakTime: TimeInterval = 0, sessions: [TimerSession] = [], isActiveTimer: Bool = false, targetWorkDuration: TimeInterval? = nil, mediaContent: MediaContent? = nil, aiGeneratedDescription: String? = nil, aiGeneratedSubtasks: [Subtask] = [], isAIEnhanced: Bool = false, aiGenerationDate: Date? = nil, aiGenerationPrompt: String? = nil) {
         self.id = id
         self.title = title
         self.content = content
@@ -143,6 +218,13 @@ struct Note: Identifiable, Codable, Hashable, Transferable {
         self.isActiveTimer = isActiveTimer
         self.targetWorkDuration = targetWorkDuration
         self.mediaContent = mediaContent ?? MediaContent()
+        
+        // AI-generated content initialization
+        self.aiGeneratedDescription = aiGeneratedDescription
+        self.aiGeneratedSubtasks = aiGeneratedSubtasks
+        self.isAIEnhanced = isAIEnhanced
+        self.aiGenerationDate = aiGenerationDate
+        self.aiGenerationPrompt = aiGenerationPrompt
         
         // Migration: if imageData exists but mediaContent is empty, migrate it
         if let imageData = imageData, !self.mediaContent.hasContent {

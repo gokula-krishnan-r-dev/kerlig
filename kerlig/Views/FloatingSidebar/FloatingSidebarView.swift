@@ -149,6 +149,11 @@ struct FloatingSidebarView: View {
     // Media picker visibility toggle
     @State private var showMediaPicker = UserDefaults.standard.bool(forKey: "showMediaPicker")
     
+    // AI Enhancement Status
+    @State private var isAIEnhancing = false
+    @State private var aiEnhancementStatus = ""
+    @State private var aiService: AIService?
+    
     @StateObject private var notificationService = ScheduledTaskNotificationService.shared
     
     let controller: FloatingSidebarController
@@ -1164,7 +1169,13 @@ struct FloatingSidebarView: View {
         let progress = totalTasks > 0 ? Double(completedTasks.count) / Double(totalTasks) : 0.0
         let estimatedTimeRemaining = calculateEstimatedTimeRemaining(pendingTasks)
         
-        return HStack(spacing: 10) {
+        return VStack(spacing: 8) {
+            // AI Enhancement Status (if active)
+            if isAIEnhancing {
+                aiEnhancementStatusView
+            }
+            
+            HStack(spacing: 10) {
             // Completed tasks
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
@@ -1256,29 +1267,68 @@ struct FloatingSidebarView: View {
                         )
                 )
             }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(hex: "#1C1C1E"))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.05),
+                                        Color.white.opacity(0.02)
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 0.5
+                            )
+                    )
+            )
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+    }
+    
+    // MARK: - AI Enhancement Status View
+    private var aiEnhancementStatusView: some View {
+        HStack(spacing: 8) {
+            // Loading indicator
+            ProgressView()
+                .scaleEffect(0.8)
+                .progressViewStyle(CircularProgressViewStyle(tint: .purple))
+            
+            Text(aiEnhancementStatus.isEmpty ? "Generating AI-enhanced content..." : aiEnhancementStatus)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.purple.opacity(0.9))
+                .lineLimit(1)
+                .animation(.easeInOut(duration: 0.3), value: aiEnhancementStatus)
+            
+            Spacer()
+            
+            // AI icon
+            Image(systemName: "brain.head.profile")
+                .font(.system(size: 12))
+                .foregroundColor(.purple.opacity(0.7))
+        }
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(hex: "#1C1C1E"))
+                .fill(Color.purple.opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.white.opacity(0.05),
-                                    Color.white.opacity(0.02)
-                                ]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 0.5
-                        )
+                        .stroke(Color.purple.opacity(0.2), lineWidth: 0.5)
                 )
         )
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .top)),
+            removal: .opacity.combined(with: .move(edge: .top))
+        ))
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isAIEnhancing)
     }
     
     // MARK: - Helper Methods for Progress Summary
@@ -2247,24 +2297,283 @@ confettiController.showConfetti(duration: 5.0)
     private func createNewNote() {
         if !newNoteTitle.isEmpty {
             let newId = UUID()
+            let taskTitle = newNoteTitle // Store title before reset
             let mediaToSave = (showMediaPicker && taskMediaContent.hasContent) ? taskMediaContent : nil
             
+            print("📝 [TASK-CREATE] ==========================================")
+            print("📝 [TASK-CREATE] Creating new task: '\(taskTitle)'")
+            print("📝 [TASK-CREATE] Task ID: \(newId)")
+            print("📝 [TASK-CREATE] Media Content: \(mediaToSave?.hasContent == true ? "Yes" : "No")")
+            
+            // Create the task first
             noteStore.addNote(
                 id: newId,
-                title: newNoteTitle,
+                title: taskTitle,
                 content: "",
                 category: .today,
                 mediaContent: mediaToSave
             )
             
+            print("✅ [TASK-CREATE] Task added to noteStore")
+            
             // Add task to appropriate column based on selected project/release
             addTaskToAppropriateColumn(taskId: newId)
             
+            print("✅ [TASK-CREATE] Task added to appropriate column")
+            
+            // Show AI enhancement status
+            isAIEnhancing = true
+            aiEnhancementStatus = "Enhancing '\(taskTitle)' with AI..."
+            
+            print("🤖 [TASK-CREATE] Starting AI enhancement...")
+            
+            // Trigger AI enhancement for the new task
+            enhanceTaskWithAI(taskId: newId, taskTitle: taskTitle)
+            
+            // Reset form and update UI
             resetTaskForm()
             isAddingNote = false
             focusOnNewNote()
             updateTaskData() // Refresh task data
             firstNote = findFirstNote()
+            
+            print("✅ [TASK-CREATE] UI updated and task creation complete")
+        }
+    }
+    
+    // MARK: - AI Enhancement
+    private func enhanceTaskWithAI(taskId: UUID, taskTitle: String) {
+        print("🤖 [AI-ENHANCE] ==========================================")
+        print("🤖 [AI-ENHANCE] STEP 1: Starting AI enhancement process")
+        print("🤖 [AI-ENHANCE] Task ID: \(taskId)")
+        print("🤖 [AI-ENHANCE] Task Title: '\(taskTitle)'")
+        print("🤖 [AI-ENHANCE] Timestamp: \(Date())")
+        
+        // Validate input
+        guard !taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            print("❌ [AI-ENHANCE] STEP 1 FAILED: Empty task title")
+            return
+        }
+        
+        // Check if task exists in noteStore
+        guard noteStore.notes.contains(where: { $0.id == taskId }) else {
+            print("❌ [AI-ENHANCE] STEP 1 FAILED: Task not found in noteStore")
+            return
+        }
+        
+        print("✅ [AI-ENHANCE] STEP 1 COMPLETE: Input validation passed")
+        print("🤖 [AI-ENHANCE] STEP 2: Creating AI service instance")
+        
+        // Create AI service instance (retain it as a property to prevent deallocation)
+        self.aiService = AIService()
+        print("✅ [AI-ENHANCE] STEP 2 COMPLETE: AI service created")
+        
+        print("🤖 [AI-ENHANCE] STEP 3: Calling AI service...")
+        print("🤖 [AI-ENHANCE] API Call Parameters:")
+        print("   - Task Title: '\(taskTitle)'")
+        print("   - Expected Response: TaskEnhancementData with description and subtasks")
+        
+        // Generate AI-enhanced task description and subtasks
+        self.aiService?.generateTaskDescriptionAndSubtasks(taskTitle: taskTitle) { result in
+            print("🤖 [AI-ENHANCE] STEP 4: AI service callback received")
+            
+            DispatchQueue.main.async {
+                print("🤖 [AI-ENHANCE] STEP 5: Processing AI response on main thread")
+                
+                switch result {
+                case .success(let taskData):
+                    print("✅ [AI-ENHANCE] STEP 5 SUCCESS: AI content generated successfully!")
+                    print("📊 [AI-ENHANCE] Response Analysis:")
+                    print("   - Description: '\(taskData.description.prefix(100))...'")
+                    print("   - Description Length: \(taskData.description.count) characters")
+                    print("   - Subtasks Count: \(taskData.subtasks.count)")
+                    
+                    if !taskData.subtasks.isEmpty {
+                        print("📋 [AI-ENHANCE] Subtasks Details:")
+                        for (index, subtask) in taskData.subtasks.enumerated() {
+                            print("   \(index + 1). '\(subtask.title)' - \(subtask.priority) priority - \(Int(subtask.estimatedDuration/60))min")
+                        }
+                    }
+                    
+                    // Update status
+                    self.aiEnhancementStatus = "✅ AI enhancement completed successfully!"
+                    
+                    print("🤖 [AI-ENHANCE] STEP 6: Updating task with AI content...")
+                    self.updateTaskWithAIContent(taskId: taskId, taskData: taskData, originalTitle: taskTitle)
+                    
+                case .failure(let error):
+                    print("❌ [AI-ENHANCE] STEP 5 FAILED: AI content generation failed")
+                    print("❌ [AI-ENHANCE] Error Details:")
+                    print("   - Error: \(error.localizedDescription)")
+                    print("   - Error Type: \(type(of: error))")
+                    if let nsError = error as NSError? {
+                        print("   - Error Code: \(nsError.code)")
+                        print("   - Error Domain: \(nsError.domain)")
+                        print("   - User Info: \(nsError.userInfo)")
+                    }
+                    
+                    // Update status with error
+                    self.aiEnhancementStatus = "⚠️ AI enhancement failed, using fallback content"
+                    
+                    // Still mark task as AI-enhanced but with empty content for debugging
+                    print("🔧 [AI-ENHANCE] STEP 6: Creating fallback AI content for debugging...")
+                    self.createFallbackAIContent(taskId: taskId, originalTitle: taskTitle, error: error)
+                }
+            }
+        }
+        
+        print("🤖 [AI-ENHANCE] STEP 3 COMPLETE: AI service call initiated (async)")
+    }
+    
+    // MARK: - Fallback AI Content Creation
+    private func createFallbackAIContent(taskId: UUID, originalTitle: String, error: Error) {
+        print("🔧 [AI-ENHANCE] Creating fallback AI content for debugging...")
+        
+        guard var note = noteStore.notes.first(where: { $0.id == taskId }) else {
+            print("❌ [AI-ENHANCE] FALLBACK FAILED: Task not found")
+            return
+        }
+        
+        // Create debug AI content
+        note.aiGeneratedDescription = "AI generation failed: \(error.localizedDescription). This is a debug placeholder description for task: \(originalTitle)"
+        
+        // Create debug subtasks
+        note.aiGeneratedSubtasks = [
+            Subtask(
+                title: "Debug: Check AI service configuration",
+                description: "Verify that the AI service is properly configured and accessible",
+                estimatedDuration: 300, // 5 minutes
+                priority: .high,
+                order: 0
+            ),
+            Subtask(
+                title: "Debug: Review error logs",
+                description: "Check the console logs for detailed error information",
+                estimatedDuration: 180, // 3 minutes
+                priority: .medium,
+                order: 1
+            )
+        ]
+        
+        note.isAIEnhanced = true
+        note.aiGenerationDate = Date()
+        note.aiGenerationPrompt = "FALLBACK - Failed generation for: \(originalTitle)"
+        
+        // Update the note in the store
+        noteStore.updateNote(note)
+        
+        print("✅ [AI-ENHANCE] FALLBACK COMPLETE: Debug AI content created")
+        print("📊 [AI-ENHANCE] Fallback Content:")
+        print("   - Description: \(note.aiGeneratedDescription?.prefix(100) ?? "None")...")
+        print("   - Subtasks: \(note.aiGeneratedSubtasks.count)")
+        
+        // Clear AI enhancement status after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.isAIEnhancing = false
+            self.aiEnhancementStatus = ""
+            self.aiService = nil // Release the AI service instance
+        }
+    }
+    
+    private func updateTaskWithAIContent(taskId: UUID, taskData: TaskEnhancementData, originalTitle: String) {
+        print("🤖 [AI-ENHANCE] STEP 6: Updating task with AI content...")
+        print("🤖 [AI-ENHANCE] Task ID: \(taskId)")
+        
+        // Find the task in noteStore and update it with AI content
+        guard var note = noteStore.notes.first(where: { $0.id == taskId }) else {
+            print("❌ [AI-ENHANCE] STEP 6 FAILED: Could not find task with ID: \(taskId)")
+            print("❌ [AI-ENHANCE] Available tasks in noteStore: \(noteStore.notes.count)")
+            for (index, n) in noteStore.notes.prefix(5).enumerated() {
+                print("   \(index + 1). \(n.id) - '\(n.title)'")
+            }
+            return
+        }
+        
+        print("✅ [AI-ENHANCE] STEP 6.1: Task found in noteStore")
+        print("📋 [AI-ENHANCE] Original Task Details:")
+        print("   - Title: '\(note.title)'")
+        print("   - Current AI Enhanced: \(note.isAIEnhanced)")
+        print("   - Current Description: \(note.aiGeneratedDescription?.prefix(50) ?? "None")...")
+        print("   - Current Subtasks: \(note.aiGeneratedSubtasks.count)")
+        
+        print("🤖 [AI-ENHANCE] STEP 6.2: Converting AI data to subtasks...")
+        
+        // Convert AI data to subtasks
+        let subtasks = taskData.subtasks.enumerated().map { index, subtaskData in
+            let subtask = subtaskData.toSubtask(order: index)
+            print("   Created subtask \(index + 1): '\(subtask.title)' (\(subtask.priority))")
+            return subtask
+        }
+        
+        print("✅ [AI-ENHANCE] STEP 6.2 COMPLETE: \(subtasks.count) subtasks converted")
+        
+        print("🤖 [AI-ENHANCE] STEP 6.3: Updating note properties...")
+        
+        // Store original values for comparison
+        let originalDescription = note.aiGeneratedDescription
+        let originalSubtasksCount = note.aiGeneratedSubtasks.count
+        let originalIsAIEnhanced = note.isAIEnhanced
+        
+        // Update the note with AI-generated content
+        note.aiGeneratedDescription = taskData.description
+        note.aiGeneratedSubtasks = subtasks
+        note.isAIEnhanced = true
+        note.aiGenerationDate = Date()
+        note.aiGenerationPrompt = "Generate task breakdown for: \(originalTitle)"
+        
+        print("📊 [AI-ENHANCE] Property Updates:")
+        print("   - Description: '\(originalDescription?.prefix(30) ?? "None")...' → '\(taskData.description.prefix(30))...'")
+        print("   - Subtasks Count: \(originalSubtasksCount) → \(subtasks.count)")
+        print("   - AI Enhanced: \(originalIsAIEnhanced) → \(note.isAIEnhanced)")
+        print("   - Generation Date: \(note.aiGenerationDate?.formatted() ?? "None")")
+        
+        print("🤖 [AI-ENHANCE] STEP 6.4: Saving to noteStore...")
+        
+        // Update the note in the store
+        noteStore.updateNote(note)
+        
+        print("✅ [AI-ENHANCE] STEP 6.4 COMPLETE: Note saved to noteStore")
+        
+        // Verify the update was successful
+        if let updatedNote = noteStore.notes.first(where: { $0.id == taskId }) {
+            print("✅ [AI-ENHANCE] STEP 6.5: Verification successful")
+            print("📊 [AI-ENHANCE] Updated Note Verification:")
+            print("   - AI Enhanced: \(updatedNote.isAIEnhanced)")
+            print("   - Description Length: \(updatedNote.aiGeneratedDescription?.count ?? 0) chars")
+            print("   - Subtasks Count: \(updatedNote.aiGeneratedSubtasks.count)")
+            print("   - Generation Date: \(updatedNote.aiGenerationDate?.formatted() ?? "None")")
+            
+            if !updatedNote.aiGeneratedSubtasks.isEmpty {
+                print("📋 [AI-ENHANCE] First Subtask Details:")
+                let firstSubtask = updatedNote.aiGeneratedSubtasks[0]
+                print("   - Title: '\(firstSubtask.title)'")
+                print("   - Description: '\(firstSubtask.description?.prefix(50) ?? "None")...'")
+                print("   - Priority: \(firstSubtask.priority)")
+                print("   - Duration: \(Int(firstSubtask.estimatedDuration ?? 0 / 60)) minutes")
+            }
+        } else {
+            print("❌ [AI-ENHANCE] STEP 6.5 FAILED: Could not verify note update")
+        }
+        
+        print("🤖 [AI-ENHANCE] STEP 6.6: Updating UI state...")
+        
+        // Update UI data
+        updateTaskData()
+        firstNote = findFirstNote()
+        
+        print("✅ [AI-ENHANCE] STEP 6.6 COMPLETE: UI state updated")
+        print("🎉 [AI-ENHANCE] ==========================================")
+        print("🎉 [AI-ENHANCE] AI ENHANCEMENT PROCESS COMPLETE!")
+        print("🎉 [AI-ENHANCE] Task '\(originalTitle)' successfully enhanced")
+        print("🎉 [AI-ENHANCE] Description: \(taskData.description.count) characters")
+        print("🎉 [AI-ENHANCE] Subtasks: \(subtasks.count) items")
+        print("🎉 [AI-ENHANCE] ==========================================")
+        
+        // Clear AI enhancement status after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.isAIEnhancing = false
+            self.aiEnhancementStatus = ""
+            self.aiService = nil // Release the AI service instance
         }
     }
     
@@ -2272,11 +2581,20 @@ confettiController.showConfetti(duration: 5.0)
         if !newNoteTitle.isEmpty {
             let imageData = selectedImage?.tiffRepresentation
             let newId = UUID()
+            let taskTitle = newNoteTitle // Store title before reset
             let mediaToSave = (showMediaPicker && taskMediaContent.hasContent) ? taskMediaContent : nil
+            
+            print("📅 [SCHEDULED-TASK] ==========================================")
+            print("📅 [SCHEDULED-TASK] Creating scheduled task: '\(taskTitle)'")
+            print("📅 [SCHEDULED-TASK] Task ID: \(newId)")
+            print("📅 [SCHEDULED-TASK] Scheduled Date: \(scheduledDate)")
+            print("📅 [SCHEDULED-TASK] Scheduled Time: \(scheduledTime)")
+            print("📅 [SCHEDULED-TASK] Priority: \(taskPriority)")
+            print("📅 [SCHEDULED-TASK] Media Content: \(mediaToSave?.hasContent == true ? "Yes" : "No")")
             
             noteStore.addScheduledNote(
                 id: newId,
-                title: newNoteTitle,
+                title: taskTitle,
                 description: taskDescription.isEmpty ? nil : taskDescription,
                 scheduledDate: scheduledDate,
                 scheduledTime: scheduledTime,
@@ -2288,13 +2606,28 @@ confettiController.showConfetti(duration: 5.0)
                 category: .today
             )
             
+            print("✅ [SCHEDULED-TASK] Scheduled task added to noteStore")
+            
             // Add task to appropriate column based on selected project/release
             addTaskToAppropriateColumn(taskId: newId)
+            
+            print("✅ [SCHEDULED-TASK] Task added to appropriate column")
+            
+            // Show AI enhancement status
+            isAIEnhancing = true
+            aiEnhancementStatus = "Enhancing scheduled task '\(taskTitle)' with AI..."
+            
+            print("🤖 [SCHEDULED-TASK] Starting AI enhancement...")
+            
+            // Trigger AI enhancement for the new scheduled task
+            enhanceTaskWithAI(taskId: newId, taskTitle: taskTitle)
             
             resetTaskForm()
             isAddingNote = false
             updateTaskData() // Refresh task data
             firstNote = findFirstNote()
+            
+            print("✅ [SCHEDULED-TASK] UI updated and scheduled task creation complete")
         }
     }
     

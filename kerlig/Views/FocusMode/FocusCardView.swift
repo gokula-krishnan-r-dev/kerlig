@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import Foundation
 
 /*
  * FOCUS CARD VIEW - Professional Task Timer Management
@@ -104,6 +105,7 @@ struct FocusCardView: View {
     @State private var lastNotificationTime: TimeInterval = 0
     @State private var showSessionStats = false
     @State private var pulseAnimation = false
+    @State private var hasAppeared = false
     
     // Create an instance of the sidebar controller
     private let sidebarController = FloatingSidebarController()
@@ -115,9 +117,29 @@ struct FocusCardView: View {
                 if isHovered && noteStore.activeTimerNote != nil {
                     // Enhanced action buttons when hovered
                     actionButtonsView
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .move(edge: .top))
+                        ))
                 } else {
                     // Main timer display
                     mainTimerView
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .move(edge: .top))
+                        ))
+                }
+                
+                // AI-enhanced content (dynamic based on hover and content)
+                if isHovered && noteStore.activeTimerNote != nil {
+                    if let activeNote = noteStore.activeTimerNote, activeNote.isAIEnhanced {
+                        aiEnhancedContentView(for: activeNote)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)).combined(with: .scale(scale: 0.95)),
+                                removal: .opacity.combined(with: .move(edge: .bottom)).combined(with: .scale(scale: 0.95))
+                            ))
+                            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isHovered)
+                    }
                 }
                 
                 // Session statistics (optional)
@@ -126,9 +148,13 @@ struct FocusCardView: View {
                         .transition(.slide)
                 }
             }
-            .frame(width: showSessionStats ? 350 : 300, height: showSessionStats ? 120 : 58)
+            .frame(width: calculateFrameWidth(), height: calculateFrameHeight())
             .background(backgroundView)
             .overlay(borderOverlay)
+            .scaleEffect(hasAppeared ? (isHovered ? 1.02 : 1.0) : 0.85) // Entrance + hover scale effect
+            .opacity(hasAppeared ? 1.0 : 0.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0.1), value: isHovered)
+            .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.2), value: hasAppeared)
             
             // Maximize button overlay
             if showMaximizeButton {
@@ -142,11 +168,42 @@ struct FocusCardView: View {
         }
         .onAppear {
             setupInitialState()
+            
+            // Trigger entrance animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.2)) {
+                    hasAppeared = true
+                }
+            }
+
+            print("🔍 [FOCUS-CARD] ==========================================")
+            print("🔍 [FOCUS-CARD] Focus Card View Appeared")
+            if let activeNote = noteStore.activeTimerNote {
+                print("🔍 [FOCUS-CARD] Active Timer Note: '\(activeNote.title)'")
+                print("🔍 [FOCUS-CARD] AI Enhanced: \(activeNote.isAIEnhanced)")
+                print("🔍 [FOCUS-CARD] AI Description: '\(activeNote.aiGeneratedDescription?.prefix(100) ?? "None")...'")
+                print("🔍 [FOCUS-CARD] AI Subtasks Count: \(activeNote.aiGeneratedSubtasks.count)")
+                if !activeNote.aiGeneratedSubtasks.isEmpty {
+                    print("🔍 [FOCUS-CARD] First Subtask: '\(activeNote.aiGeneratedSubtasks.first?.title ?? "None")'")
+                }
+                print("🔍 [FOCUS-CARD] Generation Date: \(activeNote.aiGenerationDate?.formatted() ?? "None")")
+            } else {
+                print("🔍 [FOCUS-CARD] No active timer note")
+            }
+            print("🔍 [FOCUS-CARD] ==========================================")
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
+            // Professional hover animation with spring effect
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0.1)) {
                 isHovered = hovering
                 showMaximizeButton = hovering
+            }
+            
+            // Update window size with smooth timing
+            let delay = hovering ? 0.05 : 0.1 // Faster expansion, slower contraction
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                let newSize = CGSize(width: calculateFrameWidth(), height: calculateFrameHeight())
+                controller.updateSize(newSize: newSize)
             }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
@@ -174,17 +231,18 @@ struct FocusCardView: View {
         }
     }
 
-    // MARK: - Main Timer View
+        // MARK: - Main Timer View
     private var mainTimerView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Task status indicator
             statusIndicator
             
-            // Task title and timer info
+            // Task content
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
+                    // Task title
                     Text(noteStore.activeTimerNote?.title ?? "No active task")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -192,37 +250,65 @@ struct FocusCardView: View {
                     Spacer()
                     
                     // Timer display
-                    timerDisplay
+                    Text(noteStore.formatTime(noteStore.getTotalElapsedTimeForActiveTask()))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .monospacedDigit()
                 }
                 
-                // Additional info row
-                if let activeNote = noteStore.activeTimerNote {
-                    HStack(spacing: 8) {
-                        // Session count
-                        Text("\(activeNote.sessions.count) sessions")
-                            .font(.system(size: 10))
-                            .foregroundColor(.gray)
-                        
-                        // Break indicator
-                        if noteStore.globalTimerState == .break {
-                            Text("• Break time")
-                                .font(.system(size: 10))
-                                .foregroundColor(.orange)
+                // Compact info row
+                HStack(spacing: 8) {
+                    // AI enhancement indicator
+                    if let activeNote = noteStore.activeTimerNote, activeNote.isAIEnhanced {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 8))
+                                .foregroundColor(.purple.opacity(0.8))
+                            
+                            Text("AI Enhanced")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.purple.opacity(0.8))
                         }
-                        
-                        Spacer()
-                        
-                        // Quick stats toggle
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                showSessionStats.toggle()
-                            }
-                        }) {
-                            Image(systemName: showSessionStats ? "chevron.up" : "chart.bar")
-                                .font(.system(size: 10))
+                    }
+                    
+                    // Session count
+                    if let activeNote = noteStore.activeTimerNote {
+                        Text("\(activeNote.sessions.count) sessions")
+                            .font(.system(size: 9))
+                            .foregroundColor(.gray.opacity(0.7))
+                    }
+                    
+                    // Break indicator
+                    if noteStore.globalTimerState == .break {
+                        Text("• Break")
+                            .font(.system(size: 9))
+                            .foregroundColor(.orange)
+                    }
+                    
+                    Spacer()
+                    
+                    // Dynamic expansion indicator
+                    if !isHovered {
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 7))
+                                .foregroundColor(.gray.opacity(0.4))
+                            Text("hover to expand")
+                                .font(.system(size: 8))
+                                .foregroundColor(.gray.opacity(0.5))
+                        }
+                        .opacity(pulseAnimation ? 0.8 : 0.5)
+                        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: pulseAnimation)
+                    } else {
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 7))
+                                .foregroundColor(.gray.opacity(0.6))
+                            Text("expanded")
+                                .font(.system(size: 8))
                                 .foregroundColor(.gray.opacity(0.7))
                         }
-                        .buttonStyle(PlainButtonStyle())
+                        .transition(.opacity)
                     }
                 }
             }
@@ -258,7 +344,7 @@ struct FocusCardView: View {
         }
     }
     
-    // MARK: - Timer Display
+    // MARK: - Timer Display (Legacy - keeping for potential future use)
     private var timerDisplay: some View {
         VStack(alignment: .trailing, spacing: 1) {
             Text(noteStore.formatTime(noteStore.getTotalElapsedTimeForActiveTask()))
@@ -384,6 +470,215 @@ struct FocusCardView: View {
         }
     }
     
+    // MARK: - AI Enhanced Content View
+    private func aiEnhancedContentView(for note: Note) -> some View {
+        VStack(spacing: 0) {
+            // Only show when hovered or if there's meaningful content
+            if isHovered || hasmeaningfulAIContent(note) {
+                Divider()
+                    .background(Color.purple.opacity(0.3))
+                    .padding(.horizontal, 12)
+                
+                VStack(alignment: .leading, spacing: 16) {
+                    // AI Description section
+                    if let cleanDescription = getCleanDescription(from: note.aiGeneratedDescription), !cleanDescription.isEmpty {
+                        aiDescriptionSection(cleanDescription)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity.combined(with: .move(edge: .top))
+                            ))
+                    }
+                    
+                    // Subtasks section
+                    if !note.aiGeneratedSubtasks.isEmpty {
+                        aiSubtasksSection(note: note)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity.combined(with: .move(edge: .bottom))
+                            ))
+                    } else if isHovered && note.isAIEnhanced {
+                        // Show loading state or fallback message when hovered
+                        aiLoadingOrFallbackSection()
+                            .transition(.opacity)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .animation(.easeInOut(duration: 0.3), value: isHovered)
+            }
+        }
+    }
+    
+    // MARK: - AI Content Helper Methods
+    
+    private func hasmeaningfulAIContent(_ note: Note) -> Bool {
+        // Show content if there are subtasks or a clean description
+        return !note.aiGeneratedSubtasks.isEmpty || 
+               (getCleanDescription(from: note.aiGeneratedDescription) != nil && 
+                !getCleanDescription(from: note.aiGeneratedDescription)!.isEmpty)
+    }
+    
+    private func getCleanDescription(from rawDescription: String?) -> String? {
+        guard let description = rawDescription, !description.isEmpty else { return nil }
+        
+        // Check if it's malformed JSON and try to extract the actual description
+        if description.contains("\"description\":") {
+            // Try to parse as JSON first
+            if let data = description.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let cleanDesc = json["description"] as? String {
+                return cleanDesc
+            }
+            
+            // Fallback: Extract description using regex
+            let pattern = "\"description\":\\s*\"([^\"]*)\""
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: description, range: NSRange(description.startIndex..., in: description)) {
+                if let range = Range(match.range(at: 1), in: description) {
+                    return String(description[range])
+                }
+            }
+        }
+        
+        // If it's not JSON-like, return as is (but clean it up)
+        return description.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private func aiDescriptionSection(_ description: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "text.alignleft")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.purple.opacity(0.8))
+                
+                Text("AI Description")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.purple.opacity(0.9))
+                
+                Spacer()
+                
+                if isHovered {
+                    Image(systemName: "eye")
+                        .font(.system(size: 10))
+                        .foregroundColor(.purple.opacity(0.6))
+                        .transition(.opacity)
+                }
+            }
+            
+            Text(description)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundColor(.white.opacity(0.85))
+                .lineLimit(isHovered ? nil : 3)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.purple.opacity(0.08),
+                                    Color.purple.opacity(0.12)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color.purple.opacity(0.3),
+                                            Color.purple.opacity(0.15)
+                                        ]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                )
+                .animation(.easeInOut(duration: 0.2), value: isHovered)
+        }
+    }
+    
+    private func aiSubtasksSection(note: Note) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.purple.opacity(0.8))
+                
+                let completedCount = note.aiGeneratedSubtasks.filter(\.isCompleted).count
+                let totalCount = note.aiGeneratedSubtasks.count
+                
+                Text("Subtasks")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.purple.opacity(0.9))
+                
+                // Progress indicator
+                Text("(\(completedCount)/\(totalCount))")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.purple.opacity(0.7))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.purple.opacity(0.15))
+                    )
+                
+                Spacer()
+                
+                // Progress bar
+                if totalCount > 0 {
+                    ProgressView(value: Double(completedCount), total: Double(totalCount))
+                        .progressViewStyle(LinearProgressViewStyle(tint: .purple))
+                        .frame(width: 40)
+                        .scaleEffect(0.8)
+                }
+            }
+            
+            // Subtasks list
+            LazyVStack(spacing: 8) {
+                ForEach(note.aiGeneratedSubtasks.sorted(by: { $0.order < $1.order }), id: \.id) { subtask in
+                    ProfessionalSubtaskRowView(subtask: subtask, noteStore: noteStore, noteId: note.id)
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+    
+    private func aiLoadingOrFallbackSection() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.purple.opacity(0.6))
+                
+                Text("AI Enhancement")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.purple.opacity(0.7))
+                
+                Spacer()
+            }
+            
+            Text("AI enhancement is being processed. Detailed breakdown and subtasks will appear here once ready.")
+                .font(.system(size: 10))
+                .foregroundColor(.gray.opacity(0.7))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.gray.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                        )
+                )
+        }
+    }
+    
     // MARK: - Session Stats View
     private var sessionStatsView: some View {
         VStack(spacing: 8) {
@@ -427,14 +722,39 @@ struct FocusCardView: View {
     // MARK: - Background and Overlays
     private var backgroundView: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(Color(hex: animateBackground ? "#232325" : "#1C1C1E"))
-            .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
-            .animation(.easeInOut(duration: 0.5), value: animateBackground)
+            .fill(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(hex: isHovered ? "#242426" : "#1C1C1E"),
+                        Color(hex: isHovered ? "#1E1E20" : "#181818")
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .shadow(
+                color: Color.black.opacity(isHovered ? 0.3 : 0.2),
+                radius: isHovered ? 8 : 5,
+                x: 0,
+                y: isHovered ? 4 : 2
+            )
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovered)
     }
     
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: 12)
-            .stroke(borderColor, lineWidth: 1)
+            .stroke(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        borderColor.opacity(isHovered ? 0.8 : 0.5),
+                        borderColor.opacity(isHovered ? 0.4 : 0.3)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: isHovered ? 1.5 : 1
+            )
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovered)
             .animation(.easeInOut(duration: 0.3), value: noteStore.globalTimerState)
     }
     
@@ -479,7 +799,7 @@ struct FocusCardView: View {
             }
             Spacer()
         }
-        .frame(width: showSessionStats ? 350 : 300, height: showSessionStats ? 120 : 58)
+        .frame(width: calculateFrameWidth(), height: calculateFrameHeight())
     }
     
     private var notificationOverlay: some View {
@@ -500,6 +820,78 @@ struct FocusCardView: View {
     }
     
     // MARK: - Helper Methods
+    
+    /// Calculate the appropriate frame width based on content
+    private func calculateFrameWidth() -> CGFloat {
+        // Base width - compact by default
+        var width: CGFloat = 280
+        
+        if isHovered {
+            // Expand significantly on hover for better content visibility
+            width = 420
+            
+            // Extra width for AI-enhanced content
+            if let activeNote = noteStore.activeTimerNote, activeNote.isAIEnhanced {
+                // Check if we have longer descriptions or many subtasks
+                let hasLongDescription = getCleanDescription(from: activeNote.aiGeneratedDescription)?.count ?? 0 > 100
+                let hasMultipleSubtasks = activeNote.aiGeneratedSubtasks.count > 3
+                
+                if hasLongDescription || hasMultipleSubtasks {
+                    width = 460
+                }
+            }
+        }
+        
+        // Expand for session stats
+        if showSessionStats {
+            width = max(width, width + 40)
+        }
+        
+        return width
+    }
+    
+    /// Calculate the appropriate frame height based on content
+    private func calculateFrameHeight() -> CGFloat {
+        // Base height - very compact by default
+        var height: CGFloat = 50
+        
+        if isHovered {
+            // Base expanded height for hovered state
+            height = 90 // Room for action buttons
+            
+            // Add height for AI-enhanced content if active note has AI content
+            if let activeNote = noteStore.activeTimerNote, activeNote.isAIEnhanced {
+                var aiContentHeight: CGFloat = 60 // Base AI content height with divider and headers
+                
+                // Add height for description
+                if let cleanDescription = getCleanDescription(from: activeNote.aiGeneratedDescription), !cleanDescription.isEmpty {
+                    let characterCount = cleanDescription.count
+                    let estimatedLines = max(1, min(6, characterCount / 70)) // More generous line estimation
+                    aiContentHeight += CGFloat(estimatedLines * 20) + 35 // Line height + padding
+                }
+                
+                // Add height for subtasks
+                let subtaskCount = activeNote.aiGeneratedSubtasks.count
+                if subtaskCount > 0 {
+                    // Dynamic height based on subtask count and content
+                    let baseSubtaskHeight: CGFloat = 50
+                    let additionalHeight = subtaskCount > 3 ? 5 : 0 // Extra space for more subtasks
+                    aiContentHeight += CGFloat(subtaskCount * Int(baseSubtaskHeight + CGFloat(additionalHeight))) + 25
+                }
+                
+                height += aiContentHeight
+            }
+        }
+        
+        // Add height for session stats
+        if showSessionStats {
+            height += 70 // Height for session stats section
+        }
+        
+        // Dynamic maximum height based on content
+        let maxHeight: CGFloat = isHovered ? 500 : 60
+        return min(height, maxHeight)
+    }
     
     /// Professional initialization of the focus card with proper project/release selection
     private func setupInitialState() {
@@ -770,6 +1162,465 @@ struct TimerActionButton: View {
 }
 
 // MARK: - Stat Item
+// MARK: - Professional Subtask Row View
+struct ProfessionalSubtaskRowView: View {
+    let subtask: Subtask
+    @ObservedObject var noteStore: NoteStore
+    let noteId: UUID
+    @State private var isHovered = false
+    @State private var showingDetails = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            mainSubtaskRow
+            
+            // Show details when hovered or expanded
+            if (isHovered || showingDetails) && hasDetails {
+                subtaskDetailsView
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .move(edge: .top))
+                    ))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(subtaskBackground)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+        .onTapGesture {
+            if hasDetails {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingDetails.toggle()
+                }
+            }
+        }
+    }
+    
+    // MARK: - Sub-views
+    private var mainSubtaskRow: some View {
+        HStack(spacing: 12) {
+            checkboxButton
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    titleText
+                    Spacer()
+                    HStack(spacing: 6) {
+                        priorityIndicator
+                        durationBadge
+                        if hasDetails {
+                            expandIndicator
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private var checkboxButton: some View {
+        Button(action: {
+            toggleSubtaskCompletion()
+        }) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(subtask.isCompleted ? Color.green.opacity(0.2) : Color.clear)
+                    .frame(width: 16, height: 16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(
+                                subtask.isCompleted ? Color.green : Color.gray.opacity(0.5),
+                                lineWidth: 1.5
+                            )
+                    )
+                
+                if subtask.isCompleted {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.green)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(isHovered ? 1.1 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+    }
+    
+    private var titleText: some View {
+        Text(subtask.title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(subtask.isCompleted ? .gray.opacity(0.7) : .white.opacity(0.9))
+            .strikethrough(subtask.isCompleted)
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+    }
+    
+    @ViewBuilder
+    private var priorityIndicator: some View {
+        if subtask.priority != .medium {
+            HStack(spacing: 2) {
+                Image(systemName: subtask.priority.iconName)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundColor(subtask.priority.color)
+                
+                Text(subtask.priority.rawValue.capitalized)
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundColor(subtask.priority.color)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(subtask.priority.color.opacity(0.15))
+            )
+        }
+    }
+    
+    @ViewBuilder
+    private var durationBadge: some View {
+        if let duration = subtask.estimatedDuration {
+            Text(formatDuration(duration))
+                .font(.system(size: 8, weight: .medium))
+                .foregroundColor(.gray.opacity(0.8))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.gray.opacity(0.15))
+                )
+        }
+    }
+    
+    @ViewBuilder
+    private var expandIndicator: some View {
+        Image(systemName: showingDetails ? "chevron.up" : "chevron.down")
+            .font(.system(size: 8))
+            .foregroundColor(.gray.opacity(0.6))
+            .rotationEffect(.degrees(isHovered ? (showingDetails ? 180 : 0) : (showingDetails ? 180 : 0)))
+            .animation(.easeInOut(duration: 0.2), value: showingDetails)
+    }
+    
+    private var subtaskDetailsView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let description = subtask.description, !description.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Description")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.purple.opacity(0.8))
+                    
+                    Text(description)
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray.opacity(0.8))
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            
+            if let duration = subtask.estimatedDuration {
+                HStack(spacing: 8) {
+                    Text("Estimated Time:")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.purple.opacity(0.8))
+                    
+                    Text(formatDuration(duration))
+                        .font(.system(size: 9))
+                        .foregroundColor(.gray.opacity(0.8))
+                    
+                    Spacer()
+                }
+            }
+            
+            if let completionDate = subtask.completionDate {
+                HStack(spacing: 8) {
+                    Text("Completed:")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.green.opacity(0.8))
+                    
+                    Text(completionDate.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 9))
+                        .foregroundColor(.green.opacity(0.8))
+                    
+                    Spacer()
+                }
+            }
+        }
+        .padding(.top, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.gray.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.1), lineWidth: 0.5)
+                )
+        )
+    }
+    
+    private var subtaskBackground: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(borderStrokeColor, lineWidth: 1)
+            )
+            .shadow(
+                color: shadowColor,
+                radius: isHovered ? 4 : 2,
+                x: 0,
+                y: isHovered ? 2 : 1
+            )
+    }
+    
+    // MARK: - Computed Properties
+    private var hasDetails: Bool {
+        return (subtask.description != nil && !subtask.description!.isEmpty) ||
+               subtask.estimatedDuration != nil ||
+               subtask.completionDate != nil
+    }
+    
+   
+    private var borderStrokeColor: Color {
+        if subtask.isCompleted {
+            return Color.green.opacity(0.3)
+        } else if isHovered {
+            return Color.purple.opacity(0.2)
+        } else {
+            return Color.gray.opacity(0.1)
+        }
+    }
+    
+    private var shadowColor: Color {
+        if subtask.isCompleted {
+            return Color.green.opacity(0.2)
+        } else if isHovered {
+            return Color.purple.opacity(0.15)
+        } else {
+            return Color.black.opacity(0.1)
+        }
+    }
+    
+    private func toggleSubtaskCompletion() {
+        // Find and update the note with the modified subtask
+        guard var note = noteStore.notes.first(where: { $0.id == noteId }) else { return }
+        
+        // Find the subtask and toggle its completion
+        if let index = note.aiGeneratedSubtasks.firstIndex(where: { $0.id == subtask.id }) {
+            note.aiGeneratedSubtasks[index].isCompleted.toggle()
+            
+            if note.aiGeneratedSubtasks[index].isCompleted {
+                note.aiGeneratedSubtasks[index].completionDate = Date()
+            } else {
+                note.aiGeneratedSubtasks[index].completionDate = nil
+            }
+            
+            // Update the note in the store
+            noteStore.updateNote(note)
+            
+            print("✅ [SUBTASK] Toggled subtask completion: \(subtask.title) - \(note.aiGeneratedSubtasks[index].isCompleted ? "completed" : "incomplete")")
+        }
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        if minutes < 60 {
+            return "\(minutes)m"
+        } else {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            return "\(hours)h \(remainingMinutes)m"
+        }
+    }
+}
+
+// MARK: - Enhanced Subtask Row View (Legacy)
+struct EnhancedSubtaskRowView: View {
+    let subtask: Subtask
+    @ObservedObject var noteStore: NoteStore
+    let noteId: UUID
+    @State private var isHovered = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            mainSubtaskRow
+            
+            if let description = subtask.description, !description.isEmpty {
+                descriptionView(description)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(subtaskBackground)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+    }
+    
+    // MARK: - Sub-views
+    private var mainSubtaskRow: some View {
+        HStack(spacing: 10) {
+            checkboxButton
+            subtaskContentView
+        }
+    }
+    
+    private var checkboxButton: some View {
+        Button(action: {
+            toggleSubtaskCompletion()
+        }) {
+            Image(systemName: subtask.isCompleted ? "checkmark.square.fill" : "square")
+                .font(.system(size: 14))
+                .foregroundColor(subtask.isCompleted ? .green : .gray.opacity(0.6))
+                .animation(.easeInOut(duration: 0.2), value: subtask.isCompleted)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var subtaskContentView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                titleText
+                Spacer()
+                priorityIndicator
+                durationBadge
+            }
+        }
+    }
+    
+    private var titleText: some View {
+        Text(subtask.title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(subtask.isCompleted ? .gray.opacity(0.7) : .white.opacity(0.9))
+            .strikethrough(subtask.isCompleted)
+            .lineLimit(2)
+    }
+    
+    @ViewBuilder
+    private var priorityIndicator: some View {
+        if subtask.priority != .medium {
+            Image(systemName: subtask.priority.iconName)
+                .font(.system(size: 10))
+                .foregroundColor(subtask.priority.color.opacity(0.8))
+        }
+    }
+    
+    @ViewBuilder
+    private var durationBadge: some View {
+        if let duration = subtask.estimatedDuration {
+            Text(formatDuration(duration))
+                .font(.system(size: 9))
+                .foregroundColor(.gray.opacity(0.6))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(durationBackground)
+        }
+    }
+    
+    private var durationBackground: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(Color.gray.opacity(0.1))
+    }
+    
+    private func descriptionView(_ description: String) -> some View {
+        Text(description)
+            .font(.system(size: 10))
+            .foregroundColor(.gray.opacity(0.8))
+            .lineLimit(isHovered ? 10 : 2)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(descriptionBackground)
+            .animation(.easeInOut(duration: 0.2), value: isHovered)
+    }
+    
+    private var descriptionBackground: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(Color.gray.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.gray.opacity(0.1), lineWidth: 0.5)
+            )
+    }
+    
+    private var subtaskBackground: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(backgroundFillColor)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(borderStrokeColor, lineWidth: 0.5)
+            )
+    }
+    
+    // MARK: - Computed Properties
+    private var backgroundFillColor: some ShapeStyle {
+        if subtask.isCompleted {
+            return Color.green.opacity(0.1)
+        } else if isHovered {
+            return Color.white.opacity(0.05)
+        } else {
+            return Color.clear
+        }
+    }
+    
+    private var borderStrokeColor: Color {
+        if subtask.isCompleted {
+            return Color.green.opacity(0.3)
+        } else if isHovered {
+            return Color.white.opacity(0.1)
+        } else {
+            return Color.clear
+        }
+    }
+    
+    private func toggleSubtaskCompletion() {
+        // Find and update the note with the modified subtask
+        guard var note = noteStore.notes.first(where: { $0.id == noteId }) else { return }
+        
+        // Find the subtask and toggle its completion
+        if let index = note.aiGeneratedSubtasks.firstIndex(where: { $0.id == subtask.id }) {
+            note.aiGeneratedSubtasks[index].isCompleted.toggle()
+            
+            if note.aiGeneratedSubtasks[index].isCompleted {
+                note.aiGeneratedSubtasks[index].completionDate = Date()
+            } else {
+                note.aiGeneratedSubtasks[index].completionDate = nil
+            }
+            
+            // Update the note in the store
+            noteStore.updateNote(note)
+            
+            print("✅ [SUBTASK] Toggled subtask completion: \(subtask.title) - \(note.aiGeneratedSubtasks[index].isCompleted ? "completed" : "incomplete")")
+        }
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        if minutes < 60 {
+            return "\(minutes)m"
+        } else {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            return "\(hours)h \(remainingMinutes)m"
+        }
+    }
+}
+
+// MARK: - Subtask Row View (Legacy)
+struct SubtaskRowView: View {
+    let subtask: Subtask
+    @ObservedObject var noteStore: NoteStore
+    let noteId: UUID
+    @State private var isHovered = false
+    
+    var body: some View {
+        EnhancedSubtaskRowView(subtask: subtask, noteStore: noteStore, noteId: noteId)
+    }
+}
+
 struct StatItem: View {
     let icon: String
     let label: String
