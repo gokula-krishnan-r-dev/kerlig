@@ -121,6 +121,8 @@ struct FloatingSidebarView: View {
     @State private var isCompletedSectionExpanded: Bool = false
     @State private var isFullScreenButtonHovered: Bool = false
     @State private var isFullScreenButtonPressed: Bool = false
+    @State private var isFocusModeButtonHovered: Bool = false
+    @State private var isFocusModeButtonPressed: Bool = false
     @State private var isCompleted: Bool = false
     @State private var completedTaskTime: TimeInterval = 0
     @State private var dismissTimer: Timer?
@@ -189,7 +191,7 @@ struct FloatingSidebarView: View {
             }
 
             // Task Progress Summary
-            taskProgressSummary
+            // taskProgressSummary
 
             }
             
@@ -1846,34 +1848,44 @@ struct FloatingSidebarView: View {
     
     private var focusModeButton: some View {
         Button(action: {
-             onClose()
+            // Press animation
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                isFocusModeButtonPressed = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isFocusModeButtonPressed = false
+                }
+            }
+
+            // Original behaviour
+            onClose()
             focusCardController.toggleFocusCard()
         }) {
             HStack(spacing: 8) {
                 Circle()
                     .fill(Color.green.opacity(0.7))
                     .frame(width: 8, height: 8)
+
                 Text("Focus Mode")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(isFocusModeButtonHovered ? .white : .white.opacity(0.8))
 
-                    Text("⌘F")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white.opacity(0.8))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                Text("⌘F")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(isFocusModeButtonHovered ? .white : .white.opacity(0.8))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                     .background(Color.black.opacity(0.5))
                     .cornerRadius(20)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            //shortcut for focus mode
-            .keyboardShortcut("f", modifiers: [.command])
             .background(
                 RoundedRectangle(cornerRadius: 20)
                     .fill(
                         LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "#2C2C2E"), Color(hex: "#262628")]),
+                            gradient: Gradient(colors: isFocusModeButtonHovered ? [Color(hex: "#3A3A3C"), Color(hex: "#2E2E30")] : [Color(hex: "#2C2C2E"), Color(hex: "#262628")]),
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -1882,16 +1894,30 @@ struct FloatingSidebarView: View {
                         RoundedRectangle(cornerRadius: 20)
                             .stroke(
                                 LinearGradient(
-                                    gradient: Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.05)]),
+                                    gradient: Gradient(colors: isFocusModeButtonHovered ? [Color.white.opacity(0.25), Color.white.opacity(0.10)] : [Color.white.opacity(0.15), Color.white.opacity(0.05)]),
                                     startPoint: .top,
                                     endPoint: .bottom
                                 ),
-                                lineWidth: 0.5
+                                lineWidth: isFocusModeButtonHovered ? 0.8 : 0.5
                             )
                     )
             )
+            .scaleEffect(isFocusModeButtonPressed ? 0.95 : (isFocusModeButtonHovered ? 1.03 : 1.0))
+            .shadow(
+                color: isFocusModeButtonHovered ? Color.green.opacity(0.35) : Color.black.opacity(0.15),
+                radius: isFocusModeButtonHovered ? 8 : 4,
+                x: 0,
+                y: isFocusModeButtonHovered ? 4 : 2
+            )
         }
         .buttonStyle(PlainButtonStyle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isFocusModeButtonHovered = hovering
+            }
+        }
+        .keyboardShortcut("f", modifiers: [.command])
+        .help("Toggle Focus Mode (⌘F)")
         .padding(.bottom, 14)
         .padding(.top, 8)
     }
@@ -2293,17 +2319,20 @@ confettiController.showConfetti(duration: 5.0)
         .transition(.opacity.combined(with: .move(edge: .top)))
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isCompleted)
     }
+
+    private func getRandomEmoji() -> String {
+        let emojis = ["🚀", "💻", "📱", "💡", "🔍", "🔥", "💪", "💰", "💎", "💚"]
+        return emojis.randomElement() ?? "💡"
+    }
     
     private func createNewNote() {
         if !newNoteTitle.isEmpty {
             let newId = UUID()
             let taskTitle = newNoteTitle // Store title before reset
-            let mediaToSave = (showMediaPicker && taskMediaContent.hasContent) ? taskMediaContent : nil
-            
+            let mediaToSave = showMediaPicker && taskMediaContent.hasContent ? taskMediaContent : MediaContent(emoji: getRandomEmoji())
             print("📝 [TASK-CREATE] ==========================================")
             print("📝 [TASK-CREATE] Creating new task: '\(taskTitle)'")
             print("📝 [TASK-CREATE] Task ID: \(newId)")
-            print("📝 [TASK-CREATE] Media Content: \(mediaToSave?.hasContent == true ? "Yes" : "No")")
             
             // Create the task first
             noteStore.addNote(
@@ -2311,7 +2340,7 @@ confettiController.showConfetti(duration: 5.0)
                 title: taskTitle,
                 content: "",
                 category: .today,
-                mediaContent: mediaToSave
+                mediaContent: mediaToSave,
             )
             
             print("✅ [TASK-CREATE] Task added to noteStore")

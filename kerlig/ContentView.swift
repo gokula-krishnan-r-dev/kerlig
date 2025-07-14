@@ -267,15 +267,15 @@ struct ContentView: View {
                 handleSelectedText(selectedText)
             }
             
-            if !success {
-                // Alert the user if hotkey registration failed
-                let alert = NSAlert()
-                alert.messageText = "Hotkey Registration Failed"
-                alert.informativeText = "Could not register Option+Space shortcut. Please check if another application is using this key combination."
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
+            // if !success {
+            //     // Alert the user if hotkey registration failed
+            //     let alert = NSAlert()
+            //     alert.messageText = "Hotkey Registration Failed"
+            //     alert.informativeText = "Could not register Option+Space shortcut. Please check if another application is using this key combination."
+            //     alert.alertStyle = .warning
+            //     alert.addButton(withTitle: "OK")
+            //     alert.runModal()
+            // }
         }
     }
     

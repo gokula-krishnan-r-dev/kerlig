@@ -6,6 +6,8 @@ class MenuBarController: NSObject {
     private var floatingPanelController: FloatingPanelController?
     private var appState: AppState?
     private var customActionsStorage: CustomActionsStorage?
+    // Hotkey manager to handle global shortcuts
+    private let hotkeyManager = HotkeyManager()
     
     func setupMenuBar(appState: AppState, customActionsStorage: CustomActionsStorage, floatingPanelController: FloatingPanelController) {
         self.appState = appState
@@ -26,6 +28,9 @@ class MenuBarController: NSObject {
         
         // Create the menu
         setupMenu()
+
+        // Register global Command+M shortcut for Mac Write
+        registerMacWriteHotkey()
     }
     
     private func createMenuBarIcon() -> NSImage {
@@ -92,7 +97,17 @@ class MenuBarController: NSObject {
         )
         settingsItem.target = self
         menu.addItem(settingsItem)
-        
+
+
+        //add one more for mac write
+        let macWriteItem = NSMenuItem(
+            title: "Mac Write",
+            action: #selector(showMacWrite),
+            keyEquivalent: "m"
+        )
+        macWriteItem.keyEquivalentModifierMask = [.command]
+        macWriteItem.target = self
+        menu.addItem(macWriteItem)
         // Launch at Login
         let launchAtLoginItem = NSMenuItem(
             title: "Launch at Login",
@@ -198,6 +213,18 @@ class MenuBarController: NSObject {
         let settingsWindow = SettingsWindow()
         settingsWindow.show()
     }
+
+
+    @objc private func showMacWrite() {
+     
+         //before toggle close already existing window close
+        if let existingWindow = NSApp.windows.first(where: { $0.isVisible }) {
+            existingWindow.close()
+        }
+
+          let floatingSidebarController = FloatingSidebarController()
+        floatingSidebarController.toggleSidebar()
+    }
     
     @objc private func toggleLaunchAtLogin() {
         LaunchAtLoginManager.shared.isEnabled.toggle()
@@ -219,8 +246,35 @@ class MenuBarController: NSObject {
         NSApp.terminate(nil)
     }
     
+    // MARK: - Global Shortcut (⌘+M) Registration
+
+    /// Registers a system-wide Command + M shortcut that triggers `showMacWrite()`.
+    /// Uses the shared `HotkeyManager` utility which relies on accessibility
+    /// permissions and NSEvent monitors to listen for key presses even when the
+    /// application is not in the foreground.
+    private func registerMacWriteHotkey() {
+        // Ensure we have the required accessibility permission first
+        guard hotkeyManager.hasAccessibilityPermission() else {
+            hotkeyManager.showAccessibilityPermissionsDialog()
+            return
+        }
+
+        // Key code for the "M" key on ANSI keyboards is 0x2E (46)
+        hotkeyManager.simulateKeyPressWithCallback(
+            keyCode: CGKeyCode(46),
+            withCommand: true
+        ) { [weak self] in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                self.showMacWrite()
+            }
+        }
+    }
+    
     deinit {
         statusItem = nil
+        // Remove any global key-press monitors we installed
+        hotkeyManager.removeKeyPressCallbacks()
     }
 }
 
