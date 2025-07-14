@@ -8,6 +8,10 @@ class MenuBarController: NSObject {
     private var customActionsStorage: CustomActionsStorage?
     // Hotkey manager to handle global shortcuts
     private let hotkeyManager = HotkeyManager()
+    // About window controller
+    private let aboutWindowController = AboutWindowController()
+    // Project workspace panel controller
+    private let projectsPanelController = ProjectsPanelController()
     
     func setupMenuBar(appState: AppState, customActionsStorage: CustomActionsStorage, floatingPanelController: FloatingPanelController) {
         self.appState = appState
@@ -31,6 +35,9 @@ class MenuBarController: NSObject {
 
         // Register global Command+M shortcut for Mac Write
         registerMacWriteHotkey()
+        
+        // Initialize and register hotkeys for projects panel controller
+        setupProjectsPanelController(appState: appState)
     }
     
     private func createMenuBarIcon() -> NSImage {
@@ -119,15 +126,19 @@ class MenuBarController: NSObject {
         menu.addItem(launchAtLoginItem)
         
         menu.addItem(NSMenuItem.separator())
-        
-        // Port Monitor
-        let portMonitorItem = NSMenuItem(
-            title: "Port Monitor",
-            action: #selector(showPortMonitor),
-            keyEquivalent: ""
+
+
+        // Project Workspace
+        let projectWorkspaceItem = NSMenuItem(
+            title: "Project Workspace",
+            action: #selector(showProjectWorkspace),
+            keyEquivalent: "p"
         )
-        portMonitorItem.target = self
-        menu.addItem(portMonitorItem)
+        projectWorkspaceItem.keyEquivalentModifierMask = [.command]
+        projectWorkspaceItem.target = self
+        menu.addItem(projectWorkspaceItem)
+
+
         
         menu.addItem(NSMenuItem.separator())
         
@@ -234,12 +245,23 @@ class MenuBarController: NSObject {
         setupMenu()
     }
     
-    @objc private func showPortMonitor() {
-        PortMonitorWindow.open()
+    /// Displays the project workspace panel for browsing and opening VS Code projects
+    /// This method is triggered from the menu bar or Command+P hotkey
+    @objc private func showProjectWorkspace() {
+        guard let appState = appState else {
+            NSLog("⚠️ [MenuBarController] AppState not available for project workspace")
+            return
+        }
+        
+        // Show the project workspace panel with proper state management
+        projectsPanelController.showProjectsPanel(appState: appState)
+        NSLog("✅ [MenuBarController] Project workspace panel displayed")
     }
+
+
     
     @objc private func showAbout() {
-        NSApp.orderFrontStandardAboutPanel(nil)
+        aboutWindowController.showAboutWindow()
     }
     
     @objc private func quitApp() {
@@ -271,10 +293,21 @@ class MenuBarController: NSObject {
         }
     }
     
+    // MARK: - Projects Panel Setup
+    
+    /// Sets up the projects panel controller with proper initialization and hotkey registration
+    private func setupProjectsPanelController(appState: AppState) {
+        // Register the Command+P hotkey for the projects panel
+        projectsPanelController.registerHotkey(appState: appState)
+        NSLog("✅ [MenuBarController] Projects panel controller initialized with hotkeys")
+    }
+    
     deinit {
         statusItem = nil
         // Remove any global key-press monitors we installed
         hotkeyManager.removeKeyPressCallbacks()
+        // Note: projectsPanelController will clean up itself in its own deinit
+        NSLog("🧹 [MenuBarController] Cleaned up menu bar controller resources")
     }
 }
 
