@@ -156,6 +156,11 @@ struct FloatingSidebarView: View {
     @State private var aiEnhancementStatus = ""
     @State private var aiService: AIService?
     
+    // AI Task Reordering Status
+    @State private var isAIReordering = false
+    @State private var aiReorderingStatus = ""
+    @State private var aiReorderingService: AIService?
+    
     @StateObject private var notificationService = ScheduledTaskNotificationService.shared
     
     let controller: FloatingSidebarController
@@ -188,6 +193,11 @@ struct FloatingSidebarView: View {
                 addTaskView
             } else {
                 addTaskButton
+            }
+
+            // Order with AI Button
+            if !isAddingNote && !noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).isEmpty {
+                orderWithAIButton
             }
 
             // Task Progress Summary
@@ -1422,6 +1432,53 @@ struct FloatingSidebarView: View {
         .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+    
+    private var orderWithAIButton: some View {
+        Button(action: {
+            reorderTasksWithAI()
+        }) {
+            HStack {
+                if isAIReordering {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: "#9333EA")))
+                } else {
+                    Image(systemName: "brain.head.profile")
+                        .foregroundColor(Color(hex: "#9333EA"))
+                        .font(.system(size: 14))
+                }
+                
+                Text(isAIReordering ? aiReorderingStatus : "ORDER WITH AI")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color(hex: "#9333EA"))
+                    .animation(.easeInOut(duration: 0.3), value: aiReorderingStatus)
+                
+                Spacer()
+                
+                if !isAIReordering {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hex: "#9333EA").opacity(0.7))
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isAIReordering ? Color(hex: "#9333EA").opacity(0.1) : Color(hex: "#2C2C2E"))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(hex: "#9333EA").opacity(0.3), lineWidth: 0.5)
+                    )
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(isAIReordering || isAIEnhancing)
+        .opacity(isAIReordering || isAIEnhancing ? 0.7 : 1.0)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
     
     private var taskListView: some View {
@@ -2687,6 +2744,133 @@ confettiController.showConfetti(duration: 5.0)
         newNoteTitle = ""
         estimatedTime = "00:00"
     }
+    
+    // MARK: - AI Task Reordering
+    private func reorderTasksWithAI() {
+        print("🔄 [SIDEBAR] ==========================================")
+        print("🔄 [SIDEBAR] Starting AI task reordering process")
+        print("🔄 [SIDEBAR] Selected project: \(selectedProject?.title ?? "None")")
+        print("🔄 [SIDEBAR] Selected release: \(selectedRelease?.version ?? "None")")
+        
+        // Get tasks that can be reordered
+        let tasksToReorder = noteStore.getReorderableTasks(selectedProject: selectedProject, selectedRelease: selectedRelease)
+        
+        guard !tasksToReorder.isEmpty else {
+            print("⚠️ [SIDEBAR] No tasks available for reordering")
+            return
+        }
+        
+        print("🔄 [SIDEBAR] Found \(tasksToReorder.count) tasks to reorder")
+        
+        // Set loading state
+        isAIReordering = true
+        aiReorderingStatus = "Analyzing tasks..."
+        
+        // Create AI service instance
+        aiReorderingService = AIService()
+        
+        // Create context strings for AI
+        let projectContext = selectedProject?.title
+        let releaseContext = selectedRelease?.version
+        
+        print("🔄 [SIDEBAR] Starting AI reordering service call")
+        
+        // Call AI service to reorder tasks
+        aiReorderingService?.reorderTasksWithAI(
+            tasks: tasksToReorder,
+            projectContext: projectContext,
+            releaseContext: releaseContext
+        ) { result in
+            DispatchQueue.main.async {
+                
+                switch result {
+                case .success(let reorderingData):
+                    print("✅ [SIDEBAR] AI reordering successful")
+                    
+                    // Update status
+                    self.aiReorderingStatus = "✅ Tasks reordered successfully!"
+                    
+                    // Convert TaskReorderingData to the format expected by NoteStore
+                    let reorderedTasks = reorderingData.reorderedTasks.map { task in
+                        (taskId: task.taskId, newPosition: task.newPosition, priority: task.priority, reasoning: task.reasoning)
+                    }
+                    
+                    // Apply the reordering to the note store
+                    self.noteStore.reorderNotesWithAI(
+                        reorderedTasks: reorderedTasks,
+                        reorderingSummary: reorderingData.summary,
+                        selectedProject: self.selectedProject,
+                        selectedRelease: self.selectedRelease
+                    )
+                    
+                    // Update UI
+                    self.updateTaskData()
+                    self.firstNote = self.findFirstNote()
+                    
+                    // Show success message in console
+                    print("✅ [SIDEBAR] Task reordering applied successfully")
+                    print("📋 [SIDEBAR] Reordering summary: \(reorderingData.summary)")
+                    
+                case .failure(let error):
+                    print("❌ [SIDEBAR] AI reordering failed: \(error.localizedDescription)")
+                    
+                    // Update status with error
+                    self.aiReorderingStatus = "⚠️ Reordering failed, using fallback"
+                    
+                    // Apply fallback ordering (priority-based)
+                    self.applyFallbackOrdering()
+                }
+                
+                // Clear loading state after delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.isAIReordering = false
+                    self.aiReorderingStatus = ""
+                    self.aiReorderingService = nil
+                }
+            }
+        }
+    }
+    
+    private func applyFallbackOrdering() {
+        print("🔧 [SIDEBAR] Applying fallback task ordering")
+        
+        let tasksToReorder = noteStore.getReorderableTasks(selectedProject: selectedProject, selectedRelease: selectedRelease)
+        
+        // Create a basic priority-based ordering
+        let priorityOrder: [TaskPriority] = [.urgent, .high, .medium, .low]
+        
+        let sortedTasks = tasksToReorder.sorted { task1, task2 in
+            let priority1Index = priorityOrder.firstIndex(of: task1.priority) ?? priorityOrder.count
+            let priority2Index = priorityOrder.firstIndex(of: task2.priority) ?? priorityOrder.count
+            
+            if priority1Index != priority2Index {
+                return priority1Index < priority2Index
+            }
+            
+            // If same priority, sort by creation date (newer first)
+            return task1.creationDate > task2.creationDate
+        }
+        
+        // Create reordering data
+        let reorderedTasks = sortedTasks.enumerated().map { index, task in
+            (taskId: task.id.uuidString, newPosition: index + 1, priority: task.priority.rawValue.lowercased(), reasoning: "Fallback ordering by priority and creation date")
+        }
+        
+        // Apply the fallback ordering
+        noteStore.reorderNotesWithAI(
+            reorderedTasks: reorderedTasks,
+            reorderingSummary: "Tasks reordered using fallback priority-based sorting. Higher priority tasks are shown first.",
+            selectedProject: selectedProject,
+            selectedRelease: selectedRelease
+        )
+        
+        // Update UI
+        updateTaskData()
+        firstNote = findFirstNote()
+        
+        print("✅ [SIDEBAR] Fallback ordering applied successfully")
+    }
+    
 }
 
 // MARK: - Modern Completed Task Row
@@ -2705,13 +2889,34 @@ struct ModernCompletedTaskRow: View {
                 
                 // Task content
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(note.title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white.opacity(isHovered ? 0.9 : 0.7))
-                        .lineLimit(2)
-                        .strikethrough(true, color: .green.opacity(0.6))
-                    
-
+                    HStack(spacing: 6) {
+                        // Priority indicator for completed tasks
+                        HStack(spacing: 2) {
+                            Image(systemName: note.priority.iconName)
+                                .font(.system(size: 8))
+                                .foregroundColor(note.priority.color.opacity(0.6))
+                            
+                            Text(note.priority.rawValue.prefix(1))
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(note.priority.color.opacity(0.6))
+                        }
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(note.priority.color.opacity(0.08))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(note.priority.color.opacity(0.2), lineWidth: 0.5)
+                                )
+                        )
+                        
+                        Text(note.title)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white.opacity(isHovered ? 0.9 : 0.7))
+                            .lineLimit(2)
+                            .strikethrough(true, color: .green.opacity(0.6))
+                    }
                 }
             }
             
@@ -3277,26 +3482,31 @@ HStack{
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                TextField("", text: Binding(
-                    get: { editableTitle },
-                    set: { 
-                        editableTitle = $0
+                HStack(spacing: 6) {
+                    // Priority indicator
+                    priorityIndicator(for: note.priority)
+                    
+                    TextField("", text: Binding(
+                        get: { editableTitle },
+                        set: { 
+                            editableTitle = $0
+                            saveTitle()
+                        }
+                    ), onCommit: {
+                        saveTitle()
+                    })
+                    .font(.system(size: 14, weight: note.isCompleted ? .regular : .medium))
+                    .foregroundColor(note.isCompleted ? .gray : .white)
+                    .strikethrough(note.isCompleted)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .lineLimit(1)
+                    .onSubmit {
                         saveTitle()
                     }
-                ), onCommit: {
-                    saveTitle()
-                })
-                .font(.system(size: 14, weight: note.isCompleted ? .regular : .medium))
-                .foregroundColor(note.isCompleted ? .gray : .white)
-                .strikethrough(note.isCompleted)
-                .textFieldStyle(PlainTextFieldStyle())
-                .lineLimit(1)
-                .onSubmit {
-                    saveTitle()
-                }
-                .onAppear {
-                    DispatchQueue.main.async {
-                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    .onAppear {
+                        DispatchQueue.main.async {
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                        }
                     }
                 }
                 
@@ -3950,20 +4160,25 @@ HStack{
                 .frame(width: 40)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    TextField("", text: Binding(
-                        get: { editableTitle },
-                        set: { 
-                            editableTitle = $0
+                    HStack(spacing: 6) {
+                        // Priority indicator for scheduled tasks
+                        priorityIndicator(for: note.priority)
+                        
+                        TextField("", text: Binding(
+                            get: { editableTitle },
+                            set: { 
+                                editableTitle = $0
+                                saveTitle()
+                            }
+                        ), onCommit: {
                             saveTitle()
-                        }
-                    ), onCommit: {
-                        saveTitle()
-                    })
-                    .font(.system(size: 14, weight: note.isCompleted ? .regular : .medium))
-                    .foregroundColor(note.isCompleted ? .gray : .white)
-                    .strikethrough(note.isCompleted)
-                    .textFieldStyle(PlainTextFieldStyle())
-                    .lineLimit(1)
+                        })
+                        .font(.system(size: 14, weight: note.isCompleted ? .regular : .medium))
+                        .foregroundColor(note.isCompleted ? .gray : .white)
+                        .strikethrough(note.isCompleted)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .lineLimit(1)
+                    }
                     
                     if let description = note.description, !description.isEmpty {
                         Text(description)
@@ -4168,4 +4383,27 @@ class GifCache {
 
 #Preview {
     FloatingSidebarView(controller: FloatingSidebarController(), onClose: {})
+}
+
+// MARK: - Priority Indicator Helper Function
+private func priorityIndicator(for priority: TaskPriority) -> some View {
+    HStack(spacing: 2) {
+        Image(systemName: priority.iconName)
+            .font(.system(size: 10))
+            .foregroundColor(priority.color)
+        
+        Text(priority.rawValue.prefix(1))
+            .font(.system(size: 9, weight: .bold))
+            .foregroundColor(priority.color)
+    }
+    .padding(.horizontal, 4)
+    .padding(.vertical, 2)
+    .background(
+        RoundedRectangle(cornerRadius: 4)
+            .fill(priority.color.opacity(0.1))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(priority.color.opacity(0.3), lineWidth: 0.5)
+            )
+    )
 }

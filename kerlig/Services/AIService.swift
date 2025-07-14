@@ -1047,6 +1047,296 @@ class AIService {
     default: return "document"
     }
   }
+
+  // MARK: - AI-Powered Task Reordering
+  func reorderTasksWithAI(
+    tasks: [Note],
+    projectContext: String? = nil,
+    releaseContext: String? = nil,
+    completion: @escaping (Result<TaskReorderingData, Error>) -> Void
+  ) {
+    print("🔄 [AI-REORDER] ==========================================")
+    print("🔄 [AI-REORDER] STEP 1: Starting AI task reordering")
+    print("🔄 [AI-REORDER] Tasks count: \(tasks.count)")
+    print("🔄 [AI-REORDER] Project context: \(projectContext ?? "None")")
+    print("🔄 [AI-REORDER] Release context: \(releaseContext ?? "None")")
+    print("🔄 [AI-REORDER] Timestamp: \(Date())")
+    
+    logger.log("🔄 [AI-REORDER] Starting task reordering for \(tasks.count) tasks", level: .info)
+    
+    // Validate inputs
+    guard !tasks.isEmpty else {
+      print("❌ [AI-REORDER] STEP 1 FAILED: No tasks provided")
+      completion(.failure(URLError(.badURL)))
+      return
+    }
+    
+    guard !baseURL.isEmpty else {
+      print("❌ [AI-REORDER] STEP 1 FAILED: Empty base URL")
+      completion(.failure(URLError(.badURL)))
+      return
+    }
+    
+    print("✅ [AI-REORDER] STEP 1 COMPLETE: Input validation passed")
+    print("🔄 [AI-REORDER] STEP 2: Creating reordering prompts")
+    
+    // Create context information
+    let contextInfo = buildContextInfo(projectContext: projectContext, releaseContext: releaseContext)
+    
+    // Create task list for AI analysis
+    let taskList = tasks.enumerated().map { index, task in
+      let subtaskInfo = task.aiGeneratedSubtasks.isEmpty ? "" : " (Has \(task.aiGeneratedSubtasks.count) subtasks)"
+      let estimatedTime = task.estimatedTime ?? "Unknown"
+      let priority = task.priority.rawValue
+      let scheduledInfo = task.isScheduled ? " (Scheduled)" : ""
+      
+      return """
+      Task \(index + 1): "\(task.title)"
+      - ID: \(task.id)
+      - Estimated Time: \(estimatedTime)
+      - Priority: \(priority)
+      - Created: \(formatDateForAI(task.creationDate))
+      - Description: \(task.aiGeneratedDescription ?? task.content)
+      \(subtaskInfo)\(scheduledInfo)
+      """
+    }.joined(separator: "\n\n")
+    
+    let systemPrompt = """
+    You are an expert task management and prioritization assistant. Your job is to intelligently reorder tasks based on:
+    
+    1. **Priority levels** (Urgent > High > Medium > Low)
+    2. **Dependencies** (tasks that should be completed before others)
+    3. **Estimated time** (balance quick wins with important long-term tasks)
+    4. **Project context** (alignment with project goals)
+    5. **Scheduling** (respect scheduled tasks and deadlines)
+    6. **Logical workflow** (tasks that build upon each other)
+    
+    Context Information:
+    \(contextInfo)
+    
+    Rules for reordering:
+    - Maintain the original task IDs
+    - Provide clear reasoning for the new order
+    - Consider both urgent quick wins and important strategic tasks
+    - Respect scheduled tasks and their timing
+    - Group related tasks when beneficial
+    - Balance workload distribution
+    
+    Return the response in JSON format with the following structure:
+    {
+        "reorderedTasks": [
+            {
+                "taskId": "UUID-string",
+                "newPosition": 1,
+                "priority": "high",
+                "reasoning": "Why this task should be in this position"
+            }
+        ],
+        "summary": "Overall explanation of the reordering strategy"
+    }
+    
+    Important: All task IDs must be preserved exactly as provided. Only change the order and priority levels.
+    """
+    
+    let userPrompt = """
+    Please analyze and reorder these tasks for optimal productivity and project success:
+    
+    \(taskList)
+    
+    Current task count: \(tasks.count)
+    
+    Please provide an intelligent reordering that maximizes productivity while considering dependencies, priorities, and project context.
+    """
+    
+    print("📝 [AI-REORDER] System Prompt Length: \(systemPrompt.count) characters")
+    print("📝 [AI-REORDER] User Prompt Length: \(userPrompt.count) characters")
+    print("📝 [AI-REORDER] Task List Preview: \(taskList.prefix(200))...")
+    
+    let payload: [String: Any] = [
+      "messages": [
+        [
+          "content": systemPrompt,
+          "role": "system"
+        ],
+        [
+          "content": userPrompt,
+          "role": "user"
+        ]
+      ],
+      "instruction": systemPrompt,
+      "text": userPrompt,
+      "stream": false
+    ]
+    
+    print("📦 [AI-REORDER] Payload Structure:")
+    print("   - Messages count: \((payload["messages"] as? [[String: Any]])?.count ?? 0)")
+    print("   - Stream: \(payload["stream"] as? Bool ?? false)")
+    
+    print("✅ [AI-REORDER] STEP 2 COMPLETE: Prompts and payload created")
+    print("🔄 [AI-REORDER] STEP 3: Making API request")
+    
+    guard let url = URL(string: baseURL) else {
+      print("❌ [AI-REORDER] STEP 3 FAILED: Invalid URL - '\(baseURL)'")
+      completion(.failure(URLError(.badURL)))
+      return
+    }
+    
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.timeoutInterval = 30.0
+    
+    do {
+      let jsonData = try JSONSerialization.data(withJSONObject: payload)
+      request.httpBody = jsonData
+      print("✅ [AI-REORDER] STEP 3 COMPLETE: Request configured (\(jsonData.count) bytes)")
+    } catch {
+      print("❌ [AI-REORDER] STEP 3 FAILED: JSON serialization error")
+      completion(.failure(error))
+      return
+    }
+    
+    print("🔄 [AI-REORDER] STEP 4: Executing network request...")
+    let requestStartTime = Date()
+    
+    URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+      let requestDuration = Date().timeIntervalSince(requestStartTime)
+      print("📡 [AI-REORDER] STEP 4 COMPLETE: Request finished in \(String(format: "%.2f", requestDuration))s")
+      
+      guard let self = self else {
+        print("❌ [AI-REORDER] STEP 5 FAILED: Self is nil")
+        completion(.failure(URLError(.unknown)))
+        return
+      }
+      
+      print("🔄 [AI-REORDER] STEP 5: Processing response")
+      
+      if let error = error {
+        print("❌ [AI-REORDER] STEP 5 FAILED: Network error - \(error.localizedDescription)")
+        completion(.failure(error))
+        return
+      }
+      
+      guard let data = data else {
+        print("❌ [AI-REORDER] STEP 5 FAILED: No data received")
+        completion(.failure(URLError(.cannotParseResponse)))
+        return
+      }
+      
+      print("✅ [AI-REORDER] STEP 5 COMPLETE: Data received (\(data.count) bytes)")
+      
+      do {
+        guard let jsonResponse = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+          print("❌ [AI-REORDER] STEP 6 FAILED: Invalid JSON response")
+          completion(.failure(URLError(.cannotParseResponse)))
+          return
+        }
+        
+        guard let responseText = jsonResponse["response"] as? String else {
+          print("❌ [AI-REORDER] STEP 6 FAILED: No response field")
+          completion(.failure(URLError(.cannotParseResponse)))
+          return
+        }
+        
+        print("🔄 [AI-REORDER] STEP 6: Parsing AI response")
+        print("📋 [AI-REORDER] Response Preview: \(responseText.prefix(200))...")
+        
+        // Parse the AI response
+        guard let responseData = responseText.data(using: .utf8) else {
+          print("❌ [AI-REORDER] STEP 6 FAILED: Cannot convert response to data")
+          self.createFallbackReorderingData(tasks: tasks, completion: completion)
+          return
+        }
+        
+        do {
+          let reorderingData = try JSONDecoder().decode(TaskReorderingData.self, from: responseData)
+          print("✅ [AI-REORDER] STEP 6 COMPLETE: Successfully parsed reordering data")
+          print("🎉 [AI-REORDER] ==========================================")
+          print("🎉 [AI-REORDER] AI TASK REORDERING SUCCESS!")
+          print("🎉 [AI-REORDER] Reordered tasks: \(reorderingData.reorderedTasks.count)")
+          print("🎉 [AI-REORDER] Strategy: \(reorderingData.summary.prefix(100))...")
+          for (index, task) in reorderingData.reorderedTasks.prefix(5).enumerated() {
+            print("🎉 [AI-REORDER]   \(index + 1). Position \(task.newPosition) - \(task.priority)")
+          }
+          print("🎉 [AI-REORDER] ==========================================")
+          
+          completion(.success(reorderingData))
+        } catch {
+          print("❌ [AI-REORDER] STEP 6 FAILED: JSON parsing error - \(error.localizedDescription)")
+          print("❌ [AI-REORDER] Response data: \(responseText)")
+          self.createFallbackReorderingData(tasks: tasks, completion: completion)
+        }
+      } catch {
+        print("❌ [AI-REORDER] STEP 5 FAILED: JSON response parsing error")
+        self.createFallbackReorderingData(tasks: tasks, completion: completion)
+      }
+    }.resume()
+  }
+  
+  // MARK: - Helper Methods for Task Reordering
+  private func buildContextInfo(projectContext: String?, releaseContext: String?) -> String {
+    var context = ""
+    
+    if let project = projectContext {
+      context += "Project: \(project)\n"
+    }
+    
+    if let release = releaseContext {
+      context += "Release/Version: \(release)\n"
+    }
+    
+    if context.isEmpty {
+      context = "No specific project or release context provided.\n"
+    }
+    
+    return context
+  }
+  
+  private func formatDateForAI(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .none
+    return formatter.string(from: date)
+  }
+  
+  private func createFallbackReorderingData(tasks: [Note], completion: @escaping (Result<TaskReorderingData, Error>) -> Void) {
+    print("🔧 [AI-REORDER] Creating fallback reordering data")
+    
+    // Create a basic priority-based reordering
+    let sortedTasks = tasks.enumerated().sorted { first, second in
+      let firstTask = first.element
+      let secondTask = second.element
+      
+      // First, sort by priority
+      let priorityOrder = ["urgent": 0, "high": 1, "medium": 2, "low": 3]
+      let firstPriority = priorityOrder[firstTask.priority.rawValue.lowercased()] ?? 3
+      let secondPriority = priorityOrder[secondTask.priority.rawValue.lowercased()] ?? 3
+      
+      if firstPriority != secondPriority {
+        return firstPriority < secondPriority
+      }
+      
+      // Then by creation date (newer first)
+      return firstTask.creationDate > secondTask.creationDate
+    }
+    
+    let reorderedTasks = sortedTasks.enumerated().map { index, taskInfo in
+      TaskReorderingData.ReorderedTask(
+        taskId: taskInfo.element.id.uuidString,
+        newPosition: index + 1,
+        priority: taskInfo.element.priority.rawValue.lowercased(),
+        reasoning: "Ordered by priority (\(taskInfo.element.priority.rawValue)) and creation date"
+      )
+    }
+    
+    let fallbackData = TaskReorderingData(
+      reorderedTasks: reorderedTasks,
+      summary: "Tasks reordered using fallback priority-based sorting. High priority and recently created tasks are prioritized."
+    )
+    
+    print("✅ [AI-REORDER] Fallback reordering data created with \(reorderedTasks.count) tasks")
+    completion(.success(fallbackData))
+  }
 }
 
 // MARK: - File Processing Errors
@@ -1346,5 +1636,18 @@ struct TaskEnhancementData: Codable {
                 order: order
             )
         }
+    }
+  }
+  
+  // MARK: - Task Reordering Data Models
+struct TaskReorderingData: Codable {
+    let reorderedTasks: [ReorderedTask]
+    let summary: String
+    
+    struct ReorderedTask: Codable {
+        let taskId: String
+        let newPosition: Int
+        let priority: String
+        let reasoning: String
     }
 }

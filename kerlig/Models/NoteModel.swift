@@ -1441,10 +1441,188 @@ class NoteStore: ObservableObject {
         saveColumns()
     }
     
+    // MARK: - AI-Powered Task Reordering
+    func reorderNotesWithAI(
+        reorderedTasks: [(taskId: String, newPosition: Int, priority: String, reasoning: String)],
+        reorderingSummary: String,
+        selectedProject: Project?,
+        selectedRelease: Release?
+    ) {
+        print("🔄 [NOTESTORE] ==========================================")
+        print("🔄 [NOTESTORE] STEP 1: Starting task reordering in NoteStore")
+        print("🔄 [NOTESTORE] Reordering \(reorderedTasks.count) tasks")
+        print("🔄 [NOTESTORE] Project: \(selectedProject?.title ?? "None")")
+        print("🔄 [NOTESTORE] Release: \(selectedRelease?.version ?? "None")")
+        print("🔄 [NOTESTORE] Strategy: \(reorderingSummary.prefix(100))...")
+        
+        // Create a mapping of task IDs to their new positions and priorities
+        var taskUpdates = [UUID: (position: Int, priority: String, reasoning: String)]()
+        
+        for reorderedTask in reorderedTasks {
+            guard let taskId = UUID(uuidString: reorderedTask.taskId) else {
+                print("⚠️ [NOTESTORE] Invalid UUID: \(reorderedTask.taskId)")
+                continue
+            }
+            
+            taskUpdates[taskId] = (
+                position: reorderedTask.newPosition,
+                priority: reorderedTask.priority,
+                reasoning: reorderedTask.reasoning
+            )
+        }
+        
+        print("🔄 [NOTESTORE] STEP 2: Updating task priorities")
+        
+        // Update task priorities first
+        for noteIndex in 0..<notes.count {
+            let noteId = notes[noteIndex].id
+            if let update = taskUpdates[noteId] {
+                var updatedNote = notes[noteIndex]
+                
+                // Update priority based on AI recommendation
+                switch update.priority.lowercased() {
+                case "urgent":
+                    updatedNote.priority = .urgent
+                case "high":
+                    updatedNote.priority = .high
+                case "medium":
+                    updatedNote.priority = .medium
+                case "low":
+                    updatedNote.priority = .low
+                default:
+                    updatedNote.priority = .medium
+                }
+                
+                updatedNote.lastModified = Date()
+                notes[noteIndex] = updatedNote
+                
+                print("✅ [NOTESTORE] Updated priority for '\(updatedNote.title)' to \(updatedNote.priority.rawValue)")
+            }
+        }
+        
+        print("🔄 [NOTESTORE] STEP 3: Reordering tasks")
+        
+        // Get the filtered tasks that need reordering
+        let filteredTasks = getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)
+        
+        // Create a sorted array based on AI recommendations
+        var sortedTasks = filteredTasks.compactMap { task -> (Note, Int)? in
+            guard let update = taskUpdates[task.id] else { return nil }
+            return (task, update.position)
+        }.sorted { $0.1 < $1.1 } // Sort by position
+        
+        // Add any tasks that weren't in the AI response at the end
+        let tasksInResponse = Set(taskUpdates.keys)
+        let remainingTasks = filteredTasks.filter { !tasksInResponse.contains($0.id) }
+        
+        for task in remainingTasks {
+            sortedTasks.append((task, sortedTasks.count + 1))
+        }
+        
+        print("🔄 [NOTESTORE] STEP 4: Applying new order to notes array")
+        
+        // Apply the new order to the notes array
+        var updatedNotes = notes
+        
+        // Remove the tasks that are being reordered
+        updatedNotes.removeAll { task in
+            filteredTasks.contains(where: { $0.id == task.id })
+        }
+        
+        // Find the insertion point (after completed tasks, before other tasks)
+        let completedCount = updatedNotes.filter { $0.isCompleted }.count
+        var insertionIndex = completedCount
+        
+        // Insert the reordered tasks
+        for (index, (task, _)) in sortedTasks.enumerated() {
+            updatedNotes.insert(task, at: insertionIndex + index)
+        }
+        
+        // Update the notes array
+        notes = updatedNotes
+        
+        print("🔄 [NOTESTORE] STEP 5: Updating column orders")
+        
+        // Update column orders if we have project/release context
+        if let selectedProject = selectedProject, let selectedRelease = selectedRelease {
+            updateColumnOrdersAfterReordering(
+                reorderedTasks: sortedTasks.map { $0.0 },
+                selectedProject: selectedProject,
+                selectedRelease: selectedRelease
+            )
+        }
+        
+        print("🔄 [NOTESTORE] STEP 6: Saving changes")
+        
+        // Save all changes
+        saveNotes()
+        saveColumns()
+        
+        print("✅ [NOTESTORE] ==========================================")
+        print("✅ [NOTESTORE] AI TASK REORDERING COMPLETE!")
+        print("✅ [NOTESTORE] Reordered \(sortedTasks.count) tasks")
+        print("✅ [NOTESTORE] Strategy applied: \(reorderingSummary.prefix(100))...")
+        print("✅ [NOTESTORE] ==========================================")
+    }
+    
+    private func updateColumnOrdersAfterReordering(
+        reorderedTasks: [Note],
+        selectedProject: Project,
+        selectedRelease: Release
+    ) {
+        print("🔄 [NOTESTORE] Updating column orders after reordering")
+        
+        let releaseColumns = getColumnsForRelease(selectedRelease)
+        
+        // Group tasks by their current columns
+        var columnTaskGroups = [UUID: [Note]]()
+        
+        for task in reorderedTasks {
+            for column in releaseColumns {
+                if column.noteIds.contains(task.id) {
+                    if columnTaskGroups[column.id] == nil {
+                        columnTaskGroups[column.id] = []
+                    }
+                    columnTaskGroups[column.id]?.append(task)
+                    break
+                }
+            }
+        }
+        
+        // Update the order within each column
+        for (columnId, tasks) in columnTaskGroups {
+            guard let columnIndex = columns.firstIndex(where: { $0.id == columnId }) else { continue }
+            
+            var updatedColumn = columns[columnIndex]
+            
+            // Remove the reordered tasks from the column
+            updatedColumn.noteIds.removeAll { taskId in
+                tasks.contains(where: { $0.id == taskId })
+            }
+            
+            // Add them back in the new order
+            for task in tasks {
+                updatedColumn.noteIds.append(task.id)
+            }
+            
+            columns[columnIndex] = updatedColumn
+            print("✅ [NOTESTORE] Updated column '\(updatedColumn.title)' with \(tasks.count) reordered tasks")
+        }
+    }
+    
+    // Get tasks that can be reordered (pending tasks only)
+    func getReorderableTasks(selectedProject: Project?, selectedRelease: Release?) -> [Note] {
+        return getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease)
+    }
+    
+    // Get reordering summary for UI display
+    func getReorderingSummary(reorderingSummary: String) -> String {
+        return reorderingSummary
+    }
+    
     // MARK: - Centralized Timer Management
     
     func startTimer(for note: Note) {
-
         
         // Stop any currently active timer
         stopCurrentTimer()
