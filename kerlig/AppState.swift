@@ -6,7 +6,6 @@ import SwiftUI
 enum OnboardingStep: String, CaseIterable {
   case permissions = "Permissions"
   case modelSelection = "Model Selection"
-  case appOverview = "App Overview"
 }
 
 // Text source enum
@@ -180,21 +179,21 @@ class AppState: ObservableObject {
   var savedIsFirstLaunch: Bool {
     get {
       // Return true if the key doesn't exist yet (first launch)
-      !UserDefaults.standard.bool(forKey: "hasLaunchedBefore_v1")
+      !UserDefaults.standard.bool(forKey: "hasLaunchedBefore_v2")
     }
     set {
       // When setting to false, it means app has been launched
-      UserDefaults.standard.set(!newValue, forKey: "hasLaunchedBefore_v1")
+      UserDefaults.standard.set(!newValue, forKey: "hasLaunchedBefore_v2")
       isFirstLaunch = newValue
     }
   }
 
   var savedOnboardingComplete: Bool {
     get {
-      UserDefaults.standard.bool(forKey: "onboardingComplete_v1")
+      UserDefaults.standard.bool(forKey: "onboardingComplete_v2")
     }
     set {
-      UserDefaults.standard.set(newValue, forKey: "onboardingComplete_v1")
+      UserDefaults.standard.set(newValue, forKey: "onboardingComplete_v2")
       onboardingComplete = newValue
     }
   }

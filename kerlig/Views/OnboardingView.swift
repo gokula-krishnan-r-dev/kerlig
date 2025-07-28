@@ -96,15 +96,6 @@ struct OnboardingView: View {
                                     removal: .move(edge: .leading).combined(with: .opacity)
                                 )
                             )
-                    case .appOverview:
-                        AppOverviewStepView()
-                            .environmentObject(appState)
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                )
-                            )
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -196,8 +187,6 @@ struct OnboardingView: View {
             return "Accessibility Permission"
         case .modelSelection:
             return "Choose Your AI Model"
-        case .appOverview:
-            return "How Kerlig Works"
         }
     }
 
@@ -208,8 +197,6 @@ struct OnboardingView: View {
             return "These permissions are required to use Kerlig to be able to capture text from any app."
         case .modelSelection:
             return "Select the AI model that best fits your needs for the most accurate and helpful responses."
-        case .appOverview:
-            return "Learn how Kerlig can seamlessly integrate into your workflow to enhance productivity."
         }
     }
     
@@ -743,67 +730,7 @@ struct AppOverviewStepView: View {
                             )
                     )
                 
-                // Content
-                if !isPlaying {
-                    // Play button state
-                    VStack(spacing: 20) {
-                        ZStack {
-                            // Sparkle effects around the play button
-                            ForEach(0..<8) { i in
-                                let angle = Double(i) * .pi / 4
-                                let distance: CGFloat = 50
-                                
-                                Image(systemName: "sparkle")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(Color(hex: "845CEF"))
-                                    .offset(
-                                        x: cos(angle) * distance,
-                                        y: sin(angle) * distance
-                                    )
-                                    .opacity(sparkleOpacity)
-                                    .rotationEffect(.degrees(Double.random(in: -15...15)))
-                            }
-                            
-                            // Play button with shine effect
-                            ZStack {
-                                Circle()
-                                    .fill(LinearGradient(
-                                        gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ))
-                                    .frame(width: 80, height: 80)
-                                    .shadow(color: Color(hex: "845CEF").opacity(0.5), radius: 15, x: 0, y: 5)
-                                
-                                Circle()
-                                    .fill(LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color.white.opacity(0.5),
-                                            Color.white.opacity(0)
-                                        ]),
-                                        startPoint: .topLeading,
-                                        endPoint: .center
-                                    ))
-                                    .frame(width: 80, height: 80)
-                                    .blur(radius: 2)
-                                
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 30))
-                                    .foregroundColor(.white)
-                                    .offset(x: 2)
-                            }
-                            .scaleEffect(sparkleOpacity > 0.5 ? 1.05 : 1)
-                            .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: sparkleOpacity)
-                        }
-                        
-                        Text("Watch how Kerlig works")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(hex: "666666"))
-                    }
-                } else {
-                    // App demonstration animation
-                    AppDemonstrationView(currentStep: $currentStep, colorScheme: colorScheme)
-                }
+              
             }
             .frame(height: 320)
             .padding(.horizontal, 30)
@@ -911,26 +838,12 @@ struct AppOverviewStepView: View {
                 animateFlow = true
             }
             
-            // Auto-advance through steps for demo if playing
-            if isPlaying {
-                startStepAnimation()
-            }
+          
         }
-        .onChange(of: isPlaying) { newValue in
-            if newValue {
-                startStepAnimation()
-            }
-        }
+       
     }
     
-    private func startStepAnimation() {
-        // Auto-advance through demonstration steps
-        Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { timer in
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-                currentStep = (currentStep % 3) + 1
-            }
-        }
-    }
+  
 }
 
 // Enhanced feature point with better animations
@@ -1037,14 +950,7 @@ struct AppDemonstrationView: View {
                     ))
             }
             
-            // Step 3: Results
-            if currentStep == 3 {
-                DemoStep3View(colorScheme: colorScheme)
-                    .transition(.asymmetric(
-                        insertion: .scale.combined(with: .opacity),
-                        removal: .opacity.combined(with: .scale(scale: 0.8))
-                    ))
-            }
+           
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.7), value: currentStep)
     }
@@ -1401,235 +1307,7 @@ struct DemoStep2View: View {
     }
 }
 
-// Step 3: Enhanced results demo
-struct DemoStep3View: View {
-    @State private var isTyping: Bool = false
-    @State private var typingProgress: CGFloat = 0
-    @State private var completedText: String = ""
-    @State private var fullText: String = "This text has been improved with clear language and proper grammar."
-    @State private var showCopyFeedback: Bool = false
-    @State private var animatePulse: Bool = false
-    let colorScheme: ColorScheme
-    
-    var body: some View {
-        ZStack {
-            // Kerlig panel with results
-            VStack(spacing: 0) {
-                // Header with animation
-                HStack {
-                    Image(systemName: "wand.and.stars.inverse")
-                        .font(.system(size: 16))
-                        .foregroundColor(Color(hex: "845CEF"))
-                        
-                    Text("Improved Writing")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
-                    
-                    Spacer()
-                    
-                    // Success indicator
-                    ZStack {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 22, height: 22)
-                            .opacity(animatePulse ? 0.7 : 1)
-                            .scaleEffect(animatePulse ? 1.2 : 1)
-                            .animation(
-                                Animation.easeInOut(duration: 1)
-                                    .repeatCount(3, autoreverses: true),
-                                value: animatePulse
-                            )
-                        
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-                .padding(.horizontal, 15)
-                .padding(.vertical, 12)
-                .background(.ultraThinMaterial)
-                .overlay(
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundColor(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05)),
-                    alignment: .bottom
-                )
-                
-                // AI generated result with typing animation
-                VStack(alignment: .leading, spacing: 10) {
-                    ZStack(alignment: .leading) {
-                        // Background placeholder
-                        Text(fullText)
-                            .font(.system(size: 14))
-                            .foregroundColor(.clear)
-                            .padding(1) // Ensure consistent height
-                        
-                        // Animated text
-                        Text(completedText)
-                            .font(.system(size: 14))
-                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
-                        
-                        // Cursor
-                        if isTyping {
-                            Rectangle()
-                                .fill(Color(hex: "845CEF"))
-                                .frame(width: 2, height: 16)
-                                .offset(x: 1)
-                                .opacity(isTyping ? 1 : 0)
-                                .animation(Animation.easeInOut(duration: 0.6).repeatForever(), value: isTyping)
-                        }
-                    }
-                    
-                    // Progress indicator
-                    if isTyping {
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                // Background track
-                                Rectangle()
-                                    .fill(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.1))
-                                    .frame(height: 2)
-                                    .cornerRadius(1)
-                                
-                                // Progress fill
-                                Rectangle()
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: geometry.size.width * typingProgress, height: 2)
-                                    .cornerRadius(1)
-                            }
-                        }
-                        .frame(height: 2)
-                    }
-                }
-                .padding(15)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                
-                Divider()
-                    .background(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05))
-                
-                // Action buttons
-                HStack {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                            showCopyFeedback = true
-                            
-                            // Reset the feedback after a delay
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                withAnimation {
-                                    showCopyFeedback = false
-                                }
-                            }
-                        }
-                    }) {
-                        HStack(spacing: 6) {
-                            if showCopyFeedback {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "845CEF"))
-                            } else {
-                                Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "845CEF"))
-                                
-                                Text("Copy")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(Color(hex: "845CEF"))
-                            }
-                        }
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(colorScheme == .dark ? Color.black.opacity(0.2) : Color(hex: "f5f5f5"))
-                        )
-                    }
-                    .buttonStyle(ScaleButtonStyle())
-                    
-                    Spacer()
-                    
-                    Button(action: {}) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
-                            
-                            Text("Apply")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 12)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .shadow(color: Color(hex: "845CEF").opacity(0.3), radius: 5, x: 0, y: 2)
-                    }
-                    .buttonStyle(ScaleButtonStyle())
-                }
-                .padding(15)
-            }
-            .frame(width: 270)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(colorScheme == .dark ? 0.3 : 0.5),
-                                Color.white.opacity(0.1)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
-        }
-        .onAppear {
-            // Start animation sequence
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                isTyping = true
-                
-                // Animate completion badge
-                withAnimation {
-                    animatePulse = true
-                }
-                
-                // Simulate typing effect
-                var currentIndex = 0
-                let totalCharacters = fullText.count
-                
-                Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { timer in
-                    if currentIndex < totalCharacters {
-                        let index = fullText.index(fullText.startIndex, offsetBy: currentIndex)
-                        completedText += String(fullText[index])
-                        currentIndex += 1
-                        
-                        // Update progress
-                        withAnimation {
-                            typingProgress = CGFloat(currentIndex) / CGFloat(totalCharacters)
-                        }
-                    } else {
-                        isTyping = false
-                        timer.invalidate()
-                    }
-                }
-            }
-        }
-    }
-}
+
 
 
 

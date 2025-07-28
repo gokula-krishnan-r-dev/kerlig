@@ -85,7 +85,6 @@ struct WelcomeView: View {
                             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                 appState.currentOnboardingStep = .permissions
                                 appState.completeFirstLaunch()
-                                appState.onboardingComplete = true
                             }
                         }) {
                             HStack(spacing: 12) {
