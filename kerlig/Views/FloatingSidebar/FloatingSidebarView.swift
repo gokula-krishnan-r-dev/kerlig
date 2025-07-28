@@ -127,6 +127,7 @@ struct FloatingSidebarView: View {
     @State private var completedTaskTime: TimeInterval = 0
     @State private var dismissTimer: Timer?
     @State private var recentlySkippedNoteId: UUID? = nil
+    @State private var recentlyMadeFirstNoteId: UUID? = nil
     
     // Project and Release Selection
     @State private var selectedProject: Project?
@@ -193,6 +194,9 @@ struct FloatingSidebarView: View {
                 addTaskView
             } else {
                 addTaskButton
+                
+                // Import from Notion section
+                importSection
             }
 
             // Order with AI Button
@@ -260,6 +264,18 @@ struct FloatingSidebarView: View {
         .onChange(of: noteStore.releases.count) { _ in
             // Validate selection when releases change
             validateAndRefreshSelection()
+        }
+        .onChange(of: noteStore.notes.count) { _ in
+            // Update first note when notes array changes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                firstNote = findFirstNote()
+            }
+        }
+        .onChange(of: noteStore.notes) { _ in
+            // Update first note when any note data changes (order, completion status, etc.)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                firstNote = findFirstNote()
+            }
         }
         .sheet(isPresented: $notificationService.showingScheduledAlert) {
             if let task = notificationService.currentScheduledTask {
@@ -1434,6 +1450,18 @@ struct FloatingSidebarView: View {
         .padding(.vertical, 8)
     }
     
+    private var importSection: some View {
+        VStack(spacing: 8) {
+            NotionImportView(
+                selectedProject: selectedProject,
+                selectedRelease: selectedRelease
+            )
+            .environmentObject(noteStore)
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+    
     private var orderWithAIButton: some View {
         Button(action: {
             reorderTasksWithAI()
@@ -1505,7 +1533,9 @@ struct FloatingSidebarView: View {
                               firstNote = findFirstNote()
 
                               
-                        }
+                        },
+                        recentlyMadeFirstNoteId: $recentlyMadeFirstNoteId,
+                        onUpdateTaskData: updateTaskData
                     )
                     .background(taskRowBackground(for: note))
                     .padding(.horizontal, 12)
@@ -1559,21 +1589,45 @@ struct FloatingSidebarView: View {
     
     private func taskRowBackground(for note: Note) -> some View {
         RoundedRectangle(cornerRadius: 10)
-            .fill(note.id == recentlySkippedNoteId ? 
-                  Color(hex: "#9333EA").opacity(0.2) :
-                  (note.isScheduled ? Color(hex: "#4CAF50").opacity(0.1) : Color(hex: "#2C2C2E")))
+            .fill(
+                note.id == recentlyMadeFirstNoteId ? 
+                    Color(hex: "#4CAF50").opacity(0.3) :
+                    (note.id == recentlySkippedNoteId ? 
+                        Color(hex: "#9333EA").opacity(0.2) :
+                        (note.isScheduled ? Color(hex: "#4CAF50").opacity(0.1) : Color(hex: "#2C2C2E")))
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(note.id == recentlySkippedNoteId ?
-                            Color(hex: "#9333EA").opacity(0.5) :
-                            (note.isScheduled ? Color(hex: "#4CAF50").opacity(0.3) : Color.white.opacity(0.08)), 
-                            lineWidth: 0.5)
+                    .stroke(
+                        note.id == recentlyMadeFirstNoteId ?
+                            Color(hex: "#4CAF50").opacity(0.7) :
+                            (note.id == recentlySkippedNoteId ?
+                                Color(hex: "#9333EA").opacity(0.5) :
+                                (note.isScheduled ? Color(hex: "#4CAF50").opacity(0.3) : Color.white.opacity(0.08))), 
+                        lineWidth: note.id == recentlyMadeFirstNoteId ? 1.0 : 0.5
+                    )
             )
     }
     
     private func taskRowOverlay(for note: Note) -> some View {
         Group {
-            if note.id == recentlySkippedNoteId {
+            if note.id == recentlyMadeFirstNoteId {
+                HStack {
+                    Spacer()
+                    Text("Made First ★")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(hex: "#4CAF50"))
+                        )
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 4)
+                .transition(.scale.combined(with: .opacity))
+            } else if note.id == recentlySkippedNoteId {
                 HStack {
                     Spacer()
                     Text("Moved to end")
@@ -2189,9 +2243,22 @@ struct FloatingSidebarView: View {
      }
     
     private func updateTaskData() {
-        // This method is now simplified since filtering logic is handled by NoteStore
-        // Just refresh the first note when selection changes
+        print("🔄 [Sidebar] Updating task data...")
+        
+        // Force refresh of note data from storage
+        noteStore.refreshNotes()
+        
+        // Update the first note reference
         firstNote = findFirstNote()
+        
+        // Ensure timer is running for the first note if available
+        if let firstNote = firstNote, noteStore.activeTimerNote?.id != firstNote.id {
+            print("🔄 [Sidebar] Switching timer to updated first note: \(firstNote.title)")
+            noteStore.stopCurrentTimer()
+            noteStore.startTimer(for: firstNote)
+        }
+        
+        print("✅ [Sidebar] Task data updated. First note: \(firstNote?.title ?? "None")")
     }
     
 
@@ -2305,7 +2372,7 @@ confettiController.showConfetti(duration: 5.0)
                         Button(action: {
                             // Start tick sound for the next task
                             if let nextNote = noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).first {
-                                TickSoundService.shared.startTicking(interval: 15.0)
+                                TickSoundService.shared.startTicking(interval: 600.0)
                             }
                             
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -3113,6 +3180,8 @@ struct TaskRowView: View {
     @ObservedObject var noteStore: NoteStore
     let onDone: (TimeInterval) -> Void
     let onSkip: (Note) -> Void
+    @Binding var recentlyMadeFirstNoteId: UUID?
+    let onUpdateTaskData: () -> Void
 
     @State private var isNotes = false
     @State private var isSkipping = false
@@ -3124,12 +3193,13 @@ struct TaskRowView: View {
     @State private var tickCounter: Int = 0
     
     // Use centralized noteStore timer system - no local timer needed
-    
     var body: some View {
         VStack {
             if !isNotes && isHovered && firstNote?.id == note.id {
                 actionButtonsView
-            } else {
+            }else if isHovered {
+                firstNoteButtonsView
+                }else {
                 if isBreak {
                     breakModeView
                 } else {
@@ -3186,7 +3256,7 @@ struct TaskRowView: View {
             
             // Start tick sound for first note
             if firstNote?.id == note.id {
-                TickSoundService.shared.startTicking(interval: 15.0)
+                TickSoundService.shared.startTicking(interval:600.0)
             }
         }
         .onDisappear {
@@ -3199,7 +3269,140 @@ struct TaskRowView: View {
         .opacity(isSkipping ? 0 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSkipping)
     }
-    
+
+    //firstNoteButtonsView
+    private var firstNoteButtonsView: some View {
+        VStack(spacing: 8) {
+            // Task title
+            Text(note.title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity)
+            
+            // Action buttons
+            HStack(spacing: 8) {
+                // Make First button - primary action
+                TaskActionButton(
+                    icon: "arrow.up.to.line.alt",
+                    label: "Make First",
+                    isHovered: hoveredButton == "makeFirst",
+                    color: Color(hex: "#4CAF50"),
+                    action: {
+                                                 print("🔄 [Sidebar] Making task first: \(note.title)")
+                         
+                         // Move note to first position
+                         noteStore.moveNoteToFirst(note)
+                         
+                         // Set visual feedback state
+                         recentlyMadeFirstNoteId = note.id
+                         
+                         // Comprehensive task data update
+                         onUpdateTaskData()
+                         
+                         // Start timer for the newly prioritized task
+                         noteStore.stopCurrentTimer()
+                         noteStore.startTimer(for: note)
+                         
+                         // Visual feedback with animation
+                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                             hoveredButton = nil
+                         }
+                         
+                         // Clear the visual feedback after animation
+                         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                             withAnimation(.easeOut(duration: 0.3)) {
+                                 recentlyMadeFirstNoteId = nil
+                             }
+                         }
+                         
+                         print("✅ [Sidebar] Task moved to first position and activated: \(note.title)")
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "makeFirst" : nil
+                    }
+                )
+                
+                // Notes button
+                TaskActionButton(
+                    icon: "note.text",
+                    label: "Notes",
+                    isHovered: hoveredButton == "notes",
+                    color: Color(hex: "#3B82F6"),
+                    action: {
+                        isNotes.toggle()
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "notes" : nil
+                    }
+                )
+                
+                // Skip button
+                TaskActionButton(
+                    icon: "arrow.right.circle",
+                    label: "Skip",
+                    isHovered: hoveredButton == "skip",
+                    color: Color(hex: "#9333EA"),
+                    action: {
+                        print("⏭️ [Sidebar] Task skipped: \(note.title)")
+                        noteStore.moveNoteToEnd(note)
+                        onSkip(note)
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "skip" : nil
+                    }
+                )
+                
+                // Delete button
+                TaskActionButton(
+                    icon: "trash",
+                    label: "Delete",
+                    isHovered: hoveredButton == "delete",
+                    color: Color(hex: "#EF4444"),
+                    action: {
+                        print("🗑️ [Sidebar] Task deleted: \(note.title)")
+                        noteStore.deleteNote(id: note.id)
+                        onSkip(note)
+                    },
+                    onHover: { isHovering in
+                        hoveredButton = isHovering ? "delete" : nil
+                    }
+                )
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+        }
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(hex: "#2C2C2E"),
+                            Color(hex: "#262628")
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(hex: "#4CAF50").opacity(0.2),
+                                    Color(hex: "#45A049").opacity(0.1)
+                                ]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
+        )
+        .animation(.easeInOut(duration: 0.2), value: hoveredButton)
+    }
     private var actionButtonsView: some View {
         HStack(spacing: 8) {
             VStack{
@@ -3404,7 +3607,7 @@ HStack{
                     
                     // Resume the tick sound when returning from break
                     if firstNote?.id == note.id {
-                        TickSoundService.shared.startTicking(interval: 15.0)
+                        TickSoundService.shared.startTicking(interval: 600.0)
                     }
                     
                     print("▶️ [Sidebar] Break ended, resuming: \(note.title)")
@@ -3423,7 +3626,7 @@ HStack{
                     LinearGradient(
                         gradient: Gradient(colors: [Color(hex: "#1C1C1E"), Color(hex: "#2C2C2E")]),
                         startPoint: .top,
-                        endPoint: .bottom
+                        endPoint: .bottom 
                     )
                 )
                 .overlay(

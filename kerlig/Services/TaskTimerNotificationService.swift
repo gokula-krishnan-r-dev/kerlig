@@ -82,7 +82,7 @@ class TaskTimerNotificationService {
         let message = "\(minutes) \(minutesText) finished for \(taskName) — just a reminder to stay focused and wrap it up soon."
         
         // Play sound and show notification
-        TickSoundService.shared.startTicking(interval: 15.0, message: message)
+        TickSoundService.shared.startTicking(interval: 600.0, message: message)
         
         // Stop the timer after notification
         stopTaskTimer()

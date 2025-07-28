@@ -8,6 +8,7 @@ class MenuBarController: NSObject {
     private var customActionsStorage: CustomActionsStorage?
     // Hotkey manager to handle global shortcuts
     private let hotkeyManager = HotkeyManager()
+      private var panelController: WhisperModePanelController?
     // About window controller
     private let aboutWindowController = AboutWindowController()
     // Project workspace panel controller
@@ -138,6 +139,15 @@ class MenuBarController: NSObject {
         projectWorkspaceItem.target = self
         menu.addItem(projectWorkspaceItem)
 
+        //add a button for whisper mode
+        let whisperModeItem = NSMenuItem(
+            title: "Whisper Mode",
+            action: #selector(showWhisperMode),
+            keyEquivalent: "w"
+        )
+        whisperModeItem.target = self
+        menu.addItem(whisperModeItem)
+
 
         
         menu.addItem(NSMenuItem.separator())
@@ -150,6 +160,8 @@ class MenuBarController: NSObject {
         )
         aboutItem.target = self
         menu.addItem(aboutItem)
+
+
         
         // Quit
         let quitItem = NSMenuItem(
@@ -225,7 +237,6 @@ class MenuBarController: NSObject {
         settingsWindow.show()
     }
 
-
     @objc private func showMacWrite() {
      
          //before toggle close already existing window close
@@ -258,8 +269,15 @@ class MenuBarController: NSObject {
         NSLog("✅ [MenuBarController] Project workspace panel displayed")
     }
 
+    @objc private func showWhisperMode() {
+        //show the whisper mode panel
+        panelController!.showPanel(
+                completion:{
+                    print("demo")
+                }
+            )
+    }
 
-    
     @objc private func showAbout() {
         aboutWindowController.showAboutWindow()
     }

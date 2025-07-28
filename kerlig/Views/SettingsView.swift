@@ -77,10 +77,7 @@ struct GeneralSettingsView: View {
             // Hotkey settings
             GroupBox(label: Text("Hotkey Settings").font(.headline)) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Enable hotkey (Option+Space)", isOn: $appState.hotkeyEnabled)
-                        .onChange(of: appState.hotkeyEnabled) { _ in
-                            appState.saveSettings()
-                        }
+                  
                     
                     Text("Use Option+Space to capture text and show the AI panel")
                         .font(.caption)

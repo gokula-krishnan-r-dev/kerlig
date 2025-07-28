@@ -31,7 +31,7 @@ class TickSoundService {
     /// - Parameters:
     ///   - interval: Time interval between notifications in seconds (default: 3.0)
     ///   - message: Custom message to display in the notification panel
-    func startTicking(interval: TimeInterval = 3.0, message: String? = nil) {
+    func startTicking(interval: TimeInterval = 600.0, message: String? = nil) {
         guard !isPlaying else { return }
         
         // Set notification message if provided

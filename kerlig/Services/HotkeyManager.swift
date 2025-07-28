@@ -1167,7 +1167,7 @@ class HotkeyManager {
   private var keyPressEventMonitors: [Any] = []
 
   func simulateKeyPressWithCallback(
-    keyCode: CGKeyCode, withCommand: Bool = false, withOption: Bool = false,
+    keyCode: CGKeyCode, withCommand: Bool = false, withOption: Bool = false, withShift: Bool = false,
     callback: @escaping () -> Void
   ) {
     // Create a global event monitor for key down events
@@ -1177,10 +1177,11 @@ class HotkeyManager {
         // Check modifiers
         let hasCommand = event.modifierFlags.contains(.command)
         let hasOption = event.modifierFlags.contains(.option)
+        let hasShift = event.modifierFlags.contains(.shift)
 
         // Trigger callback if modifiers match
-        if (withCommand == hasCommand) && (withOption == hasOption) {
-          NSLog("🔑 Detected Command+P hotkey from event monitor")
+        if (withCommand == hasCommand) && (withOption == hasOption) && (withShift == hasShift) {
+          NSLog("🔑 Detected keyboard shortcut from event monitor")
           callback()
         }
       }
@@ -1198,10 +1199,11 @@ class HotkeyManager {
         // Check modifiers
         let hasCommand = event.modifierFlags.contains(.command)
         let hasOption = event.modifierFlags.contains(.option)
+        let hasShift = event.modifierFlags.contains(.shift)
 
         // Trigger callback if modifiers match
-        if (withCommand == hasCommand) && (withOption == hasOption) {
-          NSLog("🔑 Detected Command+P hotkey from local monitor")
+        if (withCommand == hasCommand) && (withOption == hasOption) && (withShift == hasShift) {
+          NSLog("🔑 Detected keyboard shortcut from local monitor")
           callback()
           return nil  // Consume the event
         }
@@ -1215,8 +1217,20 @@ class HotkeyManager {
     }
 
     NSLog(
-      "✅ Set up key press detection for keyCode: \(keyCode) with Command: \(withCommand), Option: \(withOption)"
+      "✅ Set up key press detection for keyCode: \(keyCode) with Command: \(withCommand), Option: \(withOption), Shift: \(withShift)"
     )
+  }
+
+  // Method to register Whisper Mode shortcut (Command + Shift + R)
+  func registerWhisperModeShortcut(callback: @escaping () -> Void) {
+    simulateKeyPressWithCallback(
+      keyCode: 0x0F, // R key
+      withCommand: true,
+      withShift: true
+    ) {
+      NSLog("🎙️ Whisper Mode shortcut activated")
+      callback()
+    }
   }
 
   // Clean up event monitors when no longer needed

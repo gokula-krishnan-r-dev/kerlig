@@ -600,6 +600,40 @@ struct ProjectPage: Identifiable, Codable, Hashable {
     }
 }
 
+// MARK: - Notion Import Models
+struct NotionImportSummary {
+    let totalTasks: Int
+    let importedTasks: Int
+    let skippedTasks: Int
+    let errors: [String]
+    let importDate: Date
+    
+    var successRate: Double {
+        guard totalTasks > 0 else { return 0 }
+        return Double(importedTasks) / Double(totalTasks)
+    }
+}
+
+enum NotionImportError: LocalizedError {
+    case invalidFileFormat
+    case emptyFile
+    case missingRequiredColumns(columns: [String])
+    case parseError(row: Int, error: String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidFileFormat:
+            return "Invalid file format. Please select a CSV file exported from Notion."
+        case .emptyFile:
+            return "The selected file is empty."
+        case .missingRequiredColumns(let columns):
+            return "Missing required columns: \(columns.joined(separator: ", "))"
+        case .parseError(let row, let error):
+            return "Error parsing row \(row): \(error)"
+        }
+    }
+}
+
 class NoteStore: ObservableObject {
     @Published var notes: [Note] = []
     @Published var projects: [Project] = []
@@ -614,6 +648,12 @@ class NoteStore: ObservableObject {
     @Published var globalTimerState: TimerState = .stopped
     private var timerUpdateCancellable: AnyCancellable?
     private var globalTimer: Timer?
+    
+    // MARK: - Import/Export functionality
+    @Published var isImporting: Bool = false
+    @Published var importProgress: Double = 0.0
+    @Published var importStatus: String = ""
+    @Published var lastImportSummary: NotionImportSummary?
 
     //in notes showonly pending notes
     func getPendingNotes() -> [Note] {
@@ -1441,6 +1481,45 @@ class NoteStore: ObservableObject {
         saveColumns()
     }
     
+    func moveNoteToFirst(_ note: Note) {
+        print("🔄 [NOTESTORE] Moving note to first position: \(note.title)")
+        
+        // First, check if the note exists in the array
+        guard let index = notes.firstIndex(where: { $0.id == note.id }) else { 
+            print("⚠️ [NOTESTORE] Note not found in array")
+            return 
+        }
+        
+        // Create a mutable copy of the note
+        var updatedNote = note
+        updatedNote.lastModified = Date() // Update the modification date
+        
+        // Remove the note from its current position
+        notes.remove(at: index)
+        
+        // Find the position to insert - at the beginning of pending notes
+        let completedCount = notes.filter { $0.isCompleted }.count
+        
+        // Insert after completed notes but before other pending notes
+        notes.insert(updatedNote, at: completedCount)
+        
+        // Update any columns containing this note to move it to the beginning
+        for (columnIndex, column) in columns.enumerated() {
+            if column.noteIds.contains(note.id) {
+                var updatedColumn = column
+                updatedColumn.noteIds.removeAll { $0 == note.id }
+                updatedColumn.noteIds.insert(note.id, at: 0) // Add to the beginning
+                columns[columnIndex] = updatedColumn
+            }
+        }
+        
+        // Save changes
+        saveNotes()
+        saveColumns()
+        
+        print("✅ [NOTESTORE] Note moved to first position successfully")
+    }
+    
     // MARK: - AI-Powered Task Reordering
     func reorderNotesWithAI(
         reorderedTasks: [(taskId: String, newPosition: Int, priority: String, reasoning: String)],
@@ -1946,6 +2025,293 @@ class NoteStore: ObservableObject {
         
         // Initialize with empty pages array
         pages = []
+    }
+    
+    // MARK: - Notion CSV Import Functionality
+    
+    func importNotionCSV(from url: URL, selectedProject: Project? = nil, selectedRelease: Release? = nil) async throws -> NotionImportSummary {
+        await MainActor.run {
+            isImporting = true
+            importProgress = 0.0
+            importStatus = "Reading CSV file..."
+        }
+        
+        defer {
+            Task { @MainActor in
+                isImporting = false
+                importProgress = 0.0
+                importStatus = ""
+            }
+        }
+        
+        // Read CSV content
+        let csvContent: String
+        do {
+            csvContent = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            throw NotionImportError.invalidFileFormat
+        }
+        
+        if csvContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw NotionImportError.emptyFile
+        }
+        
+        await MainActor.run {
+            importStatus = "Parsing CSV data..."
+            importProgress = 0.1
+        }
+        
+        // Parse CSV
+        let rows = csvContent.components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        
+        guard rows.count > 1 else {
+            throw NotionImportError.emptyFile
+        }
+        
+        // Parse header
+        let headerRow = rows[0]
+        let headers = parseCSVRow(headerRow)
+        
+        // Validate required columns
+        let requiredColumns = ["Name", "Status"]
+        let missingColumns = requiredColumns.filter { column in
+            !headers.contains { $0.lowercased().contains(column.lowercased()) }
+        }
+        
+        if !missingColumns.isEmpty {
+            throw NotionImportError.missingRequiredColumns(columns: missingColumns)
+        }
+        
+        // Find column indices
+        let nameColumnIndex = findColumnIndex(headers: headers, searchTerms: ["name", "title", "task"])
+        let statusColumnIndex = findColumnIndex(headers: headers, searchTerms: ["status", "state"])
+        let descriptionColumnIndex = findColumnIndex(headers: headers, searchTerms: ["description", "notes", "content"])
+        let priorityColumnIndex = findColumnIndex(headers: headers, searchTerms: ["priority", "importance"])
+        let dueDateColumnIndex = findColumnIndex(headers: headers, searchTerms: ["due", "date", "deadline"])
+        let tagsColumnIndex = findColumnIndex(headers: headers, searchTerms: ["tags", "category", "type"])
+        
+        await MainActor.run {
+            importStatus = "Processing tasks..."
+            importProgress = 0.2
+        }
+        
+        var importedTasks: [Note] = []
+        var errors: [String] = []
+        var skippedTasks = 0
+        
+        // Process data rows
+        for (index, row) in rows[1...].enumerated() {
+            let rowIndex = index + 2 // +2 because we start from rows[1...] and want 1-based indexing
+            
+            await MainActor.run {
+                importProgress = 0.2 + (Double(index) / Double(rows.count - 1)) * 0.7
+                importStatus = "Processing task \(index + 1) of \(rows.count - 1)..."
+            }
+            
+            do {
+                let columns = parseCSVRow(row)
+                
+                // Extract task name
+                guard let nameIndex = nameColumnIndex,
+                      nameIndex < columns.count,
+                      !columns[nameIndex].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    skippedTasks += 1
+                    errors.append("Row \(rowIndex): Missing or empty task name")
+                    continue
+                }
+                
+                let taskName = columns[nameIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Extract status and map to our model
+                let statusText = statusColumnIndex != nil && statusColumnIndex! < columns.count 
+                    ? columns[statusColumnIndex!].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    : ""
+                
+                let isCompleted = mapNotionStatusToCompleted(statusText)
+                let priority = mapNotionPriority(
+                    priorityColumnIndex != nil && priorityColumnIndex! < columns.count 
+                        ? columns[priorityColumnIndex!] 
+                        : ""
+                )
+                
+                // Extract description
+                let description = descriptionColumnIndex != nil && descriptionColumnIndex! < columns.count
+                    ? columns[descriptionColumnIndex!].trimmingCharacters(in: .whitespacesAndNewlines)
+                    : ""
+                
+                // Extract tags and determine category
+                let tagsText = tagsColumnIndex != nil && tagsColumnIndex! < columns.count
+                    ? columns[tagsColumnIndex!].trimmingCharacters(in: .whitespacesAndNewlines)
+                    : ""
+                
+                let category = mapNotionCategory(statusText, tags: tagsText)
+                
+                // Create new note
+                let newNote = Note(
+                    title: taskName,
+                    content: description,
+                    category: category,
+                    isCompleted: isCompleted,
+                    priority: priority
+                )
+                
+                importedTasks.append(newNote)
+                
+            } catch {
+                errors.append("Row \(rowIndex): \(error.localizedDescription)")
+                skippedTasks += 1
+            }
+        }
+        
+        await MainActor.run {
+            importStatus = "Saving imported tasks..."
+            importProgress = 0.9
+        }
+        
+        // Add imported tasks to the store
+        await MainActor.run {
+            for task in importedTasks {
+                notes.append(task)
+                
+                // Add to selected project/release if specified
+                if let project = selectedProject, let release = selectedRelease {
+                    addTaskToRelease(task, project: project, release: release)
+                }
+            }
+            
+            saveNotes()
+            if selectedProject != nil {
+                saveProjects()
+                saveReleases()
+                saveColumns()
+            }
+            
+            importProgress = 1.0
+            importStatus = "Import completed!"
+        }
+        
+        let summary = NotionImportSummary(
+            totalTasks: rows.count - 1,
+            importedTasks: importedTasks.count,
+            skippedTasks: skippedTasks,
+            errors: errors,
+            importDate: Date()
+        )
+        
+        await MainActor.run {
+            lastImportSummary = summary
+        }
+        
+        return summary
+    }
+    
+    private func parseCSVRow(_ row: String) -> [String] {
+        var columns: [String] = []
+        var currentColumn = ""
+        var insideQuotes = false
+        var i = row.startIndex
+        
+        while i < row.endIndex {
+            let char = row[i]
+            
+            if char == "\"" {
+                insideQuotes.toggle()
+            } else if char == "," && !insideQuotes {
+                columns.append(currentColumn.trimmingCharacters(in: .whitespacesAndNewlines))
+                currentColumn = ""
+            } else {
+                currentColumn.append(char)
+            }
+            
+            i = row.index(after: i)
+        }
+        
+        // Add the last column
+        columns.append(currentColumn.trimmingCharacters(in: .whitespacesAndNewlines))
+        
+        // Remove quotes from quoted fields
+        return columns.map { column in
+            if column.hasPrefix("\"") && column.hasSuffix("\"") && column.count > 1 {
+                return String(column.dropFirst().dropLast())
+            }
+            return column
+        }
+    }
+    
+    private func findColumnIndex(headers: [String], searchTerms: [String]) -> Int? {
+        for (index, header) in headers.enumerated() {
+            let headerLower = header.lowercased()
+            for term in searchTerms {
+                if headerLower.contains(term.lowercased()) {
+                    return index
+                }
+            }
+        }
+        return nil
+    }
+    
+    private func mapNotionStatusToCompleted(_ status: String) -> Bool {
+        let completedStatuses = ["done", "completed", "finished", "closed", "resolved", "✅", "✓", "complete"]
+        return completedStatuses.contains { status.contains($0) }
+    }
+    
+    private func mapNotionPriority(_ priorityText: String) -> TaskPriority {
+        let lowercased = priorityText.lowercased()
+        
+        if lowercased.contains("urgent") || lowercased.contains("critical") || lowercased.contains("high") {
+            return .urgent
+        } else if lowercased.contains("high") || lowercased.contains("important") {
+            return .high
+        } else if lowercased.contains("low") || lowercased.contains("minor") {
+            return .low
+        } else {
+            return .medium
+        }
+    }
+    
+    private func mapNotionCategory(_ status: String, tags: String) -> NoteCategory {
+        let combinedText = "\(status) \(tags)".lowercased()
+        
+        if mapNotionStatusToCompleted(status) {
+            return .done
+        } else if combinedText.contains("today") || combinedText.contains("urgent") {
+            return .today
+        } else if combinedText.contains("week") || combinedText.contains("soon") {
+            return .thisWeek
+        } else if combinedText.contains("backlog") || combinedText.contains("later") {
+            return .backlog
+        } else if combinedText.contains("cancelled") || combinedText.contains("canceled") {
+            return .cancelled
+        } else {
+            return .uncategorized
+        }
+    }
+    
+    private func addTaskToRelease(_ task: Note, project: Project, release: Release) {
+        // Find the first available column (usually "Backlog")
+        let releaseColumns = getColumnsForRelease(release)
+        if let firstColumn = releaseColumns.first {
+            if let columnIndex = columns.firstIndex(where: { $0.id == firstColumn.id }) {
+                var updatedColumn = columns[columnIndex]
+                updatedColumn.noteIds.append(task.id)
+                columns[columnIndex] = updatedColumn
+            }
+        }
+    }
+    
+    func getImportSummaryText() -> String {
+        guard let summary = lastImportSummary else { return "" }
+        
+        return """
+        Import Summary:
+        • Total tasks processed: \(summary.totalTasks)
+        • Successfully imported: \(summary.importedTasks)
+        • Skipped: \(summary.skippedTasks)
+        • Success rate: \(Int(summary.successRate * 100))%
+        
+        \(summary.errors.isEmpty ? "No errors occurred." : "Errors:\n" + summary.errors.prefix(5).joined(separator: "\n"))
+        """
     }
 } 
 

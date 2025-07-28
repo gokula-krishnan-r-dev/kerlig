@@ -32,6 +32,11 @@ class BackgroundAppManager: NSObject {
         // Setup global hotkey monitoring
         setupGlobalHotkeys()
         
+        // Register Whisper Mode with HotkeyManager
+        if let hotkeyManager = hotkeyManager {
+            WhisperModeManager.shared.registerHotkey(with: hotkeyManager)
+        }
+        
         // Enter background mode if user preference is set
         if appState.runInBackground {
             enterBackgroundMode()
@@ -76,6 +81,13 @@ class BackgroundAppManager: NSObject {
             }
         }
         
+        // Register Whisper Mode shortcut (Command + Shift + R)
+        hotkeyManager?.registerWhisperModeShortcut { [weak self] in
+            DispatchQueue.main.async {
+                self?.handleWhisperModeActivation()
+            }
+        }
+        
         // Start text monitoring
         textCaptureService?.startMonitoring()
     }
@@ -95,6 +107,18 @@ class BackgroundAppManager: NSObject {
         } else {
             floatingPanelController.showEmptySelectionPanel(appState: appState)
         }
+    }
+    
+    func handleWhisperModeActivation() {
+        NSLog("🎙️ Whisper Mode activated via shortcut")
+        
+        // Ensure we're in background mode
+        if !isBackgroundMode {
+            enterBackgroundMode()
+        }
+        
+        // Activate Whisper Mode
+        WhisperModeManager.shared.activateWhisperMode()
     }
     
     func enterBackgroundMode() {
@@ -174,11 +198,21 @@ class BackgroundAppManager: NSObject {
         
         // Refresh hotkey registration
         setupGlobalHotkeys()
+        
+        // Re-register Whisper Mode
+        if let hotkeyManager = hotkeyManager {
+            WhisperModeManager.shared.registerHotkey(with: hotkeyManager)
+        }
     }
     
     @objc private func userSessionDidBecomeActive() {
         // Ensure hotkeys are still working after user session changes
         setupGlobalHotkeys()
+        
+        // Re-register Whisper Mode
+        if let hotkeyManager = hotkeyManager {
+            WhisperModeManager.shared.registerHotkey(with: hotkeyManager)
+        }
     }
     
     @objc private func handleBackgroundModeChange(_ notification: Notification) {
@@ -236,6 +270,9 @@ class BackgroundAppManager: NSObject {
         menuBarController = nil
         floatingPanelController = nil
         hotkeyManager = nil
+        
+        // Clean up Whisper Mode resources
+        ToastManager.shared.dismissAllToasts()
         
         // Quit the app
         NSApp.terminate(nil)
