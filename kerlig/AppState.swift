@@ -180,21 +180,21 @@ class AppState: ObservableObject {
   var savedIsFirstLaunch: Bool {
     get {
       // Return true if the key doesn't exist yet (first launch)
-      !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+      !UserDefaults.standard.bool(forKey: "hasLaunchedBefore_v1")
     }
     set {
       // When setting to false, it means app has been launched
-      UserDefaults.standard.set(!newValue, forKey: "hasLaunchedBefore")
+      UserDefaults.standard.set(!newValue, forKey: "hasLaunchedBefore_v1")
       isFirstLaunch = newValue
     }
   }
 
   var savedOnboardingComplete: Bool {
     get {
-      UserDefaults.standard.bool(forKey: "onboardingComplete")
+      UserDefaults.standard.bool(forKey: "onboardingComplete_v1")
     }
     set {
-      UserDefaults.standard.set(newValue, forKey: "onboardingComplete")
+      UserDefaults.standard.set(newValue, forKey: "onboardingComplete_v1")
       onboardingComplete = newValue
     }
   }
@@ -210,8 +210,8 @@ class AppState: ObservableObject {
     aiModel = savedModel
     currentTheme = "light"  // Force light theme
 
-    // Check if this is first launch
-    isFirstLaunch = true
+    // Check if this is first launch - use saved value, not hardcoded
+    isFirstLaunch = savedIsFirstLaunch
 
     // Load onboarding status
     onboardingComplete = savedOnboardingComplete
@@ -384,13 +384,24 @@ class AppState: ObservableObject {
 
   // Toggle background mode
   func toggleBackgroundMode() {
-    savedRunInBackground = !runInBackground
+    let newValue = !runInBackground
+    savedRunInBackground = newValue
+    
+    NSLog("🔄 [APPSTATE] Background mode toggled to: \(newValue)")
     
     // Notify the background app manager of the change
     NotificationCenter.default.post(
       name: NSNotification.Name("BackgroundModeChanged"),
-      object: runInBackground
+      object: newValue
     )
+  }
+  
+  // Check if app should run in background mode dynamically
+  func shouldRunInBackgroundMode() -> Bool {
+    // Must have completed onboarding and user must have enabled background mode
+    let shouldRun = onboardingComplete && runInBackground
+    NSLog("🔄 [APPSTATE] Should run in background: \(shouldRun) (onboarding: \(onboardingComplete), background enabled: \(runInBackground))")
+    return shouldRun
   }
 
   // Toggle launch at login
@@ -413,7 +424,13 @@ class AppState: ObservableObject {
 
   // Mark first launch as completed
   func completeFirstLaunch() {
+    NSLog("🔄 [APPSTATE] Completing first launch - updating UserDefaults")
     savedIsFirstLaunch = false
+    
+    // Also save current settings to ensure persistence
+    saveSettings()
+    
+    NSLog("🔄 [APPSTATE] First launch completed successfully")
   }
 
   // Move to the next onboarding step

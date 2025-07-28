@@ -110,13 +110,8 @@ struct kerligApp: App {
     // Register for panel close notifications
     registerForPanelCloseNotifications()
     
-    // Check if we should start in background mode
-    if appState.runInBackground && appState.onboardingComplete {
-      // Start in background mode after a short delay
-      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-        self.backgroundAppManager.enterBackgroundMode()
-      }
-    }
+    // Handle background mode initialization dynamically
+    handleBackgroundModeInitialization()
   }
 
   private func registerForPanelCloseNotifications() {
@@ -135,6 +130,56 @@ struct kerligApp: App {
   // Function to show the port monitor window
   private func showPortMonitorWindow() {
     PortMonitorWindow.open()
+  }
+  
+  // MARK: - Background Mode Management
+  
+  /// Handles background mode initialization dynamically based on app state conditions
+  private func handleBackgroundModeInitialization() {
+    NSLog("🔄 [APP] Evaluating background mode initialization...")
+    NSLog("🔄 [APP] State - isFirstLaunch: \(appState.isFirstLaunch), onboardingComplete: \(appState.onboardingComplete), runInBackground: \(appState.runInBackground)")
+    
+    // Determine the appropriate mode based on current state
+    let shouldEnterBackgroundMode = determineShouldEnterBackgroundMode()
+    
+    if shouldEnterBackgroundMode {
+      // Schedule background mode entry with appropriate delay
+      let delay = appState.isFirstLaunch ? 2.0 : 1.0 // Longer delay for first launch
+      
+      DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+        NSLog("🔄 [APP] Entering background mode...")
+        self.backgroundAppManager.enterBackgroundMode()
+        
+        // Mark first launch as completed if this was the first launch
+        if self.appState.isFirstLaunch && self.appState.onboardingComplete {
+          NSLog("🔄 [APP] Completing first launch sequence...")
+          self.appState.completeFirstLaunch()
+        }
+      }
+    } else {
+      NSLog("🔄 [APP] Staying in regular mode - conditions not met for background mode")
+      
+      // Ensure we're in regular mode
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        self.backgroundAppManager.exitBackgroundMode()
+      }
+    }
+  }
+  
+  /// Determines whether the app should enter background mode based on current conditions
+  private func determineShouldEnterBackgroundMode() -> Bool {
+    // Use the centralized logic from AppState
+    let shouldEnterBG = appState.shouldRunInBackgroundMode()
+    
+    // Additional logic for first launch scenario
+    if appState.isFirstLaunch {
+      NSLog("🔄 [APP] First launch scenario - should enter background: \(shouldEnterBG)")
+      return shouldEnterBG
+    }
+    
+    // For subsequent launches, use the standard check
+    NSLog("🔄 [APP] Regular launch scenario - should enter background: \(shouldEnterBG)")
+    return shouldEnterBG
   }
 }
 

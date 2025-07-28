@@ -122,15 +122,25 @@ class BackgroundAppManager: NSObject {
     }
     
     func enterBackgroundMode() {
+        guard !isBackgroundMode else {
+            NSLog("🔄 [BACKGROUND] Already in background mode, skipping...")
+            return
+        }
+        
+        NSLog("🔄 [BACKGROUND] Entering background mode...")
         isBackgroundMode = true
         
-        // Hide all windows except floating panels
-        for window in NSApp.windows {
-            if window.title != "AI Assistant" && 
-               window.title != "Settings" &&
-               !window.title.contains("Panel") {
-                window.orderOut(nil)
-            }
+        // Hide all windows except floating panels and specific system windows
+        let windowsToHide = NSApp.windows.filter { window in
+            window.title != "AI Assistant" && 
+            window.title != "Settings" &&
+            !window.title.contains("Panel") &&
+            !window.title.isEmpty // Don't hide system windows
+        }
+        
+        NSLog("🔄 [BACKGROUND] Hiding \(windowsToHide.count) windows")
+        for window in windowsToHide {
+            window.orderOut(nil)
         }
         
         // Set activation policy to accessory (no dock icon)
@@ -139,19 +149,27 @@ class BackgroundAppManager: NSObject {
         // Update app state
         appState?.isAIPanelVisible = false
         
-        NSLog("🔄 Entered background mode - app hidden from dock")
+        NSLog("✅ [BACKGROUND] Successfully entered background mode - app hidden from dock")
     }
     
     func exitBackgroundMode() {
+        guard isBackgroundMode else {
+            NSLog("🔄 [BACKGROUND] Already in regular mode, skipping...")
+            return
+        }
+        
+        NSLog("🔄 [BACKGROUND] Exiting background mode...")
         isBackgroundMode = false
         
         // Show app in dock
         NSApp.setActivationPolicy(.regular)
         
-        // Activate the app
-        NSApp.activate(ignoringOtherApps: true)
+        // Activate the app with a small delay to ensure proper window management
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         
-        NSLog("🔄 Exited background mode - app visible in dock")
+        NSLog("✅ [BACKGROUND] Successfully exited background mode - app visible in dock")
     }
     
     private func setupSystemEventMonitoring() {
@@ -216,14 +234,28 @@ class BackgroundAppManager: NSObject {
     }
     
     @objc private func handleBackgroundModeChange(_ notification: Notification) {
-        guard let runInBackground = notification.object as? Bool else { return }
+        guard let runInBackground = notification.object as? Bool else { 
+            NSLog("⚠️ [BACKGROUND] Invalid notification object for background mode change")
+            return 
+        }
         
-        if runInBackground {
-            // Switch to background mode
-            enterBackgroundMode()
-        } else {
-            // Switch to regular mode
-            exitBackgroundMode()
+        NSLog("🔄 [BACKGROUND] Handling background mode change to: \(runInBackground)")
+        
+        // Add a small delay to ensure UI state is consistent
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if runInBackground {
+                // Switch to background mode only if onboarding is complete
+                if self.appState?.onboardingComplete == true {
+                    NSLog("🔄 [BACKGROUND] Switching to background mode")
+                    self.enterBackgroundMode()
+                } else {
+                    NSLog("⚠️ [BACKGROUND] Cannot enter background mode - onboarding not complete")
+                }
+            } else {
+                // Switch to regular mode
+                NSLog("🔄 [BACKGROUND] Switching to regular mode")
+                self.exitBackgroundMode()
+            }
         }
     }
     
