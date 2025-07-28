@@ -4,116 +4,135 @@ import AppKit
 struct WelcomeView: View {
     @EnvironmentObject var appState: AppState
     @State private var logoScale: CGFloat = 0.6
-    @State private var titleOpacity: Double = 0
-    @State private var subtitleOpacity: Double = 0
+    @State private var contentOpacity: Double = 0
     @State private var buttonOpacity: Double = 0
     @State private var buttonScale: CGFloat = 0.8
+    @State private var imageOffset: CGFloat = 50
     @State private var selectedOption: ActionOption = .fixSpelling
     
-    private let animationDelay: Double = 0.3
+    private let animationDelay: Double = 0.2
     
     var body: some View {
-        ZStack {
-            // Dark background
-            Color.black
-                .ignoresSafeArea()
-            
-            VStack(spacing: 30) {
-                // Logo
-                AppIconImage()
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(25)
-                    .scaleEffect(logoScale)
-                    .shadow(color: Color.purple.opacity(0.3), radius: 15, x: 0, y: 5)
-                    .padding(.top, 60)
-                    .onAppear {
-                        withAnimation(.spring(response: 0.6)) {
-                            logoScale = 1.0
+        GeometryReader { geometry in
+            ZStack {
+                // Dynamic background gradient
+                Color.kerligGradientBackground
+                    .ignoresSafeArea()
+                
+                // Content
+                VStack(spacing: 0) {
+                    // Header section
+                    VStack(spacing: 24) {
+                        // App Icon with enhanced animation
+                        AppIconImage()
+                            .frame(width: 80, height: 80)
+                            .scaleEffect(logoScale)
+                            .onAppear {
+                                withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
+                                    logoScale = 1.0
+                                }
+                            }
+                        
+                        // Title section with improved typography
+                        VStack(spacing: 16) {
+                            Text("Welcome to Kerlig")
+                                .font(.system(size: 36, weight: .bold, design: .rounded))
+                                .foregroundColor(.kerligPrimaryText)
+                                .multilineTextAlignment(.center)
+                            
+                            Text("Enhance your writing with AI across all macOS applications")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.kerligSecondaryText)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .opacity(contentOpacity)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.0).delay(animationDelay)) {
+                                contentOpacity = 1
+                            }
                         }
                     }
-                
-                // Title and subtitle
-                VStack(spacing: 12) {
-                    Text("Welcome to Kerlig!")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Color.white)
-                        .opacity(titleOpacity)
-                        .padding(.top, 10)
+                    .padding(.top, 60)
+                    .padding(.horizontal, 40)
                     
-                    Text("Your AI writing assistant for any app on macOS")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.gray)
-                        .multilineTextAlignment(.center)
-                        .opacity(subtitleOpacity)
-                        .padding(.horizontal, 20)
-                }
-                .padding(.bottom, 10)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 0.8).delay(animationDelay)) {
-                        titleOpacity = 1
+                    Spacer(minLength: 40)
+                    
+                    // Demo image with enhanced presentation
+                    VStack(spacing: 0) {
+                        Image("demo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: min(800, geometry.size.width - 80))
+                            .kerligCard(elevation: .medium)
+                            .offset(y: imageOffset)
+                            .opacity(contentOpacity)
+                            .onAppear {
+                                withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(animationDelay + 0.3)) {
+                                    imageOffset = 0
+                                }
+                            }
                     }
-                    withAnimation(.easeInOut(duration: 0.8).delay(animationDelay + 0.2)) {
-                        subtitleOpacity = 1
-                    }
-                }
-                
-                // add image here
-                Image("demo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 800, height: 220)
-                    .padding(.horizontal, 20)
-                
-                
-                // Get Started button
-                Button(action: {
-                    withAnimation {
-                       appState.currentOnboardingStep = .permissions
-                    }
-                }) {
-                    Text("Let's start!")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 82)
-                        .padding(.vertical, 12)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    .padding(.horizontal, 40)
+                    
+                    Spacer(minLength: 40)
+                    
+                    // Action section
+                    VStack(spacing: 24) {
+                        // Get Started button with new style
+                        Button(action: {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                appState.currentOnboardingStep = .permissions
+                            }
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Get Started")
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .foregroundColor(.kerligButtonText)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.kerligButtonBackground)
+                                    .shadow(color: .kerligShadow, radius: 8, x: 0, y: 4)
                             )
-                        )
-                        .cornerRadius(15)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .scaleEffect(buttonScale)
-                .opacity(buttonOpacity)
-                .padding(.top, 20)
-                .padding(.bottom, 40)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 0.7).delay(animationDelay + 1.2)) {
-                        buttonOpacity = 1
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .scaleEffect(buttonScale)
+                        .opacity(buttonOpacity)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 0.8).delay(animationDelay + 0.6)) {
+                                buttonOpacity = 1
+                            }
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(animationDelay + 0.6)) {
+                                buttonScale = 1
+                            }
+                        }
+                        .onHover { isHovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                buttonScale = isHovering ? 1.05 : 1.0
+                            }
+                        }
+                        
+                        // Legal text with improved styling
+                        Text("By continuing, you agree to our terms of service and privacy policy")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.kerligTertiaryText)
+                            .multilineTextAlignment(.center)
+                            .opacity(buttonOpacity)
                     }
-                    withAnimation(.spring(response: 0.6).delay(animationDelay + 1.2)) {
-                        buttonScale = 1
-                    }
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 50)
                 }
-                
-                // License agreement text
-                Text("By continuing you agree to the terms of the software license agreement")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                    .opacity(0.7)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 20)
             }
-            .frame(maxWidth: 600)
-            .padding(.horizontal, 20)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
-
 
 // Action options enum
 enum ActionOption {
@@ -122,9 +141,10 @@ enum ActionOption {
     case translate
 }
 
-// Custom view to display the app icon
+// Enhanced App Icon with modern design
 struct AppIconImage: View {
     @State private var isPulsing = false
+    @State private var rotationAngle: Double = 0
     
     var body: some View {
         Group {
@@ -132,97 +152,71 @@ struct AppIconImage: View {
                 Image(nsImage: appIcon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
                     .overlay(
-                        Circle()
+                        RoundedRectangle(cornerRadius: 20)
                             .stroke(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3").opacity(0.3)]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 3
+                                Color.kerligAccent.opacity(0.3),
+                                lineWidth: 2
                             )
                             .scaleEffect(isPulsing ? 1.1 : 1.0)
-                            .opacity(isPulsing ? 0.5 : 0)
-                            .animation(
-                                Animation.easeInOut(duration: 1.5)
-                                    .repeatForever(autoreverses: true),
-                                value: isPulsing
-                            )
+                            .opacity(isPulsing ? 0.6 : 0.3)
                     )
+                    .shadow(color: .kerligShadowElevated, radius: 12, x: 0, y: 6)
                     .onAppear {
-                        isPulsing = true
+                        withAnimation(
+                            Animation.easeInOut(duration: 2.0)
+                                .repeatForever(autoreverses: true)
+                        ) {
+                            isPulsing = true
+                        }
                     }
             } else {
-                // Fallback gradient icon
+                // Enhanced fallback icon
                 ZStack {
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                    
-                    Text("K")
-                        .font(.system(size: 60, weight: .bold))
-                        .foregroundColor(.white)
-                        
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(
+                        .fill(
                             LinearGradient(
-                                gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3").opacity(0.3)]),
+                                gradient: Gradient(colors: [
+                                    Color.kerligAccent,
+                                    Color.kerligAccentSecondary
+                                ]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 3
+                            )
+                        )
+                    
+                    // App letter with improved styling
+                    Text("K")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                    
+                    // Animated border
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(
+                            Color.white.opacity(0.3),
+                            lineWidth: 2
                         )
                         .scaleEffect(isPulsing ? 1.1 : 1.0)
-                        .opacity(isPulsing ? 0.5 : 0)
-                        .animation(
-                            Animation.easeInOut(duration: 1.5)
-                                .repeatForever(autoreverses: true),
-                            value: isPulsing
-                        )
+                        .opacity(isPulsing ? 0.6 : 0.3)
                 }
+                .shadow(color: .kerligShadowElevated, radius: 12, x: 0, y: 6)
                 .onAppear {
-                    isPulsing = true
+                    withAnimation(
+                        Animation.easeInOut(duration: 2.0)
+                            .repeatForever(autoreverses: true)
+                    ) {
+                        isPulsing = true
+                    }
                 }
             }
         }
     }
 }
 
-
-
-// Helper for hex colors
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
-}
-
 #Preview {
     WelcomeView()
-        .environment(\.colorScheme, .dark)
+        .environmentObject(AppState())
+        .frame(width: 800, height: 700)
 }

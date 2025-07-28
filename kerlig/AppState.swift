@@ -211,7 +211,7 @@ class AppState: ObservableObject {
     currentTheme = "light"  // Force light theme
 
     // Check if this is first launch
-    isFirstLaunch = false
+    isFirstLaunch = true
 
     // Load onboarding status
     onboardingComplete = savedOnboardingComplete

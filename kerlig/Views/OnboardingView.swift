@@ -1631,3 +1631,9 @@ struct DemoStep3View: View {
     }
 }
 
+
+
+#Preview {
+    OnboardingView()
+        .environmentObject(AppState())
+}
