@@ -2355,7 +2355,7 @@ confettiController.showConfetti(duration: 5.0)
                         }
                     
                     GifImageView(gifURL: getRandomCelebrationGif(category: getCelebrationCategory(for: completedTaskTime)))
-                        .frame(width: 250, height: 250)
+                        .frame(width: 250, height: 200)
                         .cornerRadius(16)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
@@ -3972,18 +3972,7 @@ extension FloatingSidebarView {
     }
     
     func getRandomCelebrationGif(category: CelebrationCategory = .random) -> URL? {
-        // Collection of celebration GIFs organized by category
-        let successGifs = [
-            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExazBxeGRkbzM5czV5bXQ4eW81Z2ZhZzZjaWIweHAyOHJ0aHNjZmZ0bCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cEODGfeOYMRxK/giphy.gif",
-            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNzN2OWI2cG9hZDhiZmVkMGp4dHF3ZnI4N2hpYWRpOGJqeWZlZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/artj92V8o75VPL7AeQ/giphy.gif",
-            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTJqMjV0ZWNhcGUzZnNhZGdtazZnMzRkMHN4ZzJlZTVjZGxzeSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l0MYt5jPR6QX5pnqM/giphy.gif"
-        ]
-        
-        let achievementGifs = [
-            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMHBtdDNwZmZqeGlxYnZicGdkOHd3NnRvbzBuNnpzMWs3YXRqOXhpZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7abIileRivlGr8Nq/giphy.gif",
-            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTdvNHFsOHRkZGc2ZHU5cG1zcXV6ZGZ4MjFxcjZtdGNmcGpzNGw2ZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/g9582DNuQppxC/giphy.gif",
-            "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYmx6OTEyZXZ3YXNwOGZkYTRnNGdxbWxjMnI0Z2JjOXdtcTdkZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LSNqpYqGRqwrS/giphy.gif"
-        ]
+       
         
         // Select the appropriate category of GIFs
         var gifsToChooseFrom: [String]
@@ -4042,22 +4031,7 @@ extension FloatingSidebarView {
     func getCongratulationMessage(for completionTime: TimeInterval) -> String {
         let category = getCelebrationCategory(for: completionTime)
         
-        let successMessages = [
-            "Well done! 💥",
-            "Great job! 🎉",
-            "Task complete! ✅",
-            "Success! 🚀",
-            "You did it! 👏"
-        ]
-        
-        let achievementMessages = [
-            "Outstanding! 🏆",
-            "Impressive work! 💪",
-            "Amazing effort! 🌟",
-            "Brilliant! 🔥",
-            "Exceptional! 🎯"
-        ]
-        
+       
         let randomIndex: Int
         
         switch category {
@@ -4091,12 +4065,7 @@ extension FloatingSidebarView {
             return messages.randomElement() ?? "You finished the task!"
         } else {
             // For longer titles, use generic messages
-            let messages = [
-                "Task completed successfully!",
-                "You finished the task!",
-                "One more task down!",
-                "Mission accomplished!"
-            ]
+          
             return messages.randomElement() ?? "You finished the task!"
         }
     }
@@ -4585,7 +4554,13 @@ class GifCache {
 
 
 #Preview {
-    FloatingSidebarView(controller: FloatingSidebarController(), onClose: {})
+    if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+        
+        FloatingSidebarView(controller: FloatingSidebarController(), onClose: {})
+    }else{
+        Text("demo")
+    }
+
 }
 
 // MARK: - Priority Indicator Helper Function
