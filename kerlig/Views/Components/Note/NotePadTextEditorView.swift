@@ -67,7 +67,7 @@ struct NotePadTextEditorView: View {
                     }
                 
                 Spacer()
-                
+                 
                 Button(action: {
                     isNoteIcon = false
                 }) {

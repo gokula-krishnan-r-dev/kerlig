@@ -204,8 +204,7 @@ struct FloatingSidebarView: View {
                 orderWithAIButton
             }
 
-            // Task Progress Summary
-            // taskProgressSummary
+         
 
             }
             
