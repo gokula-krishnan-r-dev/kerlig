@@ -36,7 +36,7 @@ struct WelcomeView: View {
                         // Title section with improved typography
                         VStack(spacing: 16) {
                             Text("Welcome to Kerlig")
-                                .font(.system(size: 36, weight: .bold, design: .rounded))
+                                .font(.system(size: 36, weight: .bold))
                                 .foregroundColor(.kerligPrimaryText)
                                 .multilineTextAlignment(.center)
                             
@@ -94,8 +94,8 @@ struct WelcomeView: View {
                                     .font(.system(size: 18, weight: .semibold))
                             }
                             .foregroundColor(.kerligButtonText)
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 16)
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
                                     .fill(Color.kerligButtonBackground)

@@ -126,26 +126,53 @@ struct TaskManagementView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Modern header with dropdowns (only show when project is selected)
-            if selectedProject != nil {
-                modernHeader
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-            
-            // Main content area
-            ZStack {
-                
-                // Content based on selection state
-                if selectedProject == nil {
-                    // Project selection view
-                    projectSelectionView
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                } else {
-                    // Task management view
-                    taskManagementView
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Modern header with dropdowns (only show when project is selected)
+                if selectedProject != nil {
+                    modernHeader
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            )
+                        )
+                        .zIndex(1)
                 }
+                
+                // Main content area with responsive layout
+                ZStack {
+                    // Content based on selection state
+                    if selectedProject == nil {
+                        // Project selection view
+                        projectSelectionView
+                            .transition(
+                                .asymmetric(
+                                    insertion: .scale(scale: 0.9, anchor: .center)
+                                        .combined(with: .opacity)
+                                        .combined(with: .move(edge: .bottom)),
+                                    removal: .scale(scale: 1.1, anchor: .center)
+                                        .combined(with: .opacity)
+                                        .combined(with: .move(edge: .top))
+                                )
+                            )
+                    } else {
+                        // Task management view
+                        taskManagementView
+                            .transition(
+                                .asymmetric(
+                                    insertion: .scale(scale: 0.95, anchor: .top)
+                                        .combined(with: .opacity)
+                                        .combined(with: .move(edge: .bottom)),
+                                    removal: .scale(scale: 0.9, anchor: .center)
+                                        .combined(with: .opacity)
+                                        .combined(with: .move(edge: .bottom))
+                                )
+                            )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -183,8 +210,8 @@ struct TaskManagementView: View {
 
     private var modernHeader: some View {
         VStack(spacing: 0) {
-            HStack {
-                // Back button
+            HStack(alignment: .center, spacing: 20) {
+                // Back button with improved styling
                 Button(action: {
                     withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                         selectedProject = nil
@@ -194,66 +221,113 @@ struct TaskManagementView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 14, weight: .semibold))
-                        Text("Projects")
+                        Text("Back")
                             .font(.system(size: 14, weight: .medium))
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.white.opacity(0.1))
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.12))
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
                 .hoverEffect(.lift)
                 
-                Spacer()
-                
-                // Project and Release dropdowns
-                HStack(spacing: 16) {
-                    projectDropdown
-                    releaseDropdown
+                // Project and Release dropdowns with better spacing
+                HStack(spacing: 20) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Project")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.gray)
+                        projectDropdown
+                            .frame(minWidth: 200)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Release")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.gray)
+                        releaseDropdown
+                            .frame(minWidth: 180)
+                    }
                 }
+                .frame(maxWidth: .infinity)
                 
-                Spacer()
-                
-                // Action buttons
+                // Action buttons with proper backgrounds and improved styling
                 HStack(spacing: 12) {
                     Button(action: { isAddingRelease = true }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14))
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 16))
                             Text("New Release")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        // .background(accentGradient)
-                        .cornerRadius(8)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [accentColor, accentColor.opacity(0.8)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .cornerRadius(10)
+                        .shadow(color: accentColor.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .hoverEffect(.lift)
                     
                     Button(action: { showFloatingSidebar() }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14))
+                        HStack(spacing: 8) {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.system(size: 16))
                             Text("Mac Write")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        // .background(successColor)
-                        .cornerRadius(8)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [successColor, successColor.opacity(0.8)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .cornerRadius(10)
+                        .shadow(color: successColor.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .hoverEffect(.lift)
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 20)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 18)
             .background(.ultraThinMaterial)
+            .overlay(
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(0.1),
+                                Color.clear
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(height: 1)
+                    .offset(y: 1),
+                alignment: .bottom
+            )
         }
     }
     
@@ -272,268 +346,32 @@ struct TaskManagementView: View {
     }
     
     // MARK: - Dropdown Components
-    
     private var projectDropdown: some View {
-        Menu {
-            ForEach(filteredProjects, id: \.id) { project in
-                Button(action: {
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                        selectedProject = project
-                    }
-                }) {
-                    HStack(spacing: 12) {
-                        // Enhanced circular project image
-                        if let logoData = project.logoImageData, let nsImage = NSImage(data: logoData) {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 32, height: 32)
-                                .clipShape(Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(
-                                            LinearGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.white.opacity(0.3),
-                                                    Color.white.opacity(0.1)
-                                                ]),
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 1.5
-                                        )
-                                )
-                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
-                        } else {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            (project.color ?? .blue).opacity(0.8),
-                                            (project.color ?? .blue)
-                                        ]),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Text(String(project.title.prefix(1)).uppercased())
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(
-                                            LinearGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.white.opacity(0.3),
-                                                    Color.white.opacity(0.1)
-                                                ]),
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 1.5
-                                        )
-                                )
-                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(project.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.primary)
-                            
-                            Text(project.description)
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        
-                        Spacer()
-                        
-                        if selectedProject?.id == project.id {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(accentColor)
-                        }
-                    }
-                    .padding(.vertical, 4)
+        ProjectDropdown(
+            selectedProject: Binding(
+                get: { selectedProject?.toDropdownItem() },
+                set: { dropdownItem in
+                    selectedProject = dropdownItem?.toProject(from: filteredProjects)
                 }
-            }
-        } label: {
-            HStack(spacing: 12) {
-                if let project = selectedProject {
-                    // Enhanced circular project image for dropdown label
-                    if let logoData = project.logoImageData, let nsImage = NSImage(data: logoData) {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 28, height: 28)
-                            .clipShape(Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color.white.opacity(0.4),
-                                                Color.white.opacity(0.1)
-                                            ]),
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1.5
-                                    )
-                            )
-                            .shadow(color: Color.black.opacity(0.3), radius: 3, x: 0, y: 2)
-                    } else {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        (project.color ?? .blue).opacity(0.9),
-                                        (project.color ?? .blue)
-                                    ]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 28, height: 28)
-                            .overlay(
-                                Text(String(project.title.prefix(1)).uppercased())
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color.white.opacity(0.4),
-                                                Color.white.opacity(0.1)
-                                            ]),
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1.5
-                                    )
-                            )
-                            .shadow(color: Color.black.opacity(0.3), radius: 3, x: 0, y: 2)
-                    }
-                    
-                    Text(project.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                } else {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Image(systemName: "folder")
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
-                        )
-                    
-                    Text("Select Project")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.gray)
-                }
-                
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.gray)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.08))
-                    .background(
-                        .ultraThinMaterial,
-                        in: RoundedRectangle(cornerRadius: 12)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.white.opacity(0.2),
-                                        Color.white.opacity(0.05)
-                                    ]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1
-                            )
-                    )
-            )
-        }
-        .disabled(filteredProjects.isEmpty)
+            ),
+            projects: filteredProjects.map { $0.toDropdownItem() },
+            accentColor: accentColor,
+            placeholder: "Select Project"
+        )
     }
     
     private var releaseDropdown: some View {
-        Menu {
-            ForEach(filteredReleases, id: \.id) { release in
-                Button(action: {
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                        selectedRelease = release
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: release.status.iconName)
-                            .foregroundColor(release.status.color)
-                        
-                        VStack(alignment: .leading) {
-                            Text("v\(release.version)")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text(release.name)
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        if selectedRelease?.id == release.id {
-                            Spacer()
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 12))
-                                .foregroundColor(accentColor)
-                        }
-                    }
+        ReleaseDropdown(
+            selectedRelease: Binding(
+                get: { selectedRelease?.toDropdownItem() },
+                set: { dropdownItem in
+                    selectedRelease = dropdownItem?.toRelease(from: filteredReleases)
                 }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                if let release = selectedRelease {
-                    Image(systemName: release.status.iconName)
-                        .foregroundColor(release.status.color)
-                        .font(.system(size: 16))
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("v\(release.version)")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                        Text(release.name)
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                    }
-                } else {
-                    Text("Select Release")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.gray)
-                }
-                
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.1))
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-            )
-        }
-        .disabled(filteredReleases.isEmpty)
+            ),
+            releases: filteredReleases.map { $0.toDropdownItem() },
+            accentColor: accentColor,
+            placeholder: "Select Release"
+        )
     }
     
     // MARK: - Project Selection View
@@ -742,31 +580,74 @@ struct TaskManagementView: View {
     }
     
     private var modernTaskColumnsView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: 20) {
-                ForEach(Array(taskColumns.enumerated()), id: \.element.id) { index, column in
-                    ModernColumnView(
-                        column: column,
-                        notes: filteredTasks[column.id] ?? [],
-                        noteStore: noteStore,
-                        onRefresh: refreshTaskData
-                    )
-                    .frame(width: isCompactMode ? 300 : 350)
-                    .scaleEffect(animateIn ? 1 : 0.9)
-                    .opacity(animateIn ? 1 : 0)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(index) * 0.1), value: animateIn)
+        GeometryReader { geometry in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: isCompactMode ? 16 : 24) {
+                    ForEach(Array(taskColumns.enumerated()), id: \.element.id) { index, column in
+                        ModernColumnView(
+                            column: column,
+                            notes: filteredTasks[column.id] ?? [],
+                            noteStore: noteStore,
+                            onRefresh: refreshTaskData
+                        )
+                        .frame(width: dynamicColumnWidth(for: geometry))
+                        .scaleEffect(animateIn ? 1 : 0.95)
+                        .opacity(animateIn ? 1 : 0)
+                        .animation(
+                            .spring(response: 0.5, dampingFraction: 0.8)
+                            .delay(Double(index) * 0.08),
+                            value: animateIn
+                        )
+                    }
+                    
+                    // Add column button with improved styling
+                    AddColumnButton(onAdd: addNewColumn)
+                        .frame(width: dynamicColumnWidth(for: geometry))
+                        .opacity(animateIn ? 0.8 : 0)
+                        .animation(
+                            .easeOut(duration: 0.5)
+                            .delay(Double(taskColumns.count) * 0.08 + 0.2),
+                            value: animateIn
+                        )
                 }
-                
-                // Add column button
-                AddColumnButton(onAdd: addNewColumn)
-                    .frame(width: isCompactMode ? 300 : 350)
-                    .opacity(animateIn ? 0.7 : 0)
-                    .animation(.easeOut(duration: 0.6).delay(0.8), value: animateIn)
+                .padding(.horizontal, adaptivePadding(for: geometry))
+                .padding(.vertical, 20)
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
         }
         .background(Color.clear)
+    }
+    
+    // MARK: - Responsive Layout Helpers
+    
+    private func dynamicColumnWidth(for geometry: GeometryProxy) -> CGFloat {
+        let screenWidth = geometry.size.width
+        let availableWidth = screenWidth - (adaptivePadding(for: geometry) * 2)
+        let numberOfColumns = taskColumns.count + 1 // +1 for add button
+        
+        if isCompactMode {
+            return min(280, max(240, availableWidth / CGFloat(min(numberOfColumns, 4))))
+        } else {
+            let idealWidth: CGFloat = 340
+            let minWidth: CGFloat = 300
+            let maxColumnsVisible = Int(availableWidth / minWidth)
+            
+            if numberOfColumns <= maxColumnsVisible {
+                return min(idealWidth, availableWidth / CGFloat(numberOfColumns))
+            } else {
+                return max(minWidth, idealWidth)
+            }
+        }
+    }
+    
+    private func adaptivePadding(for geometry: GeometryProxy) -> CGFloat {
+        let screenWidth = geometry.size.width
+        if screenWidth < 1200 {
+            return 20
+        } else if screenWidth < 1600 {
+            return 28
+        } else {
+            return 36
+        }
     }
 
 
@@ -1244,5 +1125,48 @@ struct TaskManagementView: View {
 #Preview {
     TaskManagementView()
     .environmentObject(AppState())
+}
+
+// MARK: - Extensions for Dropdown Integration
+
+extension Project {
+    func toDropdownItem() -> ProjectDropdownItem {
+        return ProjectDropdownItem(
+            id: self.id.uuidString,
+            title: self.title,
+            description: self.description,
+            logoImageData: self.logoImageData,
+            color: self.color
+        )
+    }
+}
+
+extension ProjectDropdownItem {
+    func toProject(from projects: [Project]) -> Project? {
+        return projects.first { $0.id.uuidString == self.id }
+    }
+}
+
+extension Release {
+    func toDropdownItem() -> ReleaseDropdownItem {
+        return ReleaseDropdownItem(
+            id: self.id.uuidString,
+            version: self.version,
+            name: self.name,
+            status: self.status.toDropdownStatus()
+        )
+    }
+}
+
+extension ReleaseDropdownItem {
+    func toRelease(from releases: [Release]) -> Release? {
+        return releases.first { $0.id.uuidString == self.id }
+    }
+}
+
+extension ReleaseStatus {
+    func toDropdownStatus() -> DropdownReleaseStatus {
+        return DropdownReleaseStatus(iconName: self.iconName, color: self.color)
+    }
 } 
 

@@ -194,9 +194,9 @@ struct OnboardingView: View {
     private func subTitleForStep(_ step: OnboardingStep) -> String {
         switch step {
         case .permissions:
-            return "These permissions are required to use Kerlig to be able to capture text from any app."
+            return "These permissions are required to use MacWrite to be able to capture text from any app."
         case .modelSelection:
-            return "Select the AI model that best fits your needs for the most accurate and helpful responses."
+            return "Select the AI model that best fits your needs for the most accurate and helpful responses. Free models are also available."
         }
     }
     
@@ -422,7 +422,16 @@ struct ModelSelectionStepView: View {
                 icon: "tornado"),
         AIModel(id: "gemini-pro", name: "Gemini Pro", provider: "Google", 
                 description: "Fast and efficient text processing", 
-                icon: "diamond")
+                icon: "diamond"),
+        AIModel(id: "claude-3-opus", name: "Claude 3 Opus", provider: "Anthropic", 
+                description: "Advanced reasoning and detailed responses", 
+                icon: "brain.head.profile"),
+        AIModel(id: "mistral-large", name: "Mistral Large", provider: "Mistral AI", 
+                description: "Efficient model with strong multilingual capabilities", 
+                icon: "wind"),
+        AIModel(id: "@cf/meta/llama-3.1-8b-instruct", name: "Llama 3.1 (8B)", provider: "Meta AI", 
+                description: "Lightweight model for faster responses", 
+                icon: "bolt.square")
     ]
     
     var body: some View {

@@ -10,25 +10,7 @@ import AppKit
 import Combine
 import OSLog
 
-enum SidebarItem: String, Identifiable, CaseIterable {
-    case dashboard = "Dashboard"
-    case taskManagement = "Task Management"
-    case noteboard = "Note Board"
-    case clipboardHistory = "Clipboard History"
-    case history = "History"
-    
-    var id: String { self.rawValue }
-    
-    var icon: String {
-        switch self {
-        case .dashboard: return "square.grid.2x2"
-        case .taskManagement: return "checklist"
-        case .noteboard: return "note.text"
-        case .clipboardHistory: return "doc.on.clipboard"
-        case .history: return "clock"
-        }
-    }
-}
+
 
 struct ContentView: View {
     @EnvironmentObject var appState: kerlig.AppState
@@ -66,6 +48,8 @@ struct ContentView: View {
                         .tag(item) // Ensure each row can update the selection
                 }
             }
+            .listStyle(.sidebar)
+            .frame(minWidth: 200)
         } detail: {
             if let selectedSidebarItem = selectedSidebarItem {
                 switch selectedSidebarItem {
@@ -73,8 +57,6 @@ struct ContentView: View {
                     DashboardView()
                 case .taskManagement:
                     TaskManagementView()
-                case .noteboard:
-                    NoteBoardView()
                 case .clipboardHistory:
                     ClipboardHistoryView()
                 case .history:
@@ -390,127 +372,8 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Placeholder Views for Navigation
 
-struct DashboardView: View {
-    @State private var showTaskTimerDemo = false
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 64))
-                .foregroundColor(.blue)
-            
-            Text("Dashboard")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("Dashboard functionality - Coming Soon!")
-                .foregroundColor(.secondary)
-            
-            Button(action: {
-                showTaskTimerDemo = true
-            }) {
-                HStack {
-                    Image(systemName: "timer")
-                    Text("Task Timer Demo")
-                }
-                .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(8)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .shadow(color: Color.black.opacity(0.2), radius: 3, x: 0, y: 2)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.textBackgroundColor))
-        .sheet(isPresented: $showTaskTimerDemo) {
-            TaskTimerDemoView()
-        }
-    }
-}
 
-struct ClipboardHistoryView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "doc.on.clipboard")
-                .font(.system(size: 64))
-                .foregroundColor(.green)
-            
-            Text("Clipboard History")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("Clipboard history functionality - Coming Soon!")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.textBackgroundColor))
-    }
-}
-
-struct HistoryView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "clock")
-                .font(.system(size: 64))
-                .foregroundColor(.purple)
-            
-            Text("History")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("History functionality - Coming Soon!")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.textBackgroundColor))
-    }
-}
-
-struct FeatureRow: View {
-    let icon: String
-    let title: String
-    let description: String
-    @State private var isHovered = false
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(Color.blue.opacity(0.1))
-                    .frame(width: 50, height: 50)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(.blue)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
-                
-                Text(description)
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.blue.opacity(isHovered ? 0.08 : 0.02))
-                .shadow(color: Color.black.opacity(isHovered ? 0.1 : 0.0), radius: 5, x: 0, y: 2)
-        )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(.spring(response: 0.3), value: isHovered)
-        .onHover { hovering in
-            isHovered = hovering
-        }
-    }
-}
 
 struct KeyCapsuleView: View {
     let text: String
@@ -548,4 +411,10 @@ struct KeyCapsuleView: View {
     }
 }
 
-
+#Preview {
+    @Previewable @StateObject  var appState = AppState()
+    ContentView()
+        .environmentObject(appState)
+        .frame(minWidth: 1200 , minHeight: 1200)
+       
+}
