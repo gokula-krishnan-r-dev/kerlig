@@ -44,7 +44,7 @@ struct NotePadTextEditorView: View {
     
     // Colors for the rich text editor
     private let colorPalette: [Color] = [
-        .white, .black, .red, .orange, .yellow, .green, .blue, .purple, .pink
+        .white, .red, .orange, .yellow, .green, .blue, .purple, .pink
     ]
     
     var body: some View {
