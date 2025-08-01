@@ -61,6 +61,8 @@ struct ContentView: View {
                     ClipboardHistoryView()
                 case .history:
                     HistoryView()
+                case .setting:
+                    SettingsView()
                 }
             } else {
                 Text("Select an item from the sidebar.")
@@ -372,9 +374,6 @@ struct ContentView: View {
     }
 }
 
-
-
-
 struct KeyCapsuleView: View {
     let text: String
     @State private var isPressed = false
@@ -411,10 +410,9 @@ struct KeyCapsuleView: View {
     }
 }
 
+
 #Preview {
-    @Previewable @StateObject  var appState = AppState()
     ContentView()
-        .environmentObject(appState)
-        .frame(minWidth: 1200 , minHeight: 1200)
-       
+        .environmentObject(AppState())
+        .frame(minWidth: 1200, minHeight: 1200)
 }

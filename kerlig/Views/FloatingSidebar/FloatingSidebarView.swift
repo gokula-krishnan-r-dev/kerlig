@@ -149,6 +149,10 @@ struct FloatingSidebarView: View {
     // New unified media content
     @State private var taskMediaContent = MediaContent()
     
+    
+    //notionimport
+    @State private var showNotionContent = false
+    
     // Media picker visibility toggle
     @State private var showMediaPicker = UserDefaults.standard.bool(forKey: "showMediaPicker")
     
@@ -194,17 +198,22 @@ struct FloatingSidebarView: View {
                 addTaskView
             } else {
                 addTaskButton
+                if (showNotionContent){
+                    // Import from Notion section
+                    importSection
+                }
+            }
+
                 
-                // Import from Notion section
-                importSection
-            }
-
-            // Order with AI Button
-            if !isAddingNote && !noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).isEmpty {
-                orderWithAIButton
-            }
-
-         
+                if (showNotionContent){
+                    
+                    
+                    // Order with AI Button
+                    if !isAddingNote && !noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).isEmpty {
+                        orderWithAIButton
+                    }
+                    
+                }
 
             }
             
@@ -386,7 +395,10 @@ struct FloatingSidebarView: View {
                 .foregroundColor(.white)
             
             Spacer()
-
+            
+            Button("More") {
+                showNotionContent.toggle()
+            }
             // Dynamic Full Screen Mode Button
             fullScreenModeButton
 
@@ -1510,8 +1522,6 @@ struct FloatingSidebarView: View {
     
     private var taskListView: some View {
         ScrollView {
-
- 
             LazyVStack(spacing: 4) {
                 // Regular tasks
                 ForEach(noteStore.getFilteredPendingNotes(selectedProject: selectedProject, selectedRelease: selectedRelease).filter { !$0.isScheduled }) { note in
@@ -4551,17 +4561,6 @@ class GifCache {
     }
 }
 
-
-#Preview {
-    if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-        
-        FloatingSidebarView(controller: FloatingSidebarController(), onClose: {})
-    }else{
-        Text("demo")
-    }
-
-}
-
 // MARK: - Priority Indicator Helper Function
 private func priorityIndicator(for priority: TaskPriority) -> some View {
     HStack(spacing: 2) {
@@ -4583,4 +4582,16 @@ private func priorityIndicator(for priority: TaskPriority) -> some View {
                     .stroke(priority.color.opacity(0.3), lineWidth: 0.5)
             )
     )
+}
+
+
+#Preview("Sidebar Layout") {
+    VStack{
+        Text("FloatingSidebar Layout")
+            .font(.title2)
+            .fontWeight(.bold)
+    }
+    FloatingSidebarView(controller: FloatingSidebarController(), onClose: {})
+    .environmentObject(AppState())
+    .frame(width: 400, height: 900, alignment: .center)
 }

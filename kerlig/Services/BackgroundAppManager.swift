@@ -6,8 +6,10 @@ class BackgroundAppManager: NSObject {
     
     private var menuBarController: MenuBarController?
     private var floatingPanelController: FloatingPanelController?
+    private var clipboardPanelController: ClipboardPanelController?
     private var hotkeyManager: HotkeyManager?
     private var textCaptureService: TextCaptureService?
+    private var clipboardService: ClipboardMonitoringService?
     private var appState: AppState?
     private var customActionsStorage: CustomActionsStorage?
     
@@ -26,6 +28,10 @@ class BackgroundAppManager: NSObject {
         self.floatingPanelController = floatingPanelController
         self.textCaptureService = textCaptureService
         
+        // Initialize clipboard service and panel
+        self.clipboardService = ClipboardMonitoringService.shared
+        self.clipboardPanelController = ClipboardPanelController()
+        
         // Setup menu bar
         setupMenuBar()
         
@@ -36,6 +42,9 @@ class BackgroundAppManager: NSObject {
         if let hotkeyManager = hotkeyManager {
             WhisperModeManager.shared.registerHotkey(with: hotkeyManager)
         }
+        
+        // Start clipboard monitoring
+        clipboardService?.startMonitoring()
         
         // Enter background mode if user preference is set
         if appState.runInBackground {
@@ -88,6 +97,13 @@ class BackgroundAppManager: NSObject {
             }
         }
         
+        // Register Clipboard History shortcut (Command + Shift + V)
+        hotkeyManager?.registerClipboardHistoryShortcut { [weak self] in
+            DispatchQueue.main.async {
+                self?.handleClipboardHistoryActivation()
+            }
+        }
+        
         // Start text monitoring
         textCaptureService?.startMonitoring()
     }
@@ -119,6 +135,18 @@ class BackgroundAppManager: NSObject {
         
         // Activate Whisper Mode
         WhisperModeManager.shared.activateWhisperMode()
+    }
+    
+    func handleClipboardHistoryActivation() {
+        NSLog("📋 Clipboard History activated via shortcut")
+        
+        // Ensure we're in background mode
+        if !isBackgroundMode {
+            enterBackgroundMode()
+        }
+        
+        // Show clipboard panel
+        clipboardPanelController?.showPanel()
     }
     
     func enterBackgroundMode() {
@@ -299,8 +327,10 @@ class BackgroundAppManager: NSObject {
     func terminateApp() {
         // Clean up resources
         textCaptureService?.stopMonitoring()
+        clipboardService?.stopMonitoring()
         menuBarController = nil
         floatingPanelController = nil
+        clipboardPanelController = nil
         hotkeyManager = nil
         
         // Clean up Whisper Mode resources

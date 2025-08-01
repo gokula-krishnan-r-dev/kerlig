@@ -42,38 +42,46 @@ class MenuBarController: NSObject {
     }
     
     private func createMenuBarIcon() -> NSImage {
-        // Create a custom icon for the menu bar
+        // Use the system command key icon (⌘) for the menu bar
+        if let commandIcon = NSImage(systemSymbolName: "command", accessibilityDescription: "Kerlig Clipboard Manager") {
+            // Create a new image with the desired size
+            let image = NSImage(size: NSSize(width: 18, height: 18))
+            image.lockFocus()
+            
+            // Draw the command icon centered in the image
+            let drawRect = NSRect(x: 1, y: 1, width: 16, height: 15)
+            commandIcon.draw(in: drawRect)
+            
+            image.unlockFocus()
+            image.isTemplate = true
+            return image
+        }
+        
+        // Fallback to a simple command symbol if system icon fails
         let image = NSImage(size: NSSize(width: 18, height: 18))
         image.lockFocus()
         
-        // Draw a simple icon (you can replace this with your app icon)
-        let rect = NSRect(x: 2, y: 2, width: 14, height: 14)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
-        
-        NSColor.controlAccentColor.setFill()
-        path.fill()
-        
-        // Add a small "K" for Kerlig
-        let font = NSFont.systemFont(ofSize: 10, weight: .bold)
+        // Draw command symbol manually as fallback
+        let font = NSFont.systemFont(ofSize: 14, weight: .medium)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white
+            .foregroundColor: NSColor.labelColor
         ]
-        let string = NSAttributedString(string: "K", attributes: attributes)
-        let stringSize = string.size()
+        let commandString = NSAttributedString(string: "⌘", attributes: attributes)
+        let stringSize = commandString.size()
         let stringRect = NSRect(
-            x: (rect.width - stringSize.width) / 2 + rect.minX,
-            y: (rect.height - stringSize.height) / 2 + rect.minY,
+            x: (18 - stringSize.width) / 2,
+            y: (18 - stringSize.height) / 2,
             width: stringSize.width,
             height: stringSize.height
         )
-        string.draw(in: stringRect)
+        commandString.draw(in: stringRect)
         
         image.unlockFocus()
         image.isTemplate = true
         return image
     }
-    
+
     private func setupMenu() {
         let menu = NSMenu()
         

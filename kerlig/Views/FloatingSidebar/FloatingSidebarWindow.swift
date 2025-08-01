@@ -207,3 +207,6 @@ class FloatingSidebarController {
         window.setFrame(frame, display: true, animate: true)
     }
 } 
+
+
+

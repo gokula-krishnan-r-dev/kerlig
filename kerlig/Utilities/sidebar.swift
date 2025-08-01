@@ -3,6 +3,7 @@ enum SidebarItem: String, Identifiable, CaseIterable {
     case taskManagement = "Task Management"
     case clipboardHistory = "Clipboard History"
     case history = "History"
+    case setting = "setting"
     
     var id: String { self.rawValue }
     
@@ -12,6 +13,7 @@ enum SidebarItem: String, Identifiable, CaseIterable {
         case .taskManagement: return "checklist"
         case .clipboardHistory: return "doc.on.clipboard"
         case .history: return "clock"
+        case .setting: return "gearshape"
         }
     }
 }

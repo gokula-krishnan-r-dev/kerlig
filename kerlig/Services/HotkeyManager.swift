@@ -611,7 +611,7 @@ class HotkeyManager {
   }
 
   // This function was accidentally removed in the previous edit
-  private func simulateCommandV() -> Bool {
+  func simulateCommandV() -> Bool {
     // Try to simulate Cmd+V using CGEvent API
     guard let cmdDown = CGEvent(keyboardEventSource: nil, virtualKey: 0x37, keyDown: true) else {
       return false
@@ -1220,6 +1220,23 @@ class HotkeyManager {
       "✅ Set up key press detection for keyCode: \(keyCode) with Command: \(withCommand), Option: \(withOption), Shift: \(withShift)"
     )
   }
+
+  // Method to register Clipboard History shortcut (Command + Shift + V)
+  func registerClipboardHistoryShortcut(callback: @escaping () -> Void) {
+    NSLog("🔑 Registering Clipboard History hotkey (Command + Shift + V)")
+    
+    // Register using key press callback method similar to Whisper Mode
+    simulateKeyPressWithCallback(
+      keyCode: 0x09, // V key
+      withCommand: true,
+      withShift: true
+    ) {
+      NSLog("📋 Clipboard History shortcut activated")
+      callback()
+    }
+  }
+
+
 
   // Method to register Whisper Mode shortcut (Command + Shift + R)
   func registerWhisperModeShortcut(callback: @escaping () -> Void) {

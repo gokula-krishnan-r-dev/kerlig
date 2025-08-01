@@ -2,22 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-// Internal struct for model option information
-private struct ModelOption: Identifiable {
-  let id: String
-  let name: String
-  let iconName: String
-  let iconColor: Color
-  let cost: Double
-  let provider: String
-  let capabilities: String
-  let speed: String
-
-  // Formatted cost string
-  var formattedCost: String {
-    return "$\(String(format: "%.5f", cost))/request"
-  }
-}
+// Note: ModelOption is now imported from AIModelManager
 
 // MARK: - Paste Content Card Component
 struct PasteContentCard: View {
