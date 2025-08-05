@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "558AF8E82DD20927009924D2"
-               BuildableName = "kerlig.app"
-               BlueprintName = "kerlig"
-               ReferencedContainer = "container:kerlig.xcodeproj">
+               BuildableName = "Macwrite.app"
+               BlueprintName = "Macwrite"
+               ReferencedContainer = "container:Macwrite.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -36,9 +36,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "558AF8F62DD2092A009924D2"
-               BuildableName = "kerligTests.xctest"
-               BlueprintName = "kerligTests"
-               ReferencedContainer = "container:kerlig.xcodeproj">
+               BuildableName = "MacwriteTests.xctest"
+               BlueprintName = "MacwriteTests"
+               ReferencedContainer = "container:Macwrite.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -47,9 +47,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "558AF9002DD2092A009924D2"
-               BuildableName = "kerligUITests.xctest"
-               BlueprintName = "kerligUITests"
-               ReferencedContainer = "container:kerlig.xcodeproj">
+               BuildableName = "MacwriteUITests.xctest"
+               BlueprintName = "MacwriteUITests"
+               ReferencedContainer = "container:Macwrite.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -69,9 +69,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "558AF8E82DD20927009924D2"
-            BuildableName = "kerlig.app"
-            BlueprintName = "kerlig"
-            ReferencedContainer = "container:kerlig.xcodeproj">
+            BuildableName = "Macwrite.app"
+            BlueprintName = "Macwrite"
+            ReferencedContainer = "container:Macwrite.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -86,9 +86,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "558AF8E82DD20927009924D2"
-            BuildableName = "kerlig.app"
-            BlueprintName = "kerlig"
-            ReferencedContainer = "container:kerlig.xcodeproj">
+            BuildableName = "Macwrite.app"
+            BlueprintName = "Macwrite"
+            ReferencedContainer = "container:Macwrite.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
@@ -97,6 +97,7 @@
    </AnalyzeAction>
    <ArchiveAction
       buildConfiguration = "Release"
+      customArchiveName = "Macwrite"
       revealArchiveInOrganizer = "YES">
    </ArchiveAction>
 </Scheme>

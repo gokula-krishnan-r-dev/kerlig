@@ -320,7 +320,7 @@ struct ProjectDropdown_Previews: PreviewProvider {
                 projects: [
                     ProjectDropdownItem(
                         id: "1",
-                        title: "Kerlig App",
+                        title: "Mac Write App",
                         description: "macOS productivity app",
                         logoImageData: nil,
                         color: .blue

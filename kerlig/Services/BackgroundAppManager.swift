@@ -293,7 +293,7 @@ class BackgroundAppManager: NSObject {
         exitBackgroundMode()
         
         // Find or create main window
-        if let window = NSApp.windows.first(where: { $0.title == "Kerlig" }) {
+        if let window = NSApp.windows.first(where: { $0.title == "Mac Write" }) {
             window.makeKeyAndOrderFront(nil)
         } else {
             createMainWindow()
@@ -315,7 +315,7 @@ class BackgroundAppManager: NSObject {
             defer: false
         )
         
-        window.title = "Kerlig"
+        window.title = "Mac Write"
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -350,13 +350,13 @@ class BackgroundAppManager: NSObject {
 extension BackgroundAppManager: NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // App finished launching in background mode
-        NSLog("Kerlig started in background mode")
+        NSLog("Mac Write started in background mode")
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         // Clean up before termination
         textCaptureService?.stopMonitoring()
-        NSLog("Kerlig terminating")
+        NSLog("Mac Write terminating")
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

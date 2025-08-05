@@ -2117,7 +2117,7 @@ struct FloatingSidebarView: View {
             defer: false
         )
         
-        newWindow.title = "kerlig"
+        newWindow.title = "Mac Write"
         newWindow.center()
         newWindow.setFrameAutosaveName("MainWindow")
         newWindow.isReleasedWhenClosed = false

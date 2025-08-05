@@ -13,7 +13,7 @@ import OSLog
 
 
 struct ContentView: View {
-    @EnvironmentObject var appState: kerlig.AppState
+    @EnvironmentObject var appState: Macwrite.AppState
     @State private var showSettings: Bool = false
     @State private var isFirstLaunch: Bool = false
     @State private var showPermissionsNeeded: Bool = false
@@ -267,7 +267,7 @@ struct ContentView: View {
     private func handleSelectedText(_ text: String) {
         if !text.isEmpty {
             // Determine the source based on context clues
-            let source: kerlig.TextSource = text == NSPasteboard.general.string(forType: .string) ? 
+            let source: Macwrite.TextSource = text == NSPasteboard.general.string(forType: .string) ? 
                 .clipboard : .directSelection
             
             // Update app state with the text and its source

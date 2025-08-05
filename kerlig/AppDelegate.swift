@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    @ObservedObject var appState = kerlig.AppState()
+    @ObservedObject var appState = Macwrite.AppState()
     private var statusBarItem: NSStatusItem?
     private var contentViewController: NSHostingController<ContentView>?
     
@@ -28,7 +28,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setFrameAutosaveName("Main Window")
         window.contentView = hostingController.view
         window.makeKeyAndOrderFront(nil)
-        window.title = "Kerlig"
+        window.title = "Mac Write"
         
         // Set a minimum size for the window
         window.minSize = NSSize(width: 800, height: 500)

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TaskTimerDemoView: View {
-    @EnvironmentObject var appState: kerlig.AppState
+    @EnvironmentObject var appState: Macwrite.AppState
     @State private var taskName: String = "Current Task"
     @State private var durationMinutes: Double = 10
     @State private var isTimerRunning: Bool = false

@@ -94,6 +94,11 @@ struct HeaderPanelView: View {
                 id: "@cf/meta/llama-3-8b-instruct", name: "Llama 3 8B Instruct", iconName: "cloud",
                 iconColor: .orange, cost: 0.0005, provider: "Cloudflare", capabilities: "Good",
                 speed: "Fast"),
+                //@cf/meta/llama-3.3-70b-instruct-fp8-fast
+                ModelOption(
+                    id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+                    name: "Llama 3.3 70B Instruct FP8 Fast", iconName: "cloud.bolt", iconColor: .orange,
+                    cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
             ModelOption(
                 id: "@cf/meta/llama-3-70b-instruct", name: "Llama 3 70B Instruct",
                 iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare",
@@ -112,6 +117,24 @@ struct HeaderPanelView: View {
                 id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
                 name: "DeepSeek R1 Distill Qwen 32B", iconName: "cloud.bolt", iconColor: .orange,
                 cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
+
+//@cf/qwen/qwq-32b
+                ModelOption(
+                    id: "@cf/qwen/qwq-32b",
+                    name: "QwQ 32B", iconName: "cloud.bolt", iconColor: .orange,
+                    cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
+
+                //@cf/qwen/qwen2.5-coder-32b-instruct
+                ModelOption(
+                    id: "@cf/qwen/qwen2.5-coder-32b-instruct",
+                    name: "Qwen 2.5 Coder 32B Instruct", iconName: "cloud.bolt", iconColor: .orange,
+                    cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
 
             //@hf/google/gemma-7b-it
             ModelOption(

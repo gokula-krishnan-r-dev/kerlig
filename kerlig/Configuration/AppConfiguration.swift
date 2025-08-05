@@ -8,6 +8,12 @@ struct AppConfiguration {
         /// Base URL for the application website
         static let baseURL = "https://kerlig.app"
         
+        /// Development URLs for local testing
+        struct Development {
+            static let baseURL = "http://localhost:3000"
+            static let reportBug = "\(baseURL)/bug-report"
+        }
+        
         /// Support and help URLs
         static let requestChange = "\(baseURL)/request-change"
         static let writeReview = "\(baseURL)/write-review"
@@ -21,6 +27,15 @@ struct AppConfiguration {
         static let documentation = "\(baseURL)/docs"
         static let privacyPolicy = "\(baseURL)/privacy"
         static let termsOfService = "\(baseURL)/terms"
+        
+        /// Returns the appropriate bug report URL based on build configuration
+        static var bugReportURL: String {
+            #if DEBUG
+            return Development.reportBug
+            #else
+            return reportBug
+            #endif
+        }
     }
     
     /// Application default settings

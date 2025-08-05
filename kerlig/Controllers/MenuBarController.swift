@@ -43,7 +43,7 @@ class MenuBarController: NSObject {
     
     private func createMenuBarIcon() -> NSImage {
         // Use the system command key icon (⌘) for the menu bar
-        if let commandIcon = NSImage(systemSymbolName: "command", accessibilityDescription: "Kerlig Clipboard Manager") {
+        if let commandIcon = NSImage(systemSymbolName: "command", accessibilityDescription: "Mac Write Clipboard Manager") {
             // Create a new image with the desired size
             let image = NSImage(size: NSSize(width: 18, height: 18))
             image.lockFocus()
@@ -162,18 +162,27 @@ class MenuBarController: NSObject {
         
         // About
         let aboutItem = NSMenuItem(
-            title: "About Kerlig",
+            title: "About Mac Write",
             action: #selector(showAbout),
             keyEquivalent: ""
         )
         aboutItem.target = self
         menu.addItem(aboutItem)
+        
+        // Report Bugs
+        let reportBugsItem = NSMenuItem(
+            title: "Report Bugs",
+            action: #selector(reportBugs),
+            keyEquivalent: ""
+        )
+        reportBugsItem.target = self
+        menu.addItem(reportBugsItem)
 
-
+        menu.addItem(NSMenuItem.separator())
         
         // Quit
         let quitItem = NSMenuItem(
-            title: "Quit Kerlig",
+            title: "Quit MacWrite",
             action: #selector(quitApp),
             keyEquivalent: "q"
         )
@@ -230,7 +239,7 @@ class MenuBarController: NSObject {
             defer: false
         )
         
-        window.title = "Kerlig"
+        window.title = "Mac Write"
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -290,6 +299,10 @@ class MenuBarController: NSObject {
         aboutWindowController.showAboutWindow()
     }
     
+    @objc private func reportBugs() {
+        openBugReportURL()
+    }
+    
     @objc private func quitApp() {
         NSApp.terminate(nil)
     }
@@ -326,6 +339,88 @@ class MenuBarController: NSObject {
         // Register the Command+P hotkey for the projects panel
         projectsPanelController.registerHotkey(appState: appState)
         NSLog("✅ [MenuBarController] Projects panel controller initialized with hotkeys")
+    }
+    
+    // MARK: - Bug Report URL Handling
+    
+    /// Dynamic bug report URL configuration from AppConfiguration
+    /// Automatically switches between development and production URLs based on build configuration
+    private var bugReportURL: String {
+        return AppConfiguration.URLs.bugReportURL
+    }
+    
+    /// Opens the bug report URL in Chrome browser with fallback to default browser
+    /// This method provides a professional, robust way to handle external URL navigation
+    private func openBugReportURL() {
+        guard let url = URL(string: bugReportURL) else {
+            NSLog("❌ [MenuBarController] Invalid bug report URL: \(bugReportURL)")
+            showURLErrorAlert()
+            return
+        }
+        
+        NSLog("🐛 [MenuBarController] Opening bug report URL: \(bugReportURL)")
+        
+        // First attempt: Try to open specifically in Chrome for consistent experience
+        if openURLInChrome(url) {
+            NSLog("✅ [MenuBarController] Successfully opened bug report in Chrome")
+            return
+        }
+        
+        // Second attempt: Fallback to default browser
+        if openURLInDefaultBrowser(url) {
+            NSLog("✅ [MenuBarController] Successfully opened bug report in default browser")
+            return
+        }
+        
+        // If both methods fail, show error to user
+        NSLog("❌ [MenuBarController] Failed to open bug report URL in any browser")
+        showURLErrorAlert()
+    }
+    
+    /// Attempts to open URL specifically in Chrome browser
+    /// - Parameter url: The URL to open
+    /// - Returns: True if successful, false otherwise
+    private func openURLInChrome(_ url: URL) -> Bool {
+        let chromeURL = "googlechrome://\(url.absoluteString)"
+        
+        guard let chromeURLObj = URL(string: chromeURL) else {
+            return false
+        }
+        
+        // Check if Chrome is installed and can handle the URL
+        if NSWorkspace.shared.urlForApplication(toOpen: chromeURLObj) != nil {
+            NSWorkspace.shared.open(chromeURLObj)
+            return true
+        }
+        
+        return false
+    }
+    
+    /// Opens URL in the system's default browser
+    /// - Parameter url: The URL to open
+    /// - Returns: True if successful, false otherwise
+    private func openURLInDefaultBrowser(_ url: URL) -> Bool {
+        return NSWorkspace.shared.open(url)
+    }
+    
+    /// Shows an alert when URL opening fails
+    private func showURLErrorAlert() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Unable to Open Bug Report"
+            alert.informativeText = "We couldn't open the bug report page. Please manually navigate to: \(self.bugReportURL)"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Copy URL")
+            
+            let response = alert.runModal()
+            if response == .alertSecondButtonReturn {
+                // Copy URL to clipboard
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(self.bugReportURL, forType: .string)
+            }
+        }
     }
     
     deinit {

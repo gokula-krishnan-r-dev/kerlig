@@ -1280,7 +1280,7 @@ class HotkeyManager {
         // Show a dialog to the user
         let dialog = NSAlert()
         dialog.messageText = "Permission Error"
-        dialog.informativeText = "Please grant accessibility permissions to Kerlig."
+        dialog.informativeText = "Please grant accessibility permissions to Mac Write."
         dialog.addButton(withTitle: "Open Settings")
         dialog.addButton(withTitle: "Close")
 

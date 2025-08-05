@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var appState: kerlig.AppState
+    @EnvironmentObject var appState: Macwrite.AppState
     @State private var selectedTab = "General"
     
     var body: some View {
@@ -66,7 +66,7 @@ struct TabButton: View {
 
 // General settings tab
 struct GeneralSettingsView: View {
-    @EnvironmentObject var appState: kerlig.AppState
+    @EnvironmentObject var appState: Macwrite.AppState
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -124,7 +124,7 @@ struct GeneralSettingsView: View {
 
 // Notification settings tab
 struct NotificationSettingsView: View {
-    @EnvironmentObject var appState: kerlig.AppState
+    @EnvironmentObject var appState: Macwrite.AppState
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {

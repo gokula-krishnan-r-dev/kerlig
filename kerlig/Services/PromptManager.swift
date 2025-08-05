@@ -3,7 +3,6 @@ import Foundation
 /// A structured approach to generating AI prompts based on different scenarios and needs
 class PromptManager {
 
-  // MARK: - Prompt Template Model
 
   /// Represents a single prompt template with conditions for when to apply it
   struct PromptTemplate {

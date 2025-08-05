@@ -28,9 +28,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		558AF8E92DD20927009924D2 /* kerlig.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = kerlig.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		558AF8F72DD2092A009924D2 /* kerligTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = kerligTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		558AF9012DD2092A009924D2 /* kerligUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = kerligUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		558AF8E92DD20927009924D2 /* Macwrite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Macwrite.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		558AF8F72DD2092A009924D2 /* MacwriteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacwriteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		558AF9012DD2092A009924D2 /* MacwriteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacwriteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		558F13A12E02FCA7000019D5 /* macwriteTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = macwriteTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -104,9 +104,9 @@
 		558AF8EA2DD20927009924D2 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				558AF8E92DD20927009924D2 /* kerlig.app */,
-				558AF8F72DD2092A009924D2 /* kerligTests.xctest */,
-				558AF9012DD2092A009924D2 /* kerligUITests.xctest */,
+				558AF8E92DD20927009924D2 /* Macwrite.app */,
+				558AF8F72DD2092A009924D2 /* MacwriteTests.xctest */,
+				558AF9012DD2092A009924D2 /* MacwriteUITests.xctest */,
 				558F13A12E02FCA7000019D5 /* macwriteTest.xctest */,
 			);
 			name = Products;
@@ -115,9 +115,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		558AF8E82DD20927009924D2 /* kerlig */ = {
+		558AF8E82DD20927009924D2 /* Macwrite */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 558AF90B2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "kerlig" */;
+			buildConfigurationList = 558AF90B2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "Macwrite" */;
 			buildPhases = (
 				558AF8E52DD20927009924D2 /* Sources */,
 				558AF8E62DD20927009924D2 /* Frameworks */,
@@ -130,17 +130,17 @@
 			fileSystemSynchronizedGroups = (
 				558AF8EB2DD20927009924D2 /* kerlig */,
 			);
-			name = kerlig;
+			name = Macwrite;
 			packageProductDependencies = (
 				551D8BD82DFBF2C6004BD63E /* MarkdownUI */,
 			);
 			productName = kerlig;
-			productReference = 558AF8E92DD20927009924D2 /* kerlig.app */;
+			productReference = 558AF8E92DD20927009924D2 /* Macwrite.app */;
 			productType = "com.apple.product-type.application";
 		};
-		558AF8F62DD2092A009924D2 /* kerligTests */ = {
+		558AF8F62DD2092A009924D2 /* MacwriteTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 558AF90E2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "kerligTests" */;
+			buildConfigurationList = 558AF90E2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "MacwriteTests" */;
 			buildPhases = (
 				558AF8F32DD2092A009924D2 /* Sources */,
 				558AF8F42DD2092A009924D2 /* Frameworks */,
@@ -154,16 +154,16 @@
 			fileSystemSynchronizedGroups = (
 				558AF8FA2DD2092A009924D2 /* kerligTests */,
 			);
-			name = kerligTests;
+			name = MacwriteTests;
 			packageProductDependencies = (
 			);
 			productName = kerligTests;
-			productReference = 558AF8F72DD2092A009924D2 /* kerligTests.xctest */;
+			productReference = 558AF8F72DD2092A009924D2 /* MacwriteTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		558AF9002DD2092A009924D2 /* kerligUITests */ = {
+		558AF9002DD2092A009924D2 /* MacwriteUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 558AF9112DD2092A009924D2 /* Build configuration list for PBXNativeTarget "kerligUITests" */;
+			buildConfigurationList = 558AF9112DD2092A009924D2 /* Build configuration list for PBXNativeTarget "MacwriteUITests" */;
 			buildPhases = (
 				558AF8FD2DD2092A009924D2 /* Sources */,
 				558AF8FE2DD2092A009924D2 /* Frameworks */,
@@ -177,11 +177,11 @@
 			fileSystemSynchronizedGroups = (
 				558AF9042DD2092A009924D2 /* kerligUITests */,
 			);
-			name = kerligUITests;
+			name = MacwriteUITests;
 			packageProductDependencies = (
 			);
 			productName = kerligUITests;
-			productReference = 558AF9012DD2092A009924D2 /* kerligUITests.xctest */;
+			productReference = 558AF9012DD2092A009924D2 /* MacwriteUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		558F13A02E02FCA7000019D5 /* macwriteTest */ = {
@@ -232,7 +232,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 558AF8E42DD20927009924D2 /* Build configuration list for PBXProject "kerlig" */;
+			buildConfigurationList = 558AF8E42DD20927009924D2 /* Build configuration list for PBXProject "Macwrite" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -250,9 +250,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				558AF8E82DD20927009924D2 /* kerlig */,
-				558AF8F62DD2092A009924D2 /* kerligTests */,
-				558AF9002DD2092A009924D2 /* kerligUITests */,
+				558AF8E82DD20927009924D2 /* Macwrite */,
+				558AF8F62DD2092A009924D2 /* MacwriteTests */,
+				558AF9002DD2092A009924D2 /* MacwriteUITests */,
 				558F13A02E02FCA7000019D5 /* macwriteTest */,
 			);
 		};
@@ -323,12 +323,12 @@
 /* Begin PBXTargetDependency section */
 		558AF8F92DD2092A009924D2 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 558AF8E82DD20927009924D2 /* kerlig */;
+			target = 558AF8E82DD20927009924D2 /* Macwrite */;
 			targetProxy = 558AF8F82DD2092A009924D2 /* PBXContainerItemProxy */;
 		};
 		558AF9032DD2092A009924D2 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 558AF8E82DD20927009924D2 /* kerlig */;
+			target = 558AF8E82DD20927009924D2 /* Macwrite */;
 			targetProxy = 558AF9022DD2092A009924D2 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -467,7 +467,7 @@
 				CODE_SIGN_ENTITLEMENTS = kerlig/kerlig.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = GZM73634C6;
 				ENABLE_APP_SANDBOX = YES;
@@ -479,14 +479,15 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = macwrite;
+				INFOPLIST_KEY_CFBundleDisplayName = Macwrite;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.macwrite.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -506,7 +507,7 @@
 				CODE_SIGN_ENTITLEMENTS = kerlig/kerlig.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = GZM73634C6;
 				ENABLE_APP_SANDBOX = YES;
@@ -518,14 +519,15 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = macwrite;
+				INFOPLIST_KEY_CFBundleDisplayName = Macwrite;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.macwrite.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -551,7 +553,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/kerlig.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/kerlig";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Macwrite.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Macwrite";
 			};
 			name = Debug;
 		};
@@ -570,7 +572,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/kerlig.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/kerlig";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Macwrite.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Macwrite";
 			};
 			name = Release;
 		};
@@ -658,7 +660,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		558AF8E42DD20927009924D2 /* Build configuration list for PBXProject "kerlig" */ = {
+		558AF8E42DD20927009924D2 /* Build configuration list for PBXProject "Macwrite" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				558AF9092DD2092A009924D2 /* Debug */,
@@ -667,7 +669,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		558AF90B2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "kerlig" */ = {
+		558AF90B2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "Macwrite" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				558AF90C2DD2092A009924D2 /* Debug */,
@@ -676,7 +678,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		558AF90E2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "kerligTests" */ = {
+		558AF90E2DD2092A009924D2 /* Build configuration list for PBXNativeTarget "MacwriteTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				558AF90F2DD2092A009924D2 /* Debug */,
@@ -685,7 +687,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		558AF9112DD2092A009924D2 /* Build configuration list for PBXNativeTarget "kerligUITests" */ = {
+		558AF9112DD2092A009924D2 /* Build configuration list for PBXNativeTarget "MacwriteUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				558AF9122DD2092A009924D2 /* Debug */,
@@ -718,7 +720,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/simibac/ConfettiSwiftUI.git";
 			requirement = {
-				kind = upToNextMinorVersion;
+				kind = upToNextMajorVersion;
 				minimumVersion = 2.0.3;
 			};
 		};

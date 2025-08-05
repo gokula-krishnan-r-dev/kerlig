@@ -20,7 +20,7 @@ class AboutWindowController: NSObject {
             defer: false
         )
         
-        window.title = "About Kerlig"
+        window.title = "About Mac Write"
         window.contentView = NSHostingView(rootView: aboutView)
         window.center()
         window.makeKeyAndOrderFront(nil)

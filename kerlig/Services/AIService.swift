@@ -570,6 +570,7 @@ class AIService {
       ],
       "instruction": systemPrompt.isEmpty ? "You are a helpful assistant that provides clear and concise responses. give me response as per this library https://github.com/gonzalezreal/swift-markdown-ui" : systemPrompt,
       "text": prompt,
+      "model": selectedModel,
       "stream": true,
       // "model": selectedModel
     ]
