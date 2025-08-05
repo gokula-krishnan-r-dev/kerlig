@@ -45,7 +45,6 @@ struct User: Codable, Identifiable, Equatable {
 }
 
 // MARK: - Authentication Response Models
-
 struct AuthResponse: Codable {
     let accessToken: String
     let refreshToken: String
@@ -69,7 +68,6 @@ struct RegisterRequest: Codable {
     let email: String
     let password: String
     let confirmPassword: String
-    let username: String
     let firstName: String
     let lastName: String
 
@@ -77,7 +75,6 @@ struct RegisterRequest: Codable {
         case email
         case password
         case confirmPassword = "confirm_password"
-        case username
         case firstName = "first_name"
         case lastName = "last_name"
     }
@@ -240,12 +237,11 @@ struct RegisterForm {
     var email: String = ""
     var password: String = ""
     var confirmPassword: String = ""
-    var username: String = ""
     var firstName: String = ""
     var lastName: String = ""
 
     var isValid: Bool {
-        return isValidEmail && isValidPassword && isValidConfirmPassword && isValidUsername
+        return isValidEmail && isValidPassword && isValidConfirmPassword
             && isValidFirstName && isValidLastName
     }
 
@@ -261,11 +257,6 @@ struct RegisterForm {
 
     var isValidConfirmPassword: Bool {
         return !confirmPassword.isEmpty && password == confirmPassword
-    }
-
-    var isValidUsername: Bool {
-        return username.count >= 3 && username.count <= 30
-            && username.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
     }
 
     var isValidFirstName: Bool {
@@ -304,20 +295,6 @@ struct RegisterForm {
         return isValidConfirmPassword ? nil : "Passwords do not match"
     }
 
-    var usernameError: String? {
-        if username.isEmpty { return nil }
-        if username.count < 3 {
-            return "Username must be at least 3 characters"
-        }
-        if username.count > 30 {
-            return "Username must be less than 30 characters"
-        }
-        if !username.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
-            return "Username can only contain letters, numbers, and underscores"
-        }
-        return nil
-    }
-
     var firstNameError: String? {
         if firstName.isEmpty { return nil }
         return isValidFirstName ? nil : "First name is required"
@@ -333,7 +310,6 @@ struct RegisterForm {
             email: email.trimmingCharacters(in: .whitespaces),
             password: password,
             confirmPassword: confirmPassword,
-            username: username.trimmingCharacters(in: .whitespaces),
             firstName: firstName.trimmingCharacters(in: .whitespaces),
             lastName: lastName.trimmingCharacters(in: .whitespaces),
         )

@@ -44,7 +44,7 @@ struct AuthView: View {
     var body: some View {
         ZStack {
             // Background with pattern
-            backgroundGradient
+            // backgroundGradient
 
             // Centered modal card
             authModalCard
