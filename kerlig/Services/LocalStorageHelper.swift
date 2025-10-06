@@ -226,44 +226,8 @@ class LocalStorageHelper {
 
     // MARK: - Session Management
 
-    /// Store complete user data for persistence
-    func storeUser(_ user: User) {
-        storeUserId(user.id)
-        storeUserEmail(user.email)
-        storeUserUsername(user.username)
-        storeUserFirstName(user.firstName)
-        storeUserLastName(user.lastName)
-        storeIsVerified(user.isVerified)
-        storeProfileImageUrl(user.profileImageUrl)
-        storeCreatedAt(user.createdAt)
-        storeUpdatedAt(user.updatedAt)
-        NSLog("🔐 [LocalStorage] Stored complete user data for: \(user.email)")
-    }
+   
 
-    /// Retrieve complete user data from storage
-    func getStoredUser() -> User? {
-        guard let userId = getUserId(),
-            let email = getUserEmail()
-        else {
-            NSLog("🔐 [LocalStorage] No stored user data found")
-            return nil
-        }
-
-        let user = User(
-            id: userId,
-            email: email,
-            username: getUserUsername() ?? "",
-            firstName: getUserFirstName() ?? "",
-            lastName: getUserLastName() ?? "",
-            createdAt: getCreatedAt() ?? Date(),
-            updatedAt: getUpdatedAt() ?? Date(),
-            isVerified: getIsVerified(),
-            profileImageUrl: getProfileImageUrl()
-        )
-
-        NSLog("🔐 [LocalStorage] Retrieved stored user: \(user.email)")
-        return user
-    }
 
     /// Store auth session info with expiration
     func storeAuthSession(expiresAt: Date?) {

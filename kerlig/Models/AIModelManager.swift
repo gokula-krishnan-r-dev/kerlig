@@ -4,7 +4,7 @@ import Combine
 
 // MARK: - AI Model Data Structures
 
-struct ModelOption: Identifiable, Codable, Hashable {
+struct ModelOption: Identifiable, Hashable {
     let id: String
     let name: String
     let iconName: String

@@ -261,8 +261,7 @@ class MenuBarController: NSObject {
             existingWindow.close()
         }
 
-          let floatingSidebarController = FloatingSidebarController()
-        floatingSidebarController.toggleSidebar()
+    
     }
     
     @objc private func toggleLaunchAtLogin() {

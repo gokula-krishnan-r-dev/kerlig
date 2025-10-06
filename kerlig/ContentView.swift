@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var isFirstLaunch: Bool = false
     @State private var showPermissionsNeeded: Bool = false
     @State private var permissionGranted: Bool = false
-    @State private var selectedSidebarItem: SidebarItem? = .taskManagement
+    @State private var selectedSidebarItem: SidebarItem? = .dashboard
     @State private var showClipboardPermissionAlert = false
     @State private var clipboardPollingTimer: Timer?
     @State private var sidebarWidth: CGFloat = 240
@@ -31,7 +31,6 @@ struct ContentView: View {
     @State private var animateFeatures = false
     @State private var animatePulse = false
     @State private var isButtonPressed = false
-    @State private var showTaskTimerDemo = false
 
     @StateObject private var textCaptureService = TextCaptureService()
     @StateObject private var customActionsStorage = CustomActionsStorage()
@@ -55,8 +54,6 @@ struct ContentView: View {
                 switch selectedSidebarItem {
                 case .dashboard:
                     DashboardView()
-                case .taskManagement:
-                    TaskManagementView()
                 case .clipboardHistory:
                     ClipboardHistoryView()
                 case .history:
@@ -132,9 +129,6 @@ struct ContentView: View {
             withAnimation(.spring()) {
                 self.showClipboardPopup = true
             }
-        }
-        .sheet(isPresented: $showTaskTimerDemo) {
-            TaskTimerDemoView()
         }
     }
     

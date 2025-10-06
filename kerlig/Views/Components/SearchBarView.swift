@@ -23,7 +23,6 @@ struct SearchBar: View {
             }
         }
         .padding(8)
-        .background(colorScheme == .dark ? Color(hex: "1C1C1E") : Color(hex: "F2F2F7"))
         .cornerRadius(10)
     }
 }

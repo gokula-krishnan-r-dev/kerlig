@@ -12,8 +12,8 @@ struct OnboardingView: View {
             // Animated background
             RadialGradient(
                 gradient: Gradient(colors: [
-                    Color(hex: "2A1E5C").opacity(0.7),
-                    Color(hex: "0D0221")
+                    Color("2A1E5C").opacity(0.7),
+                    Color("0D0221")
                 ]),
                 center: .topLeading,
                 startRadius: animateBackground ? 100 : 50,
@@ -30,13 +30,13 @@ struct OnboardingView: View {
             ZStack {
                 // Decorative circles
                 Circle()
-                    .fill(Color(hex: "845CEF").opacity(0.1))
+                    .fill(Color("845CEF").opacity(0.1))
                     .frame(width: 200, height: 200)
                     .blur(radius: 50)
                     .offset(x: -150, y: -200)
                 
                 Circle()
-                    .fill(Color(hex: "7E45E3").opacity(0.15))
+                    .fill(Color("7E45E3").opacity(0.15))
                     .frame(width: 300, height: 300)
                     .blur(radius: 60)
                     .offset(x: 170, y: 200)
@@ -49,8 +49,8 @@ struct OnboardingView: View {
                     ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
                         Capsule()
                             .fill(step == appState.currentOnboardingStep ? 
-                                  Color(hex: "845CEF") : 
-                                  Color(hex: "845CEF").opacity(0.3))
+                                  Color("845CEF") : 
+                                  Color("845CEF").opacity(0.3))
                             .frame(width: step == appState.currentOnboardingStep ? 20 : 8, height: 8)
                             .animation(.spring(response: 0.4), value: appState.currentOnboardingStep)
                     }
@@ -60,7 +60,7 @@ struct OnboardingView: View {
                 // Step title with animation
                 Text(titleForStep(appState.currentOnboardingStep))
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
+                    .foregroundColor(colorScheme == .dark ? .white : Color("333333"))
                     .padding(.top, 30)
                     .padding(.bottom, 5)
                     .matchedGeometryEffect(id: "title", in: animation)
@@ -68,7 +68,7 @@ struct OnboardingView: View {
 
                 Text(subTitleForStep(appState.currentOnboardingStep))
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color("666666"))
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
                     .multilineTextAlignment(.center)
@@ -110,7 +110,7 @@ struct OnboardingView: View {
                     }) {
                         Text("Skip")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color("666666"))
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)
                             .background(
@@ -147,7 +147,7 @@ struct OnboardingView: View {
                                 Capsule()
                                     .fill(
                                         LinearGradient(
-                                            gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
+                                            gradient: Gradient(colors: [Color("845CEF"), Color("7E45E3")]),
                                             startPoint: .leading,
                                             endPoint: .trailing
                                         )
@@ -168,7 +168,7 @@ struct OnboardingView: View {
                                     .opacity(0.5)
                             }
                         )
-                        .shadow(color: Color(hex: "845CEF").opacity(0.3), radius: 15, x: 0, y: 5)
+                        .shadow(color: Color("845CEF").opacity(0.3), radius: 15, x: 0, y: 5)
                     }
                     .buttonStyle(ScaleButtonStyle())
                 }
@@ -225,6 +225,17 @@ struct PermissionsStepView: View {
     @State private var pulsateCircle: Bool = false
     @State private var rotationAngle: Double = 0
     
+    private var outerCircleGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color("845CEF").opacity(0.7),
+                Color("7E45E3").opacity(0.3)
+            ]),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+    
     var body: some View {
         VStack(spacing: 40) {
             // Animated icon
@@ -232,17 +243,7 @@ struct PermissionsStepView: View {
                 // Outer circles
                 ForEach(0..<3) { i in
                     Circle()
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(hex: "845CEF").opacity(0.7),
-                                    Color(hex: "7E45E3").opacity(0.3)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
-                            lineWidth: 1.5
-                        )
+                        .stroke(outerCircleGradient, lineWidth: 1.5)
                         .frame(width: 120 + CGFloat(i * 30), height: 120 + CGFloat(i * 30))
                         .opacity(animateItems ? 0.6 : 0)
                         .rotationEffect(.degrees(rotationAngle + Double(i * 10)))
@@ -254,15 +255,15 @@ struct PermissionsStepView: View {
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color(hex: "845CEF").opacity(0.8),
-                                    Color(hex: "7E45E3")
+                                    Color("845CEF").opacity(0.8),
+                                    Color("7E45E3")
                                 ]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .frame(width: 100, height: 100)
-                        .shadow(color: Color(hex: "845CEF").opacity(0.5), radius: 15, x: 0, y: 5)
+                        .shadow(color: Color("845CEF").opacity(0.5), radius: 15, x: 0, y: 5)
 //                        .scaleEffect(pulsateCircle ? 1.05 : 1)
                     
                     Image(systemName: hasAccessibilityPermission ? "checkmark.shield.fill" : "lock.shield.fill")
@@ -279,23 +280,23 @@ struct PermissionsStepView: View {
             VStack(spacing: 20) {
                 HStack(spacing: 15) {
                     Circle()
-                        .fill(hasAccessibilityPermission ? Color.green : Color(hex: "845CEF"))
+                        .fill(hasAccessibilityPermission ? Color.green : Color("845CEF"))
                         .frame(width: 50, height: 50)
                         .overlay(
                             Image(systemName: hasAccessibilityPermission ? "checkmark" : "arrowshape.turn.up.right")
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(.white)
                         )
-                        .shadow(color: (hasAccessibilityPermission ? Color.green : Color(hex: "845CEF")).opacity(0.5), radius: 10, x: 0, y: 5)
+                        .shadow(color: (hasAccessibilityPermission ? Color.green : Color("845CEF")).opacity(0.5), radius: 10, x: 0, y: 5)
                     
                     VStack(alignment: .leading, spacing: 6) {
                         Text(hasAccessibilityPermission ? "Accessibility Permission Granted" : "Accessibility Permission Required")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
+                            .foregroundColor(colorScheme == .dark ? .white : Color("333333"))
                         
                         Text(hasAccessibilityPermission ? "All set! You're ready to go." : "Click to open System Settings")
                             .font(.system(size: 16))
-                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666"))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color("666666"))
                     }
                 }
                 
@@ -314,13 +315,13 @@ struct PermissionsStepView: View {
                         .padding(.horizontal, 20)
                         .background(
                             LinearGradient(
-                                gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
+                                gradient: Gradient(colors: [Color("845CEF"), Color("7E45E3")]),
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
                         .clipShape(Capsule())
-                        .shadow(color: Color(hex: "845CEF").opacity(0.5), radius: 10, x: 0, y: 5)
+                        .shadow(color: Color("845CEF").opacity(0.5), radius: 10, x: 0, y: 5)
                     }
                     .buttonStyle(ScaleButtonStyle())
                     .padding(.top, 10)
@@ -443,8 +444,8 @@ struct ModelSelectionStepView: View {
                     .fill(
                         RadialGradient(
                             gradient: Gradient(colors: [
-                                Color(hex: "845CEF").opacity(0.7),
-                                Color(hex: "845CEF").opacity(0)
+                                Color("845CEF").opacity(0.7),
+                                Color("845CEF").opacity(0)
                             ]),
                             center: .center,
                             startRadius: animateGlow ? 50 : 30,
@@ -461,8 +462,8 @@ struct ModelSelectionStepView: View {
                         .stroke(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color(hex: "845CEF").opacity(0.7),
-                                    Color(hex: "7E45E3").opacity(0.3)
+                                    Color("845CEF").opacity(0.7),
+                                    Color("7E45E3").opacity(0.3)
                                 ]),
                                 startPoint: .leading,
                                 endPoint: .trailing
@@ -491,7 +492,7 @@ struct ModelSelectionStepView: View {
                 // Brain icon
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 40))
-                    .foregroundColor(Color(hex: "845CEF"))
+                    .foregroundColor(Color("845CEF"))
                     .symbolEffect(.pulse.byLayer, options: .repeating)
             }
             .frame(height: 150)
@@ -593,10 +594,10 @@ struct ModelCard: View {
                 // Background
                 Circle()
                     .fill(isSelected ? 
-                          LinearGradient(gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]), startPoint: .topLeading, endPoint: .bottomTrailing) :
+                          LinearGradient(gradient: Gradient(colors: [Color("845CEF"), Color("7E45E3")]), startPoint: .topLeading, endPoint: .bottomTrailing) :
                           (colorScheme == .dark ? 
-                           LinearGradient(gradient: Gradient(colors: [Color(hex: "2A2A2A"), Color(hex: "222222")]), startPoint: .topLeading, endPoint: .bottomTrailing) :
-                           LinearGradient(gradient: Gradient(colors: [Color(hex: "f8f8f8"), Color(hex: "f0f2f5")]), startPoint: .topLeading, endPoint: .bottomTrailing)))
+                           LinearGradient(gradient: Gradient(colors: [Color("2A2A2A"), Color("222222")]), startPoint: .topLeading, endPoint: .bottomTrailing) :
+                           LinearGradient(gradient: Gradient(colors: [Color("f8f8f8"), Color("f0f2f5")]), startPoint: .topLeading, endPoint: .bottomTrailing)))
                     .frame(width: 60, height: 60)
                 
                 // Shine effect
@@ -619,10 +620,10 @@ struct ModelCard: View {
                 // Icon
                 Image(systemName: model.icon)
                     .font(.system(size: 28))
-                    .foregroundColor(isSelected ? .white : Color(hex: "845CEF"))
+                    .foregroundColor(isSelected ? .white : Color("845CEF"))
                     
             }
-            .shadow(color: isSelected ? Color(hex: "845CEF").opacity(0.5) : Color.black.opacity(0.05), 
+            .shadow(color: isSelected ? Color("845CEF").opacity(0.5) : Color.black.opacity(0.05), 
                     radius: isSelected ? 10 : 5, x: 0, y: isSelected ? 5 : 2)
             
             // Model info
@@ -630,16 +631,16 @@ struct ModelCard: View {
                 HStack {
                     Text(model.name)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
+                        .foregroundColor(colorScheme == .dark ? .white : Color("333333"))
                     
                     Text("by \(model.provider)")
                         .font(.system(size: 14))
-                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : Color(hex: "999999"))
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : Color("999999"))
                 }
                 
                 Text(model.description)
                     .font(.system(size: 14))
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color(hex: "666666"))
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color("666666"))
                     .lineLimit(1)
             }
             
@@ -648,12 +649,12 @@ struct ModelCard: View {
             // Selection indicator
             ZStack {
                 Circle()
-                    .stroke(isSelected ? Color(hex: "845CEF") : (colorScheme == .dark ? Color.white.opacity(0.3) : Color(hex: "dddddd")), lineWidth: 2)
+                    .stroke(isSelected ? Color("845CEF") : (colorScheme == .dark ? Color.white.opacity(0.3) : Color("dddddd")), lineWidth: 2)
                     .frame(width: 26, height: 26)
                 
                 if isSelected {
                     Circle()
-                        .fill(Color(hex: "845CEF"))
+                        .fill(Color("845CEF"))
                         .frame(width: 18, height: 18)
                 }
             }
@@ -709,15 +710,15 @@ struct AppOverviewStepView: View {
                 // Background with subtle animation
                 RoundedRectangle(cornerRadius: 24)
                     .fill(colorScheme == .dark ? 
-                          Color(hex: "25222F").opacity(0.7) : 
-                          Color(hex: "f0f2f5").opacity(0.7))
+                          Color("25222F").opacity(0.7) : 
+                          Color("f0f2f5").opacity(0.7))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24)
                             .fill(
                                 LinearGradient(
                                     gradient: Gradient(colors: [
-                                        Color(hex: "845CEF").opacity(0.1),
-                                        Color(hex: "7E45E3").opacity(0.05)
+                                        Color("845CEF").opacity(0.1),
+                                        Color("7E45E3").opacity(0.05)
                                     ]),
                                     startPoint: animateFlow ? .topLeading : .bottomTrailing,
                                     endPoint: animateFlow ? .bottomTrailing : .topLeading
@@ -729,8 +730,8 @@ struct AppOverviewStepView: View {
                             .strokeBorder(
                                 LinearGradient(
                                     gradient: Gradient(colors: [
-                                        Color(hex: "845CEF").opacity(0.5),
-                                        Color(hex: "7E45E3").opacity(0.1)
+                                        Color("845CEF").opacity(0.5),
+                                        Color("7E45E3").opacity(0.1)
                                     ]),
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -757,7 +758,7 @@ struct AppOverviewStepView: View {
                 // Section title
                 Text("Key Features")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
+                    .foregroundColor(colorScheme == .dark ? .white : Color("333333"))
                     .padding(.leading, 15)
                     .padding(.bottom, 5)
                     .opacity(showAnimation ? 1 : 0)
@@ -864,31 +865,37 @@ struct FeaturePoint: View {
     let colorScheme: ColorScheme
     @State private var hovered: Bool = false
     
+    private var activeGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [Color("845CEF"), Color("7E45E3")]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
+    private var inactiveGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                colorScheme == .dark ? Color("2A2A2A").opacity(0.5) : Color("f0f2f5").opacity(0.7),
+                colorScheme == .dark ? Color("2A2A2A").opacity(0.5) : Color("f0f2f5").opacity(0.7)
+            ]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
     var body: some View {
         HStack(spacing: 15) {
             // Icon with animated background
             ZStack {
                 Circle()
-                    .fill(isActive ?
-                         LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                         ) :
-                         LinearGradient(
-                            gradient: Gradient(colors: [
-                                colorScheme == .dark ? Color(hex: "2A2A2A").opacity(0.5) : Color(hex: "f0f2f5").opacity(0.7),
-                                colorScheme == .dark ? Color(hex: "2A2A2A").opacity(0.5) : Color(hex: "f0f2f5").opacity(0.7)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                         ))
+                    .fill(isActive ? activeGradient : inactiveGradient)
                     .frame(width: 46, height: 46)
-                    .shadow(color: isActive ? Color(hex: "845CEF").opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
+                    .shadow(color: isActive ? Color("845CEF").opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
                 
                 Image(systemName: icon)
                     .font(.system(size: 24))
-                    .foregroundColor(isActive ? .white : (colorScheme == .dark ? Color.white.opacity(0.5) : Color(hex: "999999")))
+                    .foregroundColor(isActive ? .white : (colorScheme == .dark ? Color.white.opacity(0.5) : Color("999999")))
 //                    .symbolEffect(isActive ? .bounce.down : .none)
             }
 
@@ -896,12 +903,12 @@ struct FeaturePoint: View {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(isActive ? 
-                                    (colorScheme == .dark ? .white : Color(hex: "333333")) : 
-                                    (colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "666666")))
+                                    (colorScheme == .dark ? .white : Color("333333")) : 
+                                    (colorScheme == .dark ? .white.opacity(0.7) : Color("666666")))
                 
                 Text(description)
                     .font(.system(size: 14))
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : Color(hex: "666666"))
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : Color("666666"))
                     .opacity(isActive ? 1 : 0.7)
             }
         }
@@ -910,7 +917,7 @@ struct FeaturePoint: View {
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(isActive ? 
-                     (colorScheme == .dark ? Color(hex: "845CEF").opacity(0.15) : Color(hex: "845CEF").opacity(0.08)) : 
+                     (colorScheme == .dark ? Color("845CEF").opacity(0.15) : Color("845CEF").opacity(0.08)) : 
                      (hovered ? (colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.02)) : Color.clear))
         )
         .scaleEffect(hovered && !isActive ? 1.01 : 1)
@@ -976,7 +983,7 @@ struct DemoStep1View: View {
         ZStack {
             // Background app window mockup
             RoundedRectangle(cornerRadius: 10)
-                .fill(colorScheme == .dark ? Color(hex: "1E1E1E").opacity(0.7) : Color.white.opacity(0.8))
+                .fill(colorScheme == .dark ? Color("1E1E1E").opacity(0.7) : Color.white.opacity(0.8))
                 .overlay(
                     VStack(alignment: .leading, spacing: 10) {
                         // Window toolbar
@@ -1014,14 +1021,14 @@ struct DemoStep1View: View {
                                     .padding(.horizontal, 4)
                                     .background(
                                         isTextSelected ? 
-                                            Color(hex: "845CEF").opacity(0.3) : 
+                                            Color("845CEF").opacity(0.3) : 
                                             Color.clear
                                     )
                                     .cornerRadius(3)
                                 
                                 if cursorAnimation && !isTextSelected {
                                     Rectangle()
-                                        .fill(Color(hex: "845CEF"))
+                                        .fill(Color("845CEF"))
                                         .frame(width: 2, height: 16)
                                         .opacity(cursorAnimation ? 1 : 0)
                                 }
@@ -1072,7 +1079,7 @@ struct DemoStep1View: View {
                             
                             Text("⌘")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
+                                .foregroundColor(colorScheme == .dark ? .white : Color("333333"))
                         }
                         .frame(width: 36, height: 36)
                         
@@ -1098,7 +1105,7 @@ struct DemoStep1View: View {
                             
                             Text("Space")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
+                                .foregroundColor(colorScheme == .dark ? .white : Color("333333"))
                         }
                         .frame(width: 80, height: 36)
                     }
@@ -1140,7 +1147,7 @@ struct DemoStep2View: View {
         ZStack {
             // Background app window
             RoundedRectangle(cornerRadius: 10)
-                .fill(colorScheme == .dark ? Color(hex: "1E1E1E").opacity(0.5) : Color.white.opacity(0.5))
+                .fill(colorScheme == .dark ? Color("1E1E1E").opacity(0.5) : Color.white.opacity(0.5))
                 .frame(width: 280, height: 200)
                 .overlay(
                     VStack(alignment: .leading, spacing: 10) {
@@ -1167,7 +1174,7 @@ struct DemoStep2View: View {
                                 .foregroundColor(colorScheme == .dark ? .white : .black)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(Color(hex: "845CEF").opacity(0.3))
+                                .background(Color("845CEF").opacity(0.3))
                                 .cornerRadius(3)
                                 .opacity(0.5)
                             
@@ -1193,11 +1200,11 @@ struct DemoStep2View: View {
                     HStack {
                         Image(systemName: "wand.and.stars")
                             .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "845CEF"))
+                            .foregroundColor(Color("845CEF"))
                         
                         Text("Kerlig")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "333333"))
+                            .foregroundColor(colorScheme == .dark ? .white : Color("333333"))
                         
                         Spacer()
                     }
@@ -1214,10 +1221,10 @@ struct DemoStep2View: View {
                     // Text preview
                     Text("This text needs improvement")
                         .font(.system(size: 12))
-                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color(hex: "666666"))
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color("666666"))
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(colorScheme == .dark ? Color.black.opacity(0.2) : Color(hex: "f5f5f5").opacity(0.8))
+                        .background(colorScheme == .dark ? Color.black.opacity(0.2) : Color("f5f5f5").opacity(0.8))
                     
                     // Actions
                     VStack(spacing: 2) {
@@ -1225,11 +1232,11 @@ struct DemoStep2View: View {
                         HStack {
                             Image(systemName: "wand.and.stars")
                                 .font(.system(size: 14))
-                                .foregroundColor(selectedAction ? Color.white : Color(hex: "845CEF"))
+                                .foregroundColor(selectedAction ? Color.white : Color("845CEF"))
                             
                             Text("Improve Writing")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(selectedAction ? Color.white : (colorScheme == .dark ? .white : Color(hex: "333333")))
+                                .foregroundColor(selectedAction ? Color.white : (colorScheme == .dark ? .white : Color("333333")))
                             
                             Spacer()
                         }
@@ -1239,7 +1246,7 @@ struct DemoStep2View: View {
                             ZStack {
                                 if selectedAction {
                                     LinearGradient(
-                                        gradient: Gradient(colors: [Color(hex: "845CEF"), Color(hex: "7E45E3")]),
+                                        gradient: Gradient(colors: [Color("845CEF"), Color("7E45E3")]),
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
@@ -1259,11 +1266,11 @@ struct DemoStep2View: View {
                         HStack {
                             Image(systemName: "rectangle.and.pencil.and.ellipsis")
                                 .font(.system(size: 14))
-                                .foregroundColor(colorScheme == .dark ? Color.white.opacity(0.5) : Color(hex: "999999"))
+                                .foregroundColor(colorScheme == .dark ? Color.white.opacity(0.5) : Color("999999"))
                             
                             Text("Rewrite Completely")
                                 .font(.system(size: 14))
-                                .foregroundColor(colorScheme == .dark ? Color.white.opacity(0.5) : Color(hex: "666666"))
+                                .foregroundColor(colorScheme == .dark ? Color.white.opacity(0.5) : Color("666666"))
                             
                             Spacer()
                         }

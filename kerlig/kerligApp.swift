@@ -67,10 +67,6 @@ struct kerligApp: App {
 
         Divider()
 
-        Button("Show Port Monitor") {
-          showPortMonitorWindow()
-        }
-        .keyboardShortcut("p", modifiers: [.option, .command])
         
         Button("Show Main Window") {
           backgroundAppManager.showMainWindow()
@@ -127,10 +123,6 @@ struct kerligApp: App {
     }
   }
 
-  // Function to show the port monitor window
-  private func showPortMonitorWindow() {
-    PortMonitorWindow.open()
-  }
   
   // MARK: - Background Mode Management
   

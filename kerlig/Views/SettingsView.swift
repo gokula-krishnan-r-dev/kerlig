@@ -132,37 +132,6 @@ struct NotificationSettingsView: View {
                 .font(.title2)
                 .fontWeight(.bold)
             
-            // Task timer notification settings
-            GroupBox(label: Text("Task Timer Notifications").font(.headline)) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Enable task timer notifications", isOn: $appState.taskTimerEnabled)
-                        .onChange(of: appState.taskTimerEnabled) { _ in
-                            appState.saveTaskTimerSettings()
-                        }
-                    
-                    Toggle("Show completion notification", isOn: $appState.showTaskCompletionNotification)
-                        .onChange(of: appState.showTaskCompletionNotification) { _ in
-                            appState.saveTaskTimerSettings()
-                        }
-                    
-                    HStack {
-                        Text("Default task duration:")
-                        Slider(value: $appState.defaultTaskDuration, in: 1...60, step: 1) { _ in
-                            appState.saveTaskTimerSettings()
-                        }
-                        Text("\(Int(appState.defaultTaskDuration)) min")
-                            .frame(width: 60, alignment: .trailing)
-                    }
-                    
-                    Button("Test Notification") {
-                        let message = "Test notification — This is how your task timer notifications will appear."
-                        TickSoundService.shared.showNotificationWithMessage(message: message)
-                    }
-                    .padding(.top, 8)
-                }
-                .padding(.vertical, 8)
-            }
-            .padding(.bottom, 16)
         }
     }
 }
